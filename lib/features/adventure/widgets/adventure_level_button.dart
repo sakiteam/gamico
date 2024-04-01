@@ -1,0 +1,121 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/enums/game_type.dart';
+import 'package:gamico/commons/services/animation.dart';
+import 'package:gamico/commons/services/navigation.dart';
+import 'package:gamico/commons/cubits/user/user_cubit.dart';
+import 'package:gamico/commons/utilities/game/game_utility.dart';
+import 'package:gamico/features/adventure/cubits/adventure_cubit.dart';
+
+/// Adventure level button.
+class AdventureLevelButton extends StatefulWidget {
+  final int level;
+
+  final Widget Function(
+    BuildContext context,
+    bool active,
+    bool locked,
+    int stars,
+    void Function() pushGamePage,
+  ) builder;
+
+  /// Adventure level button.
+  const AdventureLevelButton({
+    super.key,
+    required this.level,
+    required this.builder,
+  });
+
+  /// State creation.
+  @override
+  State<AdventureLevelButton> createState() => _AdventureLevelButtonState();
+}
+
+/// State implementation.
+class _AdventureLevelButtonState extends State<AdventureLevelButton> {
+  /// Build.
+  @override
+  Widget build(BuildContext context) {
+    final adventureUtility = context.select(
+        (GamicoAdventureCubit adventureCubit) =>
+            adventureCubit.state.adventureUtility);
+
+    // Retrieve the level of the current user
+    final userLevel = context.select((GamicoUserCubit userCubit) =>
+        adventureUtility.getUserLevel(userCubit.state.user));
+
+    // Retrieve the stars of the current user
+    final stars = context.select((GamicoUserCubit userCubit) =>
+        adventureUtility.getUserStars(userCubit.state.user));
+
+    // Retrieve the stars of the current level
+    final currentLevelStars = stars.elementAtOrNull(widget.level) ?? 0;
+
+    // Holds whether this level is locked or not
+    final locked = userLevel < widget.level;
+
+    // Holds whether this level is active or not
+    final active = userLevel == widget.level;
+
+    // Return concrete widget
+    return widget.builder(
+      context,
+      active,
+      locked,
+      currentLevelStars,
+      _onPressed,
+    );
+  }
+
+  /// Callback for when the current back button is pressed.
+  void _onPressed() async {
+    final adventureUtility =
+        context.read<GamicoAdventureCubit>().state.adventureUtility;
+
+    // Reference to the user data
+    final user = context.read<GamicoUserCubit>().state.user;
+
+    // Current user level
+    final userLevel = adventureUtility.getUserLevel(user);
+
+    // Check whether the user has enough coins to play or not
+    if (adventureUtility.isUserBroke(user) && widget.level == userLevel) {
+      // Show unsufficient coins popup
+      NavigationService.showCowriesPopup(
+        context,
+        Gamico.instance.gameSettings.playMinimumCowries,
+        GameType.adventure,
+      );
+    } else {
+      // Notify ancestors that this widget has been pressed
+      final adventureCubit = context.read<GamicoAdventureCubit>();
+
+      // Enable push when page is enabled
+      if (adventureCubit.state.enabled) {
+        // Toggle transition utilities
+        adventureCubit.setAnimGame(true);
+        adventureCubit.setAnimated(true);
+
+        // Push game page
+        NavigationService.pushPageWithAnimation(
+          context,
+          Gamico.instance.pagesSettings.gamePage(
+            context,
+            GameUtility(
+              level: widget.level,
+              onBackButtonPressed: () async {
+                adventureCubit.setAnimGame(false);
+
+                await Future.delayed(AnimationService.animationDuration);
+
+                adventureCubit.setAnimated(false);
+              },
+              gameType: GameType.adventure,
+            ),
+          ),
+        );
+      }
+    }
+  }
+}

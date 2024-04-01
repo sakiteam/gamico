@@ -1,0 +1,332 @@
+import 'dart:math';
+import 'dart:async';
+import 'dart:convert';
+import 'package:bloc/bloc.dart';
+import 'package:flutter/foundation.dart';
+import 'package:gamico/commons/services/layout.dart';
+import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/commons/global/gamico.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:gamico/commons/cubits/user/user_cubit.dart';
+import 'package:gamico/commons/models/gamico_game_model.dart';
+import 'package:gamico/commons/repositories/gamico_games_repository.dart';
+
+part 'remote_state.dart';
+
+/// Cubit for managing the remote game mode.
+class RemoteCubit extends Cubit<RemoteState> {
+  /// Cubit for managing the remote game mode.
+  RemoteCubit({
+    required this.userCubit,
+    required this.gamesRepository,
+  }) : super(const RemoteState());
+
+  /// Reference to the games repository.
+  final GamicoGamesRepository gamesRepository;
+
+  final GamicoUserCubit userCubit;
+
+  bool? creator;
+  String gameId = "";
+  StreamSubscription<DatabaseEvent>? _streamSubscription;
+  OnDisconnect? _userDisconnectionReference;
+  String createdGameStatus = "";
+
+  void init() {
+    launch();
+    setAnimInit(true);
+  }
+
+  void setAnimInit(bool animInit) {
+    emit(state.copyWith(
+      animInit: animInit,
+    ));
+  }
+
+  void setAnimGame(bool animGame) {
+    emit(state.copyWith(
+      animGame: animGame,
+    ));
+  }
+
+  void setAnimated(bool animated) {
+    emit(state.copyWith(
+      animated: animated,
+    ));
+  }
+
+  /// Set whether the game has already been started or not
+  void setFinalized(bool finalized) {
+    emit(state.copyWith(
+      finalized: finalized,
+    ));
+  }
+
+  void setInternetError(bool internetError) {
+    emit(state.copyWith(
+      internetError: internetError,
+    ));
+  }
+
+  void launch() {
+    try {
+      _init();
+    } catch (e) {
+      emit(state.copyWith(
+        status: RemoteGameStatus.failure,
+        creator: null,
+      ));
+    }
+  }
+
+  void reset() {
+    abortGame();
+
+    gameId = "";
+    _streamSubscription?.cancel();
+
+    emit(state.copyWith(
+      status: RemoteGameStatus.initial,
+      creator: null,
+      gameId: "",
+      animGame: false,
+      finalized: false,
+      fakeOpponent: false,
+      // animInit: false,
+    ));
+
+    launch();
+  }
+
+  void _init() async {
+    if (isClosed) return;
+
+    emit(state.copyWith(
+      status: RemoteGameStatus.loading,
+      creator: null,
+      finalized: false,
+      fakeOpponent: false,
+    ));
+
+    final ref = FirebaseDatabase.instance.ref();
+
+    final matchmakingSettings = Gamico.instance.matchmakingSettings!;
+
+    int matchmakingLevel =
+        matchmakingSettings.getMatchmakingLevel(userCubit.state.user!);
+
+    final int minOpponentLevel;
+    final int maxOpponentLevel;
+
+    if (DateTime.now().year < 2025) {
+      minOpponentLevel = matchmakingSettings.minLevel;
+      maxOpponentLevel = matchmakingSettings.maxLevel;
+    } else {
+      minOpponentLevel = max(matchmakingSettings.minLevel,
+          matchmakingLevel - matchmakingSettings.increment);
+      maxOpponentLevel = min(matchmakingSettings.maxLevel,
+          matchmakingLevel + matchmakingSettings.increment);
+    }
+
+    final maxLevelLength = matchmakingSettings.maxLevel.toString().length;
+
+    String formatLevel(int level) {
+      return level.toString().padLeft(maxLevelLength, "0");
+    }
+
+    // bool currentPlayerIsCreator;
+    // DataSnapshot snapshot;
+
+    final snapshot = await ref
+        .child("games")
+        .orderByChild("status")
+        .startAt("PENDING ${formatLevel(minOpponentLevel)}")
+        .endAt("PENDING ${formatLevel(maxOpponentLevel)}")
+        .limitToFirst(1)
+        .get();
+
+    // snapshot = await ref
+    //     .child("games")
+    //     .orderByChild("status")
+    //     .equalTo("PENDING")
+    //     .limitToFirst(1)
+    //     .get();
+
+    creator = !snapshot.exists;
+
+    if (creator == true) {
+      DateTime now = DateTime.now();
+
+      // Generate a new child location
+      String playerKey = ref.push().key ?? "";
+
+      gameId = await gamesRepository.createGame(GamicoGameModel(
+        events: const {},
+        players: {
+          playerKey: GamicoGamePlayerModel(
+            status: "ACCEPTED",
+            userId: UserService.uid,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        },
+        status: "PENDING ${formatLevel(matchmakingLevel)}",
+      ));
+
+      // Notify Irié Bi Irié Alex
+      // _sendUserNotification(
+      //   "-N99UonKL3fJdKmGQLQl",
+      //   "Nouveau jeu !",
+      // "Une partie en ligne a été lancée par $playerName. Voulez-vous le rejoindre ?"
+      //   Languages.of(context)
+      //       .notificationsNewGameDescription(LocalStorageService.displayName),
+      //   null,
+      // );
+
+      _userDisconnectionReference =
+          FirebaseDatabase.instance.ref("games").child(gameId).onDisconnect();
+      await _userDisconnectionReference?.update({
+        "status": "ABORTED",
+      });
+
+      // await gamesRepository.addGamePlayer(
+      //   gameId,
+      //   GamePlayerModel(
+      //     status: "ACCEPTED",
+      //     userId: UserService.uid,
+      //   ),
+      // );
+
+      createdGameStatus = "PENDING";
+
+      _streamSubscription?.cancel();
+      _streamSubscription = FirebaseDatabase.instance
+          .ref("games/$gameId/status")
+          .onValue
+          .listen((event) {
+        final status = event.snapshot.value.toString();
+
+        createdGameStatus = status;
+
+        if (status == "STARTED") {
+          launchGame();
+          _streamSubscription?.cancel();
+        }
+      });
+
+      if (!Gamico.instance.gameSettings.isDeveloper && !appScreenshots) {
+        _manageFakeGame();
+      }
+    } else if (creator == false) {
+      final data = jsonDecode(jsonEncode(snapshot.value)) as Map;
+
+      gameId = data.keys.first ?? "";
+
+      DatabaseReference gameRef =
+          FirebaseDatabase.instance.ref().child("games/$gameId");
+
+      bool firstRun = true;
+      final result = await gameRef.runTransaction((Object? game) {
+        if (firstRun) {
+          firstRun = false;
+          return Transaction.success(null);
+        }
+
+        if (game == null) {
+          return Transaction.abort();
+        }
+
+        Map<String, dynamic> currentGame =
+            Map<String, dynamic>.from(game as Map);
+
+        if (!currentGame["status"].toString().contains("PENDING")) {
+          return Transaction.abort();
+        }
+
+        // Generate a new child location
+        DatabaseReference playerRef = gameRef.push();
+
+        DateTime now = DateTime.now();
+
+        currentGame["status"] = "STARTED";
+        currentGame["players"]?[playerRef.key] = <String, dynamic>{
+          "created_at": now.toString(),
+          "updated_at": now.toString(),
+          "status": "ACCEPTED",
+          "user_id": UserService.uid,
+        };
+
+        return Transaction.success(currentGame);
+      }, applyLocally: false);
+
+      if (result.committed == false) {
+        _init();
+      } else {
+        launchGame();
+      }
+    }
+  }
+
+  void _manageFakeGame() async {
+    await Future.delayed(5.seconds);
+
+    if (state.status == RemoteGameStatus.success) return;
+
+    if (isClosed || !createdGameStatus.contains("PENDING")) return;
+
+    if (state.status != RemoteGameStatus.success &&
+        createdGameStatus.contains("PENDING")) {
+      emit(state.copyWith(
+        fakeOpponent: true,
+      ));
+
+      final DateTime now = DateTime.now();
+
+      if (isClosed || !createdGameStatus.contains("PENDING")) return;
+
+      await gamesRepository.addGamePlayer(
+        gameId,
+        GamicoGamePlayerModel(
+          createdAt: now,
+          updatedAt: now,
+          status: "ACCEPTED",
+          userId: UserService.uid,
+        ),
+      );
+
+      if (isClosed || !createdGameStatus.contains("PENDING")) return;
+
+      await gamesRepository.updateGameStatus(gameId, "STARTED");
+    }
+  }
+
+  void launchGame() {
+    if (isClosed) return;
+
+    emit(state.copyWith(
+      status: RemoteGameStatus.success,
+      creator: () => creator,
+      gameId: gameId,
+    ));
+  }
+
+  void abortGame() {
+    _userDisconnectionReference?.cancel();
+    _userDisconnectionReference = null;
+
+    if (gameId.isNotEmpty) {
+      createdGameStatus = "ABORTED";
+      gamesRepository.updateGameStatus(gameId, "ABORTED");
+    }
+  }
+
+  @override
+  Future<void> close() {
+    _streamSubscription?.cancel();
+
+    abortGame();
+
+    return super.close();
+  }
+}

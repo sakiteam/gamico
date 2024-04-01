@@ -1,0 +1,349 @@
+import 'dart:io';
+import 'package:awesome_notifications/awesome_notifications.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:gamico/commons/cubits/admob/admob_cubit.dart';
+import 'package:gamico/commons/cubits/authentication/authentication_cubit.dart';
+import 'package:gamico/commons/cubits/character/character_cubit.dart';
+import 'package:gamico/commons/cubits/gratification/gratification_cubit.dart';
+import 'package:gamico/commons/cubits/internet/internet_cubit.dart';
+import 'package:gamico/commons/cubits/locale/locale_cubit.dart';
+import 'package:gamico/commons/cubits/music/music_cubit.dart';
+import 'package:gamico/commons/cubits/purchases/purchases_cubit.dart';
+import 'package:gamico/commons/cubits/referral/referral_cubit.dart';
+import 'package:gamico/commons/cubits/showcase/showcase_cubit.dart';
+import 'package:gamico/commons/cubits/user/user_cubit.dart';
+import 'package:gamico/commons/enums/game_type.dart';
+import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/providers/gamico_games_provider.dart';
+import 'package:gamico/commons/providers/gamico_purchases_provider.dart';
+import 'package:gamico/commons/repositories/gamico_games_repository.dart';
+import 'package:gamico/commons/repositories/gamico_purchases_repository.dart';
+import 'package:gamico/commons/services/color.dart';
+import 'package:gamico/commons/services/game.dart';
+import 'package:gamico/commons/services/gif.dart';
+import 'package:gamico/commons/services/locale.dart';
+import 'package:gamico/commons/services/time_zone.dart';
+import 'package:gamico/commons/services/version.dart';
+import 'package:gamico/commons/utilities/game/game_utility.dart';
+import 'package:gamico/commons/generics/content_wrapper.dart';
+import 'package:gamico/commons/generics/material_app_wrapper.dart';
+import 'package:gamico/languages/languages.dart';
+import 'package:gamico/languages/localizations.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+class GamicoApp extends StatefulWidget {
+  final List<Widget>? decorations;
+  final Widget? background;
+
+  final String? fontFamily;
+  final Color? textColor;
+
+  final Widget Function(BuildContext context, Widget child)? builder;
+  final Iterable<LocalizationsDelegate<dynamic>>? localizationsDelegates;
+
+  const GamicoApp({
+    super.key,
+    this.decorations,
+    this.background,
+    this.builder,
+    this.localizationsDelegates,
+    this.textColor,
+    this.fontFamily,
+  });
+
+  @override
+  State<GamicoApp> createState() => _GamicoAppState();
+}
+
+class _GamicoAppState extends State<GamicoApp> {
+  ValueNotifier<bool> loadingNotifier = ValueNotifier(true);
+  LocaleCubit localeCubit = LocaleCubit();
+
+  void _load() async {
+    loadingNotifier.value = true;
+
+    // Initilize plugins for the proper functioning of the app
+    try {
+      // Handle message processings
+      FirebaseMessaging.onMessage.listen(foregroundNotificationHandler);
+      FirebaseMessaging.onBackgroundMessage(backgroundNotificationHandler);
+
+      await Future.wait([
+        VersionService.init(),
+        TimeZoneService.initTimeZone(),
+      ]);
+
+      // GlobalService.dynamicLink =
+      //     await FirebaseDynamicLinks.instance.getInitialLink();
+    } catch (e) {
+      debugPrint(e.toString());
+    }
+
+    try {
+      await AwesomeNotifications().initialize(
+        // 'resource://drawable/res_app_icon',
+        "resource://drawable/ic_stat_${Gamico.instance.title.toLowerCase()}",
+        // null,
+        [
+          NotificationChannel(
+            // channelGroupKey: "",
+            channelKey: "default",
+            channelName: "default",
+            channelDescription: "default",
+            // defaultColor: ColorService.primaryColor,
+            // ledColor: Colors.white,
+            enableVibration: true,
+            channelShowBadge: true,
+            importance: NotificationImportance.Max,
+          )
+        ],
+        // Channel groups are only visual and are not required
+        // channelGroups: [
+        //   NotificationChannelGroup(
+        //       channelGroupkey: 'basic_channel_group',
+        //       channelGroupName: 'Basic group')
+        // ],
+        debug: kDebugMode,
+      );
+    } catch (e) {
+      debugPrint(e.toString());
+    }
+
+    // Package info
+    PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    VersionService.versionString = packageInfo.version;
+
+    loadingNotifier.value = false;
+  }
+
+  /// Init state.
+  @override
+  void initState() {
+    super.initState();
+
+    _load();
+
+    if (LocaleService.language.isNotEmpty) {
+      localeCubit.setLocale(Locale(LocaleService.language));
+    } else {
+      final defaultLanguageCode = Platform.localeName.substring(0, 2);
+      Locale defaultLocale = Locale(defaultLanguageCode);
+
+      if (!GamicoLanguages.languageCodes.contains(defaultLanguageCode)) {
+        defaultLocale = GamicoLanguages.fallbackLocale;
+      }
+
+      localeCubit.setLocale(defaultLocale);
+    }
+  }
+
+  /// Build.
+  @override
+  Widget build(BuildContext context) {
+    // Disable landscape mode
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+
+    // Return concrete app content
+    return MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider.value(
+          value: Gamico.instance.usersRepository,
+          // create: (context) => UsersRepository(
+          //   usersProvider: UsersProvider(),
+          // ),
+        ),
+        RepositoryProvider(
+          create: (context) => GamicoGamesRepository(
+            gamesProvider: GamicoGamesProvider(),
+          ),
+        ),
+        RepositoryProvider(
+          create: (context) => GamicoPurchasesRepository(
+            purchasesProvider: GamicoPurchasesProvider(),
+          ),
+        ),
+      ],
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider(
+            lazy: false,
+            create: (context) => GamicoUserCubit(
+              usersRepository: Gamico.instance.usersRepository,
+              // fromJson: Gamico.instance.userFromJson,
+              // toJson: Gamico.instance.userToJson,
+            ),
+          ),
+          // BlocProvider(
+          //   lazy: false,
+          //   create: (context) => UserCubit(
+          //     usersRepository: context.read<UsersRepository>(),
+          //     fromJson: gamico.userFromJson,
+          //     toJson: gamico.userToJson,
+          //   ),
+          // ),
+          BlocProvider(
+            lazy: false,
+            create: (context) => GamicoMusicCubit(),
+          ),
+          BlocProvider(
+            lazy: false,
+            create: (context) => AuthenticationCubit(
+              userCubit: context.read<GamicoUserCubit>(),
+              usersRepository: Gamico.instance.usersRepository,
+            ),
+          ),
+          BlocProvider(
+            lazy: false,
+            create: (context) => InternetCubit(),
+          ),
+          BlocProvider(
+            lazy: false,
+            create: (context) => AdmobCubit(),
+          ),
+          BlocProvider(
+            lazy: false,
+            create: (context) => ShowcaseCubit(),
+          ),
+          BlocProvider(
+            lazy: false,
+            create: (context) => PurchasesCubit(
+              userCubit: context.read<GamicoUserCubit>(),
+              purchasesRepository: context.read<GamicoPurchasesRepository>(),
+            ),
+          ),
+          BlocProvider(
+            lazy: false,
+            create: (context) => ReferralCubit(
+                // authenticationCubit: context.read<AuthenticationCubit>(),
+                // internetCubit: context.read<InternetCubit>(),
+                ),
+          ),
+          BlocProvider(
+            lazy: false,
+            create: (context) => CharacterCubit(),
+          ),
+          BlocProvider(
+            lazy: false,
+            create: (context) => GratificationCubit(
+              userCubit: context.read<GamicoUserCubit>(),
+              internetCubit: context.read<InternetCubit>(),
+            ),
+          ),
+          BlocProvider.value(
+            value: localeCubit,
+            // create: (context) => localeCubit,
+          ),
+        ],
+        child: BlocBuilder<LocaleCubit, LocaleState>(
+          builder: (context, localeState) {
+            return GamicoMaterialAppWrapper(
+              child: MaterialApp(
+                home: ValueListenableBuilder(
+                  valueListenable: loadingNotifier,
+                  builder: (context, loading, child) {
+                    if (loading) {
+                      return Gamico.instance.pagesSettings.loadingPage(context);
+                    }
+
+                    if (GameService.tutorialPassed) {
+                      return Gamico.instance.pagesSettings.homePage(context);
+                    }
+
+                    return Gamico.instance.pagesSettings.gamePage(
+                      context,
+                      GameUtility(
+                        tutorialLessonIndex: 0,
+                        onBackButtonPressed: null,
+                        gameType: GameType.tutorial,
+                      ),
+                    );
+                  },
+                ),
+                title: Gamico.instance.title,
+                supportedLocales: GamicoLanguages.locales,
+                builder: (context, child) {
+                  GamicoLanguages.instance = GamicoLanguages.of(context);
+
+                  final finalContent = GamicoContentWrapper(
+                    decorations: widget.decorations,
+                    background: widget.background,
+                    child: child,
+                  );
+
+                  return widget.builder?.call(context, finalContent) ??
+                      finalContent;
+                },
+                locale: localeState.locale,
+                localizationsDelegates: [
+                  const GamicoLocalizationsDelegate(),
+                  ...GlobalMaterialLocalizations.delegates,
+                  ...(widget.localizationsDelegates ?? []),
+                ],
+                localeResolutionCallback: (locale, supportedLocales) {
+                  for (final supportedLocale in supportedLocales) {
+                    if (supportedLocale.languageCode == locale?.languageCode) {
+                      return supportedLocale;
+                    }
+                  }
+
+                  return GamicoLanguages.fallbackLocale;
+                },
+                theme: ThemeData(
+                  colorScheme: ColorScheme.fromSeed(
+                      seedColor: ColorService.primaryColor),
+                  fontFamily: widget.fontFamily,
+                  textTheme: TextTheme(
+                    bodyMedium: TextStyle(
+                      fontSize: 14 * 450 / 400,
+                      height: 1,
+                      color: widget.textColor,
+                    ),
+                  ),
+                  dividerTheme: const DividerThemeData(
+                    space: 0,
+                    thickness: 1,
+                    color: Colors.black,
+                  ),
+                  dividerColor: Colors.black,
+                ),
+                debugShowCheckedModeBanner: false,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Did changed dependencies.
+  @override
+  void didChangeDependencies() {
+    // Precache asset images
+    for (final image in (Gamico.instance.cacheSettings?.images ?? <String>[])) {
+      final imageProvider = AssetImage(image);
+
+      precacheImage(imageProvider, context);
+
+      if (image.endsWith("gif")) {
+        GifService.precacheImage(imageProvider);
+      }
+    }
+
+    // Call inherited method
+    super.didChangeDependencies();
+  }
+}
+
+// Manage notification that comes from background
+Future<void> backgroundNotificationHandler(RemoteMessage remoteMessage) async {}
+
+// Manage notification that comes from foreground
+Future<void> foregroundNotificationHandler(RemoteMessage remoteMessage) async {}

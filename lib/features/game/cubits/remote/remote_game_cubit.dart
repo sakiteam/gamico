@@ -1,0 +1,477 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:bloc/bloc.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/models/gamico_game_model.dart';
+import 'package:gamico/commons/repositories/gamico_games_repository.dart';
+import 'package:gamico/commons/services/global.dart';
+import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/features/game/cubits/game_cubit.dart';
+import 'package:meta/meta.dart';
+
+part 'remote_game_state.dart';
+
+class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
+  GamicoRemoteGameCubit({
+    required this.gameId,
+    required bool creator,
+    required this.gamesRepository,
+    required this.gameCubit,
+    required bool fakeOpponent,
+  }) : super(GamicoRemoteGameState(
+          creator: creator,
+          fakeOpponent: fakeOpponent,
+        ));
+
+  final GamicoGameCubit gameCubit;
+
+  // Usual repository
+  final GamicoGamesRepository gamesRepository;
+
+  // Remote game stream subscriptions
+  StreamSubscription? newGameStreamSubscription;
+  StreamSubscription? opponentStreamSubscription;
+  StreamSubscription? gameEventsStreamSubscription;
+
+  // Remote game user disconnection manager
+  OnDisconnect? userDisconnectionReference;
+
+  // Remote game id
+  final String gameId;
+
+  // Remote game model
+  GamicoGameModel? currentGame;
+
+  // Remote requests managers
+  int replayRequests = 0;
+  int readinessRequests = 0;
+
+  // Remote game seeds
+  late final int seed1;
+  late final int seed2;
+
+  // Holds the id of a new hypothetical game
+  String newGameId = "";
+
+  void resetGameEndStatus() {
+    emit(state.copyWith(
+      gameEndStatus: "",
+    ));
+  }
+
+  void withdraw() {
+    gamesRepository.addGameEvent(
+      gameId,
+      GamicoGameEventModel(
+        type: "WITHDRAW",
+        userId: UserService.uid,
+      ),
+    );
+  }
+
+  void acceptInvitation() {
+    gamesRepository.addGameEvent(
+      gameId,
+      GamicoGameEventModel(
+        type: "ACCEPTATION",
+        userId: UserService.uid,
+      ),
+    );
+  }
+
+  void rejectInvitation() {
+    gamesRepository.addGameEvent(
+      gameId,
+      GamicoGameEventModel(
+        type: "REJECTION",
+        userId: UserService.uid,
+      ),
+    );
+  }
+
+  void replay() {
+    final opponent = state.opponent;
+
+    if (opponent == null) return;
+
+    if (opponent.online == false || state.fakeOpponent) {
+      emit(state.copyWith(
+        gameEndStatus: "REPLAY_IMPOSSIBLE",
+      ));
+    } else if (opponent.broke == true) {
+      gamesRepository.addGameEvent(
+        gameId,
+        GamicoGameEventModel(
+          type: "NEEDINESS",
+          userId: state.opponentId,
+        ),
+      );
+    } else {
+      gamesRepository.addGameEvent(
+        gameId,
+        GamicoGameEventModel(
+          type: "REPLAY",
+          userId: UserService.uid,
+        ),
+      );
+    }
+  }
+
+  void setRemoteGameInternetError(bool remoteGameInternetError) {
+    emit(state.copyWith(
+      remoteGameInternetError: remoteGameInternetError,
+    ));
+  }
+
+  void setNewRemoteGameActive(bool newRemoteGameActive) {
+    emit(state.copyWith(
+      newRemoteGameActive: newRemoteGameActive,
+    ));
+
+    declareCurrentUserExit();
+  }
+
+  void declareCurrentUserExit() {
+    if (state.fakeOpponent) return;
+
+    gamesRepository.addGameEvent(
+      gameId,
+      GamicoGameEventModel(
+        // data: <String, dynamic>{
+        //   "row": tile.row,
+        //   "col": tile.col,
+        // },
+        type: "EXIT",
+        userId: UserService.uid,
+      ),
+    );
+  }
+
+  Future<void> _launchNewGame() async {
+    emit(state.copyWith(
+      gameEndStatus: "INVITATION_ACCEPTATION",
+    ));
+
+    if (!state.creator) {
+      newGameId = await gamesRepository.createGame(GamicoGameModel(
+        events: const {},
+        players: currentGame?.players,
+        status: "CREATED",
+      ));
+
+      newGameStreamSubscription = FirebaseDatabase.instance
+          .ref()
+          .child("games/$newGameId/status")
+          .onValue
+          .listen((event) {
+        final status = event.snapshot.value.toString();
+
+        if (status == "STARTED") {
+          emit(state.copyWith(
+            newGameCreator: true,
+            newGameId: newGameId,
+            replay: true,
+          ));
+        }
+      });
+
+      gamesRepository.addGameEvent(
+        gameId,
+        GamicoGameEventModel(
+          data: <String, dynamic>{
+            "id": newGameId,
+          },
+          type: "IDENTIFICATION",
+          userId: UserService.uid,
+        ),
+      );
+    }
+  }
+
+  void init() {
+    gameCubit.onInit = () async {
+      currentGame = await gamesRepository.readGame(gameId);
+
+      final playersIds =
+          (currentGame?.players?.values ?? <GamicoGamePlayerModel>[])
+              .map<String>((e) {
+        return e.userId.toString();
+      }).toList();
+
+      final developerId = Gamico.instance.gameSettings.developerId;
+
+      final opponentId = state.fakeOpponent
+          ? developerId
+          : (playersIds
+                  .where((element) => element != UserService.uid)
+                  .firstOrNull ??
+              developerId);
+
+      // Listen to opponent connectivity
+      opponentStreamSubscription = FirebaseDatabase.instance
+          .ref()
+          .child("users/$opponentId")
+          .onValue
+          .listen((event) {
+        if (event.snapshot.exists) {
+          final rawData = event.snapshot.value;
+          final validData = jsonDecode(jsonEncode(rawData));
+
+          var finalOpponent = Gamico.instance
+              .userFromJson(Map<String, dynamic>.from(validData));
+
+          if (state.fakeOpponent) {
+            final currentUser = gameCubit.userCubit.state.user!;
+
+            finalOpponent = Gamico.instance.userSettings
+                .userCreateFakeOpponent(currentUser, finalOpponent);
+          }
+
+          emit(state.copyWith(
+            opponent: () => finalOpponent,
+          ));
+
+          if (state.fakeOpponent) {
+            opponentStreamSubscription?.cancel();
+          } else {
+            if (gameCubit.state.over && !(state.opponent?.online ?? true)) {
+              gamesRepository.addGameEvent(
+                gameId,
+                GamicoGameEventModel(
+                  type: "DISCONNECTION",
+                  userId: state.opponentId,
+                ),
+              );
+            }
+          }
+        }
+      });
+
+      // Listen to game events
+      if (!state.fakeOpponent) {
+        gameEventsStreamSubscription = FirebaseDatabase.instance
+            .ref()
+            .child("games/$gameId/events")
+            .onChildAdded
+            .listen((event) async {
+          if (event.snapshot.exists) {
+            final rawData = event.snapshot.value;
+            final validData = jsonDecode(jsonEncode(rawData));
+            final currentGameEvent = GamicoGameEventModel.fromJson(validData);
+
+            if (currentGameEvent.type == "READINESS") {
+              readinessRequests++;
+
+              if (readinessRequests > 1) {
+                gameCubit.startGame();
+              }
+            } else if (currentGameEvent.type == "MOVE") {
+              if (currentGameEvent.userId != UserService.uid) {
+                gameCubit.settings
+                    ?.receiveMoveFromRemotePlayer(currentGameEvent.data ?? {});
+              }
+            } else if (currentGameEvent.type == "EXIT") {
+              if (currentGameEvent.userId != UserService.uid) {
+                _manageRemoteExit();
+              }
+            } else if (currentGameEvent.type == "ABANDONMENT") {
+              if (currentGameEvent.userId != UserService.uid) {
+                gameCubit.settings?.onRemoteUserGaveUp();
+                // endGame("B", "ABANDONMENT");
+              }
+            } else if (currentGameEvent.type == "DISCONNECTION") {
+              if (currentGameEvent.userId != UserService.uid) {
+                if (state.gameEndStatus == "INTERNAL_INVITATION") {
+                  emit(state.copyWith(
+                    gameEndStatus: "REPLAY_IMPOSSIBLE",
+                  ));
+                }
+              }
+            } else if (currentGameEvent.type == "NEEDINESS") {
+              if (currentGameEvent.userId == UserService.uid) {
+                emit(state.copyWith(
+                  gameEndStatus: "INTERNAL_NEEDINESS",
+                ));
+              } else {
+                emit(state.copyWith(
+                  gameEndStatus: "EXTERNAL_NEEDINESS",
+                ));
+              }
+            } else if (currentGameEvent.type == "REPLAY") {
+              replayRequests++;
+
+              if (replayRequests == 2) {
+                _launchNewGame();
+              } else {
+                if (currentGameEvent.userId == UserService.uid) {
+                  emit(state.copyWith(
+                    gameEndStatus: "INTERNAL_INVITATION",
+                  ));
+                } else {
+                  emit(state.copyWith(
+                    gameEndStatus: "EXTERNAL_INVITATION",
+                  ));
+                }
+              }
+            } else if (currentGameEvent.type == "WITHDRAW") {
+              replayRequests--;
+
+              if (currentGameEvent.userId == UserService.uid) {
+                emit(state.copyWith(
+                  gameEndStatus: "",
+                ));
+              } else {
+                emit(state.copyWith(
+                  gameEndStatus: "INVITATION_WITHDRAWAL",
+                ));
+              }
+            } else if (currentGameEvent.type == "ACCEPTATION") {
+              replayRequests++;
+
+              if (replayRequests == 1) {
+                emit(state.copyWith(
+                  gameEndStatus: "",
+                  opponentExited: true,
+                ));
+              } else if (replayRequests == 2) {
+                _launchNewGame();
+              }
+            } else if (currentGameEvent.type == "REJECTION") {
+              replayRequests = 0;
+
+              if (currentGameEvent.userId == UserService.uid) {
+                emit(state.copyWith(
+                  gameEndStatus: "",
+                ));
+              } else {
+                emit(state.copyWith(
+                  gameEndStatus: "INVITATION_REJECTION",
+                ));
+              }
+            } else if (currentGameEvent.type == "IDENTIFICATION") {
+              if (currentGameEvent.userId != UserService.uid) {
+                newGameId = currentGameEvent.data?["id"];
+
+                await gamesRepository.updateGameStatus(newGameId, "STARTED");
+
+                emit(state.copyWith(
+                  newGameCreator: false,
+                  newGameId: newGameId,
+                  replay: true,
+                ));
+              }
+            }
+          }
+        });
+      }
+
+      // Disconnection management
+      userDisconnectionReference = FirebaseDatabase.instance
+          .ref("users")
+          .child(UserService.uid)
+          .onDisconnect();
+
+      await userDisconnectionReference?.update({
+        "coins": ServerValue.increment(
+            -Gamico.instance.gameSettings.playMinimumCowries),
+        "defeats": ServerValue.increment(1),
+        "trophies": ServerValue.increment(-1),
+        "updated_at": DateTime.now().toString(),
+      });
+
+      // 10 is the number of fields
+      final seedModulo = Gamico.instance.gameSettings.seedModulo;
+
+      seed1 = (currentGame?.createdAt?.millisecond ?? 0) % seedModulo;
+      seed2 = (currentGame?.createdAt?.microsecond ?? 0) % seedModulo;
+
+      // Declare game as ready when really ready
+      await GamicoGlobalService.waitWhile(() => state.opponent == null);
+
+      gameCubit.settings?.initGame();
+
+      if (state.fakeOpponent) {
+        gameCubit.startGame();
+      } else {
+        gamesRepository.addGameEvent(
+          gameId,
+          GamicoGameEventModel(
+            type: "READINESS",
+            userId: UserService.uid,
+          ),
+        );
+      }
+    };
+
+    gameCubit.onExitGame = () {
+      if (!gameCubit.state.over) {
+        gameCubit.userCubit
+            .decrementCowries(Gamico.instance.gameSettings.playMinimumCowries);
+        gameCubit.userCubit.incrementDefeats();
+      }
+
+      declareCurrentUserExit();
+    };
+
+    gameCubit.onGiveUp = () {
+      if (state.fakeOpponent) return;
+
+      gamesRepository.addGameEvent(
+        gameId,
+        GamicoGameEventModel(
+          type: "ABANDONMENT",
+          userId: UserService.uid,
+        ),
+      );
+    };
+
+    gameCubit.onGameEnd = cleanUserDisconnectionReference;
+  }
+
+  void cleanUserDisconnectionReference() {
+    // Do not punish the player if he/her leaves the game after its end
+    userDisconnectionReference?.cancel();
+    userDisconnectionReference = null;
+  }
+
+  void _manageRemoteExit() {
+    emit(state.copyWith(
+      gameEndStatus: "",
+      opponentExited: true,
+    ));
+
+    if (gameCubit.state.over) {
+      replayRequests = 0;
+    } else {
+      gameCubit.settings
+          ?.onRemoteUserDisconnectedDuringGame(); // endGame("B", "EXIT")
+    }
+  }
+
+  void sendMoveToRemotePlayer(Map<String, dynamic> data) {
+    if (state.fakeOpponent) return;
+
+    gamesRepository.addGameEvent(
+      gameId,
+      GamicoGameEventModel(
+        data: data,
+        type: "MOVE",
+        userId: UserService.uid,
+      ),
+    );
+  }
+
+  @override
+  Future<void> close() {
+    // Cancel all usual streams
+    newGameStreamSubscription?.cancel();
+    opponentStreamSubscription?.cancel();
+    gameEventsStreamSubscription?.cancel();
+
+    cleanUserDisconnectionReference();
+
+    return super.close();
+  }
+}
