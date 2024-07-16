@@ -23,7 +23,7 @@ class RemoteImpossibleGamePoster extends StatelessWidget {
       animationTarget: animInit && !animGame ? 1 : 0,
       title: l.remoteImpossibleGamePosterTitle,
       description: l.remoteImpossibleGamePosterDescription(
-          Gamico.instance.gameSettings.playMinimumCowries),
+          Gamico.instance.gameSettings.playMinimumCoins),
       iconWidget: CoinsWidget(
         color: Colors.brown.shade700,
         size: 60,

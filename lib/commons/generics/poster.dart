@@ -22,12 +22,22 @@ class GamicoPoster extends StatelessWidget {
   final bool expandContent;
 
   final double animationTarget;
-  final EdgeInsets? padding;
 
   static const double titleFontSize = 22 * 450 / 400;
   static const double descriptionFontSize = 17 * 450 / 400;
   static Color iconColor = Colors.brown.shade700;
   static Color descriptionColor = Colors.brown.shade700;
+  static EdgeInsets defaultPadding = EdgeInsets.symmetric(
+    horizontal: LayoutService.optionButtonMargin,
+  );
+
+  final EdgeInsets? padding;
+  final EdgeInsets? iconPadding;
+  final EdgeInsets? titlePadding;
+  final EdgeInsets? descriptionPadding;
+  final EdgeInsets? contentPadding;
+
+  final Color? loaderColor;
 
   const GamicoPoster({
     super.key,
@@ -43,10 +53,17 @@ class GamicoPoster extends StatelessWidget {
     this.expandContent = false,
     this.animationTarget = 1,
     this.padding,
+    this.iconPadding,
+    this.titlePadding,
+    this.descriptionPadding,
+    this.contentPadding,
+    this.loaderColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final finalDefaultPadding = padding ?? defaultPadding;
+
     final defaultIconWidget = iconWidget ??
         (icon == null
             ? null
@@ -91,76 +108,92 @@ class GamicoPoster extends StatelessWidget {
     final Widget? finalContentWidget;
 
     if (loading) {
+      final loader = Center(
+          child: GamicoLoader(
+        color: loaderColor,
+      ));
+
       finalContentWidget = expandContent
-          ? const Expanded(
-              child: Center(child: GamicoLoader()),
+          ? Expanded(
+              child: loader,
             )
-          : const SizedBox(
+          : SizedBox(
               height: 100 * 450 / 400,
-              child: Center(
-                child: GamicoLoader(),
-              ),
+              child: loader,
             );
     } else {
+      final finalContentPadding = contentPadding ?? finalDefaultPadding;
+
       finalContentWidget = content == null
           ? null
           : expandContent
               ? Expanded(
-                  child: content!,
+                  child: Padding(
+                    padding: finalContentPadding,
+                    child: content!,
+                  ),
                 )
               : SizedBox(
                   height: 100 * 450 / 400,
                   child: Center(
-                    child: content!,
+                    child: Padding(
+                      padding: finalContentPadding,
+                      child: content!,
+                    ),
                   ),
                 );
     }
 
-    return Padding(
-      padding: padding ??
-          EdgeInsets.symmetric(horizontal: LayoutService.optionButtonMargin),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (finalIconWidget != null) const SizedBox(height: 16),
-          if (finalIconWidget != null)
-            finalIconWidget
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (finalIconWidget != null) const SizedBox(height: 16),
+        if (finalIconWidget != null)
+          Padding(
+            padding: iconPadding ?? finalDefaultPadding,
+            child: finalIconWidget
                 .animate(target: animationTarget)
                 .fadeIn(
                     delay: AnimationService.animationDurationQuarter * 0,
                     duration: AnimationService.animationDurationQuarter)
                 .slideY(begin: 0.125),
-          if (finalIconWidget != null && finalTitleWidget != null)
-            const SizedBox(height: 16 * 450 / 400),
-          if (finalTitleWidget != null)
-            finalTitleWidget
+          ),
+        if (finalIconWidget != null && finalTitleWidget != null)
+          const SizedBox(height: 16 * 450 / 400),
+        if (finalTitleWidget != null)
+          Padding(
+            padding: titlePadding ?? finalDefaultPadding,
+            child: finalTitleWidget
                 .animate(target: animationTarget)
                 .fadeIn(
                     delay: AnimationService.animationDurationQuarter * 1,
                     duration: AnimationService.animationDurationQuarter)
                 .slideY(begin: 0.125),
-          if (finalTitleWidget != null && finalDescriptionWidget != null)
-            const SizedBox(height: 16 * 450 / 400),
-          if (finalDescriptionWidget != null)
-            finalDescriptionWidget
+          ),
+        if (finalTitleWidget != null && finalDescriptionWidget != null)
+          const SizedBox(height: 16 * 450 / 400),
+        if (finalDescriptionWidget != null)
+          Padding(
+            padding: descriptionPadding ?? finalDefaultPadding,
+            child: finalDescriptionWidget
                 .animate(target: animationTarget)
                 .fadeIn(
                     delay: AnimationService.animationDurationQuarter * 2,
                     duration: AnimationService.animationDurationQuarter)
                 .slideY(begin: 0.125),
-          if (finalDescriptionWidget != null &&
-              finalContentWidget != null &&
-              !expandContent)
-            const SizedBox(height: 16 * 450 / 400),
-          if (finalContentWidget != null)
-            finalContentWidget
-                .animate(target: animationTarget)
-                .fadeIn(
-                    delay: AnimationService.animationDurationQuarter * 3,
-                    duration: AnimationService.animationDurationQuarter)
-                .slideY(begin: 0.125),
-        ],
-      ),
+          ),
+        if (finalDescriptionWidget != null &&
+            finalContentWidget != null &&
+            !expandContent)
+          const SizedBox(height: 16 * 450 / 400),
+        if (finalContentWidget != null)
+          finalContentWidget
+              .animate(target: animationTarget)
+              .fadeIn(
+                  delay: AnimationService.animationDurationQuarter * 3,
+                  duration: AnimationService.animationDurationQuarter)
+              .slideY(begin: 0.125),
+      ],
     );
   }
 }

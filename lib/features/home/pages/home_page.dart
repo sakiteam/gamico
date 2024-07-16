@@ -75,7 +75,7 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
       // Remove due coins
       context
           .read<GamicoUserCubit>()
-          .decrementCowries(Gamico.instance.gameSettings.playMinimumCowries);
+          .decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
 
       // Come back to the initial state
       GameService.gameSkipped = false;

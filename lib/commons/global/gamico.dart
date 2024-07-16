@@ -11,7 +11,6 @@ import 'package:gamico/commons/settings/cache_settings.dart';
 import 'package:gamico/commons/settings/character_settings.dart';
 import 'package:gamico/commons/settings/game_settings.dart';
 import 'package:gamico/commons/settings/languages_settings.dart';
-import 'package:gamico/commons/settings/matchmaking_settings.dart';
 import 'package:gamico/commons/settings/pages_settings.dart';
 import 'package:gamico/commons/settings/play_settings.dart';
 import 'package:gamico/commons/settings/gratification_settings.dart';
@@ -33,12 +32,11 @@ class Gamico {
 
   final String title;
 
-  final UserSettings userSettings;
-  final PagesSettings pagesSettings;
+  late final UserSettings userSettings;
+  late final PagesSettings pagesSettings;
+  late final LanguagesSettings languagesSettings;
 
   final GameSettings gameSettings;
-  final LanguagesSettings languagesSettings;
-
   final PlaySettings? playSettings;
   final StoreSettings? storeSettings;
   final AdmobSettings? admobSettings;
@@ -46,11 +44,9 @@ class Gamico {
   final TutorialSettings? tutorialSettings;
   final PurchasesSettings? purchasesSettings;
   final CharacterSettings? characterSettings;
-  final MatchmakingSettings? matchmakingSettings;
   final GratificationSettings? gratificationSettings;
 
   GamicoUsersRepository get usersRepository => userSettings.usersRepository;
-
   dynamic Function(Map<String, dynamic>) get userFromJson =>
       usersRepository.fromJson;
   Map<String, dynamic> Function(dynamic) get userToJson =>
@@ -58,24 +54,24 @@ class Gamico {
 
   Gamico({
     required this.title,
-    //
-    required this.userSettings,
-    required this.pagesSettings,
-    //
-    required this.gameSettings,
-    required this.languagesSettings,
-    //
+    UserSettings? userSettings,
+    PagesSettings? pagesSettings,
+    LanguagesSettings? languagesSettings,
+    this.gameSettings = const GameSettings(),
     this.admobSettings,
     this.characterSettings,
     this.gratificationSettings,
     this.purchasesSettings,
     this.storeSettings,
-    this.matchmakingSettings,
     this.playSettings,
     this.tutorialSettings,
     this.cacheSettings,
   }) {
     instance = this;
+
+    this.userSettings = userSettings ?? defaultUserSettings;
+    this.pagesSettings = pagesSettings ?? defaultPagesSettings;
+    this.languagesSettings = languagesSettings ?? defaultLanguagesSettings;
   }
 
   Future<void> initialize() async {

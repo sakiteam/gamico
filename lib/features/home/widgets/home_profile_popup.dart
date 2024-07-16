@@ -1,16 +1,11 @@
 import 'package:firebase_game_services/firebase_game_services.dart';
-// import 'package:gamico/commons/basico/components/dynamic_image.dart';
 import 'package:gamico/commons/cubits/authentication/authentication_cubit.dart';
 import 'package:gamico/commons/cubits/referral/referral_cubit.dart';
 import 'package:gamico/commons/generics/coins_widget.dart';
 import 'package:gamico/commons/global/gamico.dart';
-
 import 'package:gamico/commons/services/global.dart';
-
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/services/play.dart';
-// import 'package:gamico/commons/widgets/custom_elevated_button.dart';
-// import 'package:gamico/commons/widgets/custom_elevated_container.dart';
 import 'package:gamico/commons/generics/poster.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
 import 'package:gamico/commons/generics/icon_text_button.dart';
@@ -32,10 +27,10 @@ class HomeProfilePopup extends StatelessWidget {
       builder: (__, state) {
         return GamicoPopup(
           topLeftWidget: BlocBuilder<ReferralCubit, ReferralState>(
-            builder: (_, state) {
+            builder: (innerContext, state) {
               return IconButton(
                 onPressed: () {
-                  _.read<AuthenticationCubit>().signOut();
+                  innerContext.read<AuthenticationCubit>().signOut();
                   NavigationService.pop(context);
                 },
                 icon: const GamicoOutlinedIcon(

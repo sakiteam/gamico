@@ -111,7 +111,7 @@ class GamicoGratificationPoster extends StatelessWidget {
                               GratificationCubit.hour1Gratification, 1),
                           color: nextGratificationsCowries ==
                                   GratificationCubit.hour1Gratification
-                              ? ColorService.red
+                              ? ColorService.accentColor
                               : null,
                         ),
                       ),
@@ -129,7 +129,7 @@ class GamicoGratificationPoster extends StatelessWidget {
                               GratificationCubit.hour2Gratification, 2),
                           color: nextGratificationsCowries ==
                                   GratificationCubit.hour2Gratification
-                              ? ColorService.red
+                              ? ColorService.accentColor
                               : null,
                         ),
                       ),
@@ -147,7 +147,7 @@ class GamicoGratificationPoster extends StatelessWidget {
                               GratificationCubit.hour3Gratification, 3),
                           color: nextGratificationsCowries ==
                                   GratificationCubit.hour3Gratification
-                              ? ColorService.red
+                              ? ColorService.accentColor
                               : null,
                         ),
                       ),

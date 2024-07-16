@@ -101,18 +101,7 @@ class _GamicoCharacterState extends State<GamicoCharacter> {
                         // color: Colors.red.withAlpha(100),
                         child: state.animation == null
                             ? null
-                            :
-                            // ColorFiltered(
-                            //     colorFilter: ColorFilter.mode(
-                            //       Colors.orange,
-                            //       BlendMode.modulate,
-                            //     ),
-                            //     child: Image.asset(
-                            //       "assets/images/tree.png",
-                            //     ),
-                            //   ),
-
-                            SpriteAnimationWidget(
+                            : SpriteAnimationWidget(
                                 animation: state.animation!,
                                 animationTicker:
                                     state.animation!.createTicker(),

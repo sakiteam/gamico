@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/gamico_user_model.dart';
+import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/generics/poster.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
@@ -36,8 +37,8 @@ class GamicoGameProfilePoster extends StatelessWidget {
         descriptionWidget: description != null
             ? null
             : Column(
-                children: Gamico.instance.gameSettings
-                    .profileData(context, user)
+                children: Gamico.instance.userSettings
+                    .userProfile(context, user)
                     .map<Widget>((e) => GamicoInfoLine(coupleUtility: e))
                     .toList(),
               ),
@@ -45,7 +46,7 @@ class GamicoGameProfilePoster extends StatelessWidget {
         content: Center(
           child: GamicoIconTextButton(
             text: l.gameProfilePosterClose,
-            color: Colors.orange,
+            color: ColorService.accentColor,
             iconData: Icons.close,
             onPressed: () {
               NavigationService.pop(context);

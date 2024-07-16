@@ -64,11 +64,6 @@ class TutorialModeSettings implements GameModeSettings {
   }
 
   @override
-  bool isOpponentAvailable(BuildContext context) {
-    return true;
-  }
-
-  @override
   bool isPossibleToPlayAgain(BuildContext context) {
     return true;
   }
@@ -168,4 +163,10 @@ class TutorialModeSettings implements GameModeSettings {
       );
     }
   }
+
+  @override
+  Widget? levelsBuilder(BuildContext context) => null;
+
+  @override
+  bool isOpponentAvailable(BuildContext context) => true;
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gamico/commons/enums/game_type.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
@@ -33,8 +32,7 @@ class PassAndPlayGamePage extends StatelessWidget {
               context,
               Gamico.instance.pagesSettings.gamePage(
                 context,
-                GameUtility(
-                  gameType: GameType.passAndPlay,
+                PassAndPlayGameUtility(
                   onBackButtonPressed: onBackButtonPressed,
                 ),
               ),

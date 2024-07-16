@@ -153,7 +153,6 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
           await Future.delayed(const Duration(seconds: 1));
 
           // Unlock beginner achievement
-          // TODOS
           // userCubit.unlockBeginnerAchievement();
         }
 

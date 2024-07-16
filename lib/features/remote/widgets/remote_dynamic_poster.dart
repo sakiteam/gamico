@@ -8,7 +8,12 @@ import 'package:gamico/features/remote/widgets/remote_new_game_poster.dart';
 import 'package:gamico/features/remote/widgets/remote_impossible_game_poster.dart';
 
 class RemoteDynamicPoster extends StatelessWidget {
-  const RemoteDynamicPoster({super.key});
+  final Color? loaderColor;
+
+  const RemoteDynamicPoster({
+    super.key,
+    this.loaderColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +33,7 @@ class RemoteDynamicPoster extends StatelessWidget {
               ? broke
                   ? const RemoteImpossibleGamePoster()
                   : const RemoteNewGamePoster()
-              : const RemoteSearchPoster(),
+              : RemoteSearchPoster(loaderColor: loaderColor),
     );
   }
 }

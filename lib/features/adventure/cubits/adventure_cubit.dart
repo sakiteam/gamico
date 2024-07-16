@@ -1,5 +1,6 @@
 import 'package:bloc/bloc.dart';
 import 'package:gamico/features/adventure/utilities/adventure_utility.dart';
+import 'package:gamico/features/adventure/utilities/remote_utility.dart';
 import 'package:meta/meta.dart';
 
 part 'adventure_state.dart';
@@ -7,7 +8,11 @@ part 'adventure_state.dart';
 class GamicoAdventureCubit extends Cubit<GamicoAdventureState> {
   GamicoAdventureCubit({
     required AdventureUtility adventureUtility,
-  }) : super(GamicoAdventureState(adventureUtility: adventureUtility));
+    required RemoteUtility? remoteUtility,
+  }) : super(GamicoAdventureState(
+          adventureUtility: adventureUtility,
+          remoteUtility: remoteUtility,
+        ));
 
   void init() {
     setAnimInit(true);

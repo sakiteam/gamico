@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gamico/commons/enums/game_type.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
@@ -39,7 +38,7 @@ class AdventureGamePage extends StatelessWidget {
                   value: context.read<GamicoGameCubit>(),
                   child: BlocProvider.value(
                     value: context.read<GamicoAdventureGameCubit>(),
-                    child: Gamico.instance.gameSettings.explanationPopup,
+                    child: state.adventureUtility.explanationPopup,
                   ),
                 );
               },
@@ -63,11 +62,11 @@ class AdventureGamePage extends StatelessWidget {
               context,
               Gamico.instance.pagesSettings.gamePage(
                 context,
-                GameUtility(
+                AdventureGameUtility(
                   level: level,
-                  gameType: GameType.adventure,
                   onBackButtonPressed: onBackButtonPressed,
                   adventureUtility: adventureGameCubit.adventureUtility,
+                  remoteUtility: null,
                 ),
               ),
             );
@@ -90,11 +89,11 @@ class AdventureGamePage extends StatelessWidget {
               context,
               Gamico.instance.pagesSettings.gamePage(
                 context,
-                GameUtility(
+                AdventureGameUtility(
                   level: level + 1,
-                  gameType: GameType.adventure,
                   onBackButtonPressed: onBackButtonPressed,
                   adventureUtility: adventureGameCubit.adventureUtility,
+                  remoteUtility: null,
                 ),
               ),
             );

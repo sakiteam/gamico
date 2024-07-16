@@ -17,7 +17,6 @@ import 'package:gamico/commons/cubits/purchases/purchases_cubit.dart';
 import 'package:gamico/commons/cubits/referral/referral_cubit.dart';
 import 'package:gamico/commons/cubits/showcase/showcase_cubit.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
-import 'package:gamico/commons/enums/game_type.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/providers/gamico_games_provider.dart';
 import 'package:gamico/commons/providers/gamico_purchases_provider.dart';
@@ -259,10 +258,9 @@ class _GamicoAppState extends State<GamicoApp> {
 
                     return Gamico.instance.pagesSettings.gamePage(
                       context,
-                      GameUtility(
+                      const TutorialGameUtility(
                         tutorialLessonIndex: 0,
                         onBackButtonPressed: null,
-                        gameType: GameType.tutorial,
                       ),
                     );
                   },

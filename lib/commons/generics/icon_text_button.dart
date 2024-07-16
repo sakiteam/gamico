@@ -1,3 +1,4 @@
+import 'package:gamico/commons/generics/button.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/generics/elevated_button.dart';
 import 'package:gamico/commons/generics/loader.dart';
@@ -26,6 +27,11 @@ class GamicoIconTextButton extends StatelessWidget {
   static Color defaultForegroundColor = Colors.blue;
   static Color defaultBackgroundColor = ColorService.backgroundBlue;
 
+  static bool simple = false;
+
+  static Widget Function(
+      BuildContext context, GamicoIconTextButton gamicoIconTextButton)? builder;
+
   const GamicoIconTextButton({
     super.key,
     required this.onPressed,
@@ -44,6 +50,10 @@ class GamicoIconTextButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (builder != null) {
+      return builder!(context, this);
+    }
+
     final bool enabled = onPressed != null;
 
     final finalContentColor = contentColor ?? defaultContentColor;
@@ -52,46 +62,68 @@ class GamicoIconTextButton extends StatelessWidget {
     return GamicoLocker(
       size: finalSize,
       builder: (context, animate) {
+        final contentChild = loading
+            ? const Center(child: GamicoLoader())
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Visibility(
+                    visible: iconVisible,
+                    child: Transform.rotate(
+                      angle: iconAngle ?? 0,
+                      child: iconWidget ??
+                          GamicoOutlinedIcon(
+                            iconData,
+                            color: iconColor ?? finalContentColor,
+                            size: (text == null ? 60 : 50) * 450 / 400,
+                          ),
+                    ),
+                  ),
+                  if (text != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: GamicoOutlinedText(
+                        text!,
+                        strokeWidth: 0.5,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: finalContentColor),
+                      ),
+                    ),
+                ],
+              );
+
+        final finalForegroundColor =
+            enabled ? (color ?? defaultForegroundColor) : Colors.grey;
+        final finalBackgroundColor = enabled
+            ? (backgroundColor ??
+                (color == null ? defaultBackgroundColor : Colors.brown))
+            : Colors.grey.shade700;
+
+        if (simple) {
+          return ClipRRect(
+            borderRadius:
+                BorderRadius.circular(GamicoButton.defaultBorderRadius),
+            child: Container(
+              width: finalSize,
+              height: finalSize,
+              color: finalForegroundColor,
+              child: GamicoButton(
+                bruitage: enabled ? null : "",
+                onPressed: enabled ? onPressed : animate,
+                child: contentChild,
+              ),
+            ),
+          );
+        }
+
         return GamicoElevatedButton(
           width: finalSize,
           height: finalSize,
-          foregroundColor:
-              enabled ? (color ?? defaultForegroundColor) : Colors.grey,
-          backgroundColor: enabled
-              ? (backgroundColor ??
-                  (color == null ? defaultBackgroundColor : Colors.brown))
-              : Colors.grey.shade700,
+          foregroundColor: finalForegroundColor,
+          backgroundColor: finalBackgroundColor,
           bruitage: enabled ? null : "",
           onPressed: enabled ? onPressed : animate,
-          child: loading
-              ? const Center(child: GamicoLoader())
-              : Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Visibility(
-                      visible: iconVisible,
-                      child: Transform.rotate(
-                        angle: iconAngle ?? 0,
-                        child: iconWidget ??
-                            GamicoOutlinedIcon(
-                              iconData,
-                              color: iconColor ?? finalContentColor,
-                              size: (text == null ? 60 : 50) * 450 / 400,
-                            ),
-                      ),
-                    ),
-                    if (text != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4.0),
-                        child: GamicoOutlinedText(
-                          text!,
-                          strokeWidth: 0.5,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: finalContentColor),
-                        ),
-                      ),
-                  ],
-                ),
+          child: contentChild,
         );
       },
     );

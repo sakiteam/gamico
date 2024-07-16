@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 
 class ColorService {
-  static const red = Colors.orange;
-  static const blue = Colors.blue;
+  static Color accentColor = Colors.orange;
+  static Color blue = Colors.blue;
 
+  // const Color(0xFFD2B58D);
   // static const Color primaryColor = Color(0xFFFB6D1A);
   // static Color get steelblue => const Color(0xFF4682B4);
 
   static Color get primaryColor => Colors.brown;
-
-  //  const Color(0xFFD2B58D);
 
   static const foregroundOrange = Color(0xFFFFB92B);
   static const backgroundOrange = Color(0xFFB33E36);

@@ -294,7 +294,6 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     final String finalLanguageCode;
     final languageCode = LocaleService.currentLocale.languageCode;
 
-    // TODOS
     if (["fr", "en"].contains(languageCode)) {
       finalLanguageCode = languageCode;
     } else {
@@ -337,8 +336,6 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
     return super.close();
   }
-
-  // TODOS
 
   // Future<void> playWrongBruitage() async =>
   //     await playBruitage("assets/bruitages/wrong.mp3");

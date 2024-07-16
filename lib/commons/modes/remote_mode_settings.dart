@@ -5,9 +5,11 @@ import 'package:gamico/commons/generics/game_exit_button.dart';
 import 'package:gamico/commons/generics/game_replay_button.dart';
 import 'package:gamico/commons/generics/icon_text_button.dart';
 import 'package:gamico/commons/generics/loader.dart';
+import 'package:gamico/commons/generics/simple_page_view.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/gamico_user_model.dart';
 import 'package:gamico/commons/modes/game_mode_settings.dart';
+import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
@@ -17,8 +19,8 @@ import 'package:gamico/languages/languages.dart';
 
 class RemoteModeSettings implements GameModeSettings {
   @override
-  void manageReplay(BuildContext context) {
-    context.read<GamicoRemoteGameCubit>().replay();
+  void manageReplay(BuildContext context, [int? level]) {
+    context.read<GamicoRemoteGameCubit>().replay(level);
   }
 
   @override
@@ -161,7 +163,7 @@ class RemoteModeSettings implements GameModeSettings {
     final coins = context.select(
         (GamicoUserCubit userCubit) => userCubit.state.user?.coins ?? 0);
 
-    return coins >= Gamico.instance.gameSettings.playMinimumCowries;
+    return coins >= Gamico.instance.gameSettings.playMinimumCoins;
   }
 
   @override
@@ -203,7 +205,7 @@ class RemoteModeSettings implements GameModeSettings {
           text: l.globalReject,
         );
         final acceptationButton = GamicoIconTextButton(
-          color: Colors.orange,
+          color: ColorService.accentColor,
           onPressed: !possibleToPlayAgain
               ? null
               : () {
@@ -212,14 +214,15 @@ class RemoteModeSettings implements GameModeSettings {
           iconData: Icons.check,
           text: l.globalAccept,
         );
-
         return [
           rejectionButton,
           acceptationButton,
         ];
 
       case "INVITATION_ACCEPTATION":
-        return const [Center(child: GamicoLoader())];
+        return const [
+          Center(child: GamicoLoader()),
+        ];
 
       case "REPLAY_IMPOSSIBLE":
         final impossibleReplayButton = GamicoIconTextButton(
@@ -253,19 +256,10 @@ class RemoteModeSettings implements GameModeSettings {
 
       default:
         final newGameButton = GamicoIconTextButton(
-          onPressed: !possibleToPlayAgain
-              ? null
-              : () async {
-                  final remoteGameCubit = context.read<GamicoRemoteGameCubit>();
-
-                  NavigationService.pop(context);
-
-                  remoteGameCubit.setNewRemoteGameActive(true);
-                },
           text: l.gamePopupNewGame,
           iconData: Icons.sports_esports,
+          onPressed: !possibleToPlayAgain ? null : () => playNewGame(context),
         );
-
         return [
           exitButton,
           newGameButton,
@@ -274,9 +268,31 @@ class RemoteModeSettings implements GameModeSettings {
     }
   }
 
+  void playNewGame(BuildContext context, [int? level]) {
+    final remoteGameCubit = context.read<GamicoRemoteGameCubit>();
+
+    NavigationService.pop(context);
+
+    remoteGameCubit.setNewRemoteGameActive(true, level);
+  }
+
   @override
   bool hasTripleAdAfterVictory(BuildContext context) {
-    return true;
+    final adventureUtility = context.select(
+        (GamicoRemoteGameCubit remoteGameCubit) =>
+            remoteGameCubit.state.adventureUtility);
+
+    if (adventureUtility != null) {
+      final userInitialLevel = context.select(
+          (GamicoRemoteGameCubit remoteGameCubit) =>
+              remoteGameCubit.state.userInitialLevel);
+      final userLevel = context.select((GamicoUserCubit userCubit) =>
+          adventureUtility.getUserLevel(userCubit.state.user));
+
+      return userLevel == (userInitialLevel ?? 1) + 1;
+    } else {
+      return true;
+    }
   }
 
   @override
@@ -298,30 +314,58 @@ class RemoteModeSettings implements GameModeSettings {
     final l = GamicoLanguages.of(context);
 
     return l.remoteComplexCloseDescription(
-        Gamico.instance.gameSettings.playMinimumCowries);
+        Gamico.instance.gameSettings.playMinimumCoins);
   }
 
   @override
   void gamePageManageCoinsAndStars(BuildContext context) {
-    final gameCubit = context.read<GamicoGameCubit>();
-    final userCubit = context.read<GamicoUserCubit>();
+    final remoteGameState = context.read<GamicoRemoteGameCubit>().state;
 
-    final gameState = gameCubit.state;
+    final adventureUtility = remoteGameState.adventureUtility;
 
-    if (gameState.victory == true) {
-      userCubit.incrementCowries(
-          Gamico.instance.gameSettings.playMinimumCowries * gameState.stars);
-      userCubit.incrementVictories();
+    if (adventureUtility == null) {
+      final gameCubit = context.read<GamicoGameCubit>();
+      final userCubit = context.read<GamicoUserCubit>();
+
+      final gameState = gameCubit.state;
+
+      if (gameState.victory == true) {
+        userCubit.incrementCowries(
+            Gamico.instance.gameSettings.playMinimumCoins * gameState.stars);
+        userCubit.incrementVictories();
+      } else {
+        userCubit
+            .decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
+        userCubit.incrementDefeats();
+      }
     } else {
-      userCubit
-          .decrementCowries(Gamico.instance.gameSettings.playMinimumCowries);
-      userCubit.incrementDefeats();
+      gamePageManageCoinsAndStarsInAdventureGame(
+        context,
+        remoteGameState.level!,
+        adventureUtility,
+      );
     }
   }
 
   @override
   bool shouldShowAds(BuildContext context) {
-    return true;
+    final gameCubit = context.read<GamicoGameCubit>();
+    final remoteGameCubit = context.read<GamicoRemoteGameCubit>();
+
+    final gameState = gameCubit.state;
+    final remoteGameState = remoteGameCubit.state;
+
+    final adventureUtility = remoteGameState.adventureUtility;
+
+    if (adventureUtility == null) {
+      return true;
+    } else {
+      return shouldShowAdsInAdventureGame(
+        gameState.victory,
+        remoteGameState.level,
+        adventureUtility.maxLevel,
+      );
+    }
   }
 
   @override
@@ -347,5 +391,66 @@ class RemoteModeSettings implements GameModeSettings {
   @override
   void gamePageManageGamePopup(BuildContext context) {
     context.read<GamicoGameCubit>().setDisplayGamePopup(true);
+  }
+
+  @override
+  Widget? levelsBuilder(BuildContext context) {
+    final remoteUtility = context.select(
+        (GamicoRemoteGameCubit gamicoRemoteGameCubit) =>
+            gamicoRemoteGameCubit.state.remoteUtility);
+    final adventureUtility = context.select(
+        (GamicoRemoteGameCubit gamicoRemoteGameCubit) =>
+            gamicoRemoteGameCubit.state.adventureUtility);
+
+    final levelsBuilder = remoteUtility.levelsBuilder;
+
+    if (levelsBuilder == null || adventureUtility == null) return null;
+
+    final initialLevel = context.select(
+            (GamicoRemoteGameCubit gamicoRemoteGameCubit) =>
+                gamicoRemoteGameCubit.state.level) ??
+        1;
+    final user = context.select(
+        (GamicoUserCubit gamicoUserCubit) => gamicoUserCubit.state.user);
+    final userStars = (user?.stars as List<int>?) ?? [];
+
+    final userCurrentLevel = adventureUtility.getUserLevel(user);
+
+    final possibleToPlayAgain = isPossibleToPlayAgain(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: GamicoSimplePageView(
+        initialPage: (initialLevel != userCurrentLevel
+                ? userCurrentLevel
+                : initialLevel) -
+            1,
+        viewportFraction: 0.9,
+        children: List.generate(adventureUtility.maxLevel, (index) {
+          final currentLevel = index + 1;
+
+          final bool playable;
+
+          if (userCurrentLevel > currentLevel) {
+            playable = true;
+          } else if (userCurrentLevel == currentLevel) {
+            playable = possibleToPlayAgain;
+          } else {
+            playable = false;
+          }
+
+          return levelsBuilder(
+            context,
+            index,
+            userStars.elementAtOrNull(currentLevel) ?? 0,
+            currentLevel > userCurrentLevel,
+            playable && isOpponentAvailable(context)
+                ? () => manageReplay(context, currentLevel)
+                : null,
+            playable ? () => playNewGame(context, currentLevel) : null,
+          );
+        }).toList(),
+      ),
+    );
   }
 }

@@ -123,8 +123,7 @@ class GamicoGlobalService {
     } else {
       NavigationService.showCowriesPopup(
         context,
-        Gamico.instance.gameSettings.playMinimumCowries,
-        gameType,
+        Gamico.instance.gameSettings.playMinimumCoins,
       );
     }
   }

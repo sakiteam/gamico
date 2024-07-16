@@ -23,6 +23,8 @@ class GamicoFinger extends StatefulWidget {
 
   final GamicoFingerType type;
 
+  final Matrix4? transform;
+
   const GamicoFinger({
     super.key,
     this.beginOffset = Offset.zero,
@@ -33,6 +35,7 @@ class GamicoFinger extends StatefulWidget {
     this.moveDuration = const Duration(milliseconds: 1000),
     this.fadeDuration = const Duration(milliseconds: 500),
     required this.type,
+    this.transform,
   });
 
   @override
@@ -89,12 +92,15 @@ class _GamicoFingerState extends State<GamicoFinger>
         child: SizedBox(
           width: fingerWidth,
           height: fingerHeight,
-          child: Gif(
-            autostart: Autostart.no,
-            controller: _gifController,
-            image: Image.asset("assets/images/finger.gif").image,
-            width: fingerWidth,
-            height: fingerHeight,
+          child: Container(
+            transform: widget.transform,
+            child: Gif(
+              autostart: Autostart.no,
+              controller: _gifController,
+              image: Image.asset("assets/images/finger.gif").image,
+              width: fingerWidth,
+              height: fingerHeight,
+            ),
           ),
         ),
       )

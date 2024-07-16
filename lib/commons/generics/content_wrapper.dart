@@ -64,7 +64,7 @@ class GamicoContentWrapper extends StatelessWidget {
                   //       // ],
                   //       colors: [
                   //         // Colors.red,
-                  //         // Colors.orange.shade900,
+                  //         // ColorService.red.shade900,
                   //         Colors.brown,
                   //         Colors.brown.shade300,
                   //       ],

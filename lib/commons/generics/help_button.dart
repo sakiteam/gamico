@@ -24,7 +24,6 @@ class GamicoHelpButton extends StatelessWidget {
               // homeCubit.setAnimGame(true);
               // homeCubit.setAnimated(true);
 
-              // TODOS : V2
               // await NavigationService.pushPageWithAnimation(
               //   context,
               //   GamicoGamePage(

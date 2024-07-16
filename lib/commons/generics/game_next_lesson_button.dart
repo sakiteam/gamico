@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/generics/icon_text_button.dart';
 import 'package:gamico/features/game/cubits/tutorial/tutorial_game_cubit.dart';
 import 'package:gamico/languages/languages.dart';
 
 class GamicoGameNextLessonButton extends StatelessWidget {
-  final Color color;
+  final Color? color;
 
   const GamicoGameNextLessonButton({
     super.key,
-    this.color = Colors.orange,
+    this.color,
   });
 
   @override
@@ -22,7 +23,7 @@ class GamicoGameNextLessonButton extends StatelessWidget {
         (GamicoTutorialGameCubit gameCubit) => gameCubit.state.tutorialLesson);
 
     return GamicoIconTextButton(
-      color: color,
+      color: color ?? ColorService.accentColor,
       onPressed: currentLesson?.index ==
               Gamico.instance.tutorialSettings!.lessons.length - 1
           ? null

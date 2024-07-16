@@ -29,8 +29,7 @@ class GamicoButton extends StatelessWidget {
       child: InkWell(
         // focusColor: Colors.green,
         // hoverColor: Colors.blue,
-        overlayColor:
-            ink ? null : MaterialStateProperty.all(Colors.transparent),
+        overlayColor: ink ? null : WidgetStateProperty.all(Colors.transparent),
         onDoubleTap: () {},
         borderRadius:
             borderRadius ?? BorderRadius.circular(defaultBorderRadius),

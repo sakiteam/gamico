@@ -1,9 +1,11 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gamico/commons/generics/pop_scope.dart';
 import 'package:gamico/commons/services/animation.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/features/adventure/cubits/adventure_cubit.dart';
+import 'package:gamico/features/adventure/utilities/remote_utility.dart';
 import 'package:gamico/features/adventure/utilities/adventure_utility.dart';
 
 /// Page on which game levels are selected.
@@ -14,15 +16,17 @@ class GamicoAdventurePage extends StatefulWidget {
   ) builder;
 
   final AdventureUtility adventureUtility;
+  final RemoteUtility? remoteUtility;
 
-  final PageController? pageController;
+  final double? viewportFraction;
 
   /// Page on which game levels are selected.
   const GamicoAdventurePage({
     super.key,
     required this.builder,
     required this.adventureUtility,
-    this.pageController,
+    required this.remoteUtility,
+    this.viewportFraction,
   });
 
   @override
@@ -36,14 +40,14 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
   void initState() {
     super.initState();
 
-    pageController = widget.pageController ??
-        PageController(
-          initialPage: min(
-            getChapterByLevel(widget.adventureUtility
-                .getUserLevel(context.read<GamicoUserCubit>().state.user)),
-            getChapterByLevel(widget.adventureUtility.maxLevel),
-          ),
-        );
+    pageController = PageController(
+      viewportFraction: widget.viewportFraction ?? 1.0,
+      initialPage: min(
+        getChapterByLevel(widget.adventureUtility
+            .getUserLevel(context.read<GamicoUserCubit>().state.user)),
+        getChapterByLevel(widget.adventureUtility.maxLevel),
+      ),
+    );
   }
 
   int getChapterByLevel(int level) {
@@ -102,10 +106,11 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
         lazy: false,
         create: (context) => GamicoAdventureCubit(
           adventureUtility: widget.adventureUtility,
+          remoteUtility: widget.remoteUtility,
         )..init(),
         child: BlocBuilder<GamicoAdventureCubit, GamicoAdventureState>(
           builder: (context, adventureState) {
-            return WillPopScope(
+            return GamicoPopScope(
               onWillPop: () => _manageBack(context),
               child: AbsorbPointer(
                 // Activation
@@ -123,10 +128,7 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
 
   @override
   void dispose() {
-    if (widget.pageController == null) {
-      pageController.dispose();
-    }
-
+    pageController.dispose();
     super.dispose();
   }
 }

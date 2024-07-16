@@ -5,7 +5,12 @@ import 'package:gamico/features/remote/cubits/remote_cubit.dart';
 import 'package:gamico/languages/languages.dart';
 
 class RemoteSearchPoster extends StatelessWidget {
-  const RemoteSearchPoster({super.key});
+  final Color? loaderColor;
+
+  const RemoteSearchPoster({
+    super.key,
+    this.loaderColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +28,7 @@ class RemoteSearchPoster extends StatelessWidget {
       icon: Icons.sports_esports,
       loading: true,
       padding: EdgeInsets.zero,
+      loaderColor: loaderColor,
     );
   }
 }

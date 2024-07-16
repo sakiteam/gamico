@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/layout.dart';
 import 'package:gamico/commons/generics/simple_popup.dart';
 import 'package:gamico/commons/generics/elevated_button.dart';
@@ -85,8 +86,8 @@ class GamicoPopupButton extends StatelessWidget {
                                 strokeWidth: 0.5,
                                 // minFontSize: 2,
                                 maxLines: 1,
-                                style: const TextStyle(
-                                  color: Colors.orange,
+                                style: TextStyle(
+                                  color: ColorService.accentColor,
                                   fontSize: 14,
                                   // letterSpacing: 2.5,
                                 ),
@@ -101,7 +102,7 @@ class GamicoPopupButton extends StatelessWidget {
                       // textAlign: TextAlign.center,
                       // strokeWidth: 0.5,
                       style: const TextStyle(
-                        fontSize: 18 * 450 / 400,
+                        fontSize: 16 * 450 / 400,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),

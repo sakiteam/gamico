@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/global/gamico.dart';
-import 'package:gamico/commons/enums/game_type.dart';
 import 'package:gamico/commons/services/animation.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
@@ -9,7 +8,7 @@ import 'package:gamico/commons/utilities/game/game_utility.dart';
 import 'package:gamico/features/adventure/cubits/adventure_cubit.dart';
 
 /// Adventure level button.
-class AdventureLevelButton extends StatefulWidget {
+class AdventureLevelButton extends StatelessWidget {
   final int level;
 
   final Widget Function(
@@ -27,13 +26,6 @@ class AdventureLevelButton extends StatefulWidget {
     required this.builder,
   });
 
-  /// State creation.
-  @override
-  State<AdventureLevelButton> createState() => _AdventureLevelButtonState();
-}
-
-/// State implementation.
-class _AdventureLevelButtonState extends State<AdventureLevelButton> {
   /// Build.
   @override
   Widget build(BuildContext context) {
@@ -50,28 +42,30 @@ class _AdventureLevelButtonState extends State<AdventureLevelButton> {
         adventureUtility.getUserStars(userCubit.state.user));
 
     // Retrieve the stars of the current level
-    final currentLevelStars = stars.elementAtOrNull(widget.level) ?? 0;
+    final currentLevelStars = stars.elementAtOrNull(level) ?? 0;
 
     // Holds whether this level is locked or not
-    final locked = userLevel < widget.level;
+    final locked = userLevel < level;
 
     // Holds whether this level is active or not
-    final active = userLevel == widget.level;
+    final active = userLevel == level;
 
     // Return concrete widget
-    return widget.builder(
+    return builder(
       context,
       active,
       locked,
       currentLevelStars,
-      _onPressed,
+      () => _onPressed(context),
     );
   }
 
   /// Callback for when the current back button is pressed.
-  void _onPressed() async {
+  void _onPressed(BuildContext context) async {
     final adventureUtility =
         context.read<GamicoAdventureCubit>().state.adventureUtility;
+    final remoteUtility =
+        context.read<GamicoAdventureCubit>().state.remoteUtility;
 
     // Reference to the user data
     final user = context.read<GamicoUserCubit>().state.user;
@@ -80,16 +74,20 @@ class _AdventureLevelButtonState extends State<AdventureLevelButton> {
     final userLevel = adventureUtility.getUserLevel(user);
 
     // Check whether the user has enough coins to play or not
-    if (adventureUtility.isUserBroke(user) && widget.level == userLevel) {
+    if (adventureUtility.isUserBroke(user) && level == userLevel) {
       // Show unsufficient coins popup
       NavigationService.showCowriesPopup(
         context,
-        Gamico.instance.gameSettings.playMinimumCowries,
-        GameType.adventure,
+        Gamico.instance.gameSettings.playMinimumCoins,
       );
     } else {
-      // Notify ancestors that this widget has been pressed
       final adventureCubit = context.read<GamicoAdventureCubit>();
+
+      void onBackButtonPressed() async {
+        adventureCubit.setAnimGame(false);
+        await Future.delayed(AnimationService.animationDuration);
+        adventureCubit.setAnimated(false);
+      }
 
       // Enable push when page is enabled
       if (adventureCubit.state.enabled) {
@@ -97,24 +95,34 @@ class _AdventureLevelButtonState extends State<AdventureLevelButton> {
         adventureCubit.setAnimGame(true);
         adventureCubit.setAnimated(true);
 
-        // Push game page
-        NavigationService.pushPageWithAnimation(
-          context,
-          Gamico.instance.pagesSettings.gamePage(
+        if (remoteUtility != null) {
+          // Push remote page
+          await NavigationService.pushPageWithAnimation(
             context,
-            GameUtility(
-              level: widget.level,
-              onBackButtonPressed: () async {
-                adventureCubit.setAnimGame(false);
-
-                await Future.delayed(AnimationService.animationDuration);
-
-                adventureCubit.setAnimated(false);
-              },
-              gameType: GameType.adventure,
+            Gamico.instance.pagesSettings.remotePage(
+              context,
+              remoteUtility,
+              adventureUtility,
+              level,
             ),
-          ),
-        );
+          );
+
+          onBackButtonPressed();
+        } else {
+          // Push game page
+          NavigationService.pushPageWithAnimation(
+            context,
+            Gamico.instance.pagesSettings.gamePage(
+              context,
+              AdventureGameUtility(
+                level: level,
+                onBackButtonPressed: onBackButtonPressed,
+                adventureUtility: adventureUtility,
+                remoteUtility: null,
+              ),
+            ),
+          );
+        }
       }
     }
   }

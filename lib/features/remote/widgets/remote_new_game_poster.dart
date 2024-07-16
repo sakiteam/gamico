@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/generics/poster.dart';
 import 'package:gamico/commons/generics/icon_text_button.dart';
+import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/features/remote/cubits/remote_cubit.dart';
 import 'package:gamico/languages/languages.dart';
 
@@ -28,7 +29,7 @@ class RemoteNewGamePoster extends StatelessWidget {
           context.read<RemoteCubit>().reset();
         },
         backgroundColor: Colors.brown,
-        color: Colors.orange,
+        color: ColorService.accentColor,
         iconData: Icons.sports_esports,
       ),
     );

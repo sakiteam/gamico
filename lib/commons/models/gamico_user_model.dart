@@ -29,7 +29,7 @@ class GamicoUserModel {
   bool? get broke {
     return coins == null
         ? null
-        : coins! < Gamico.instance.gameSettings.playMinimumCowries;
+        : coins! < Gamico.instance.gameSettings.playMinimumCoins;
   }
 
   const GamicoUserModel({

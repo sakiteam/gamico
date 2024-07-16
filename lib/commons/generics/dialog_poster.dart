@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/generics/poster.dart';
 import 'package:gamico/commons/generics/icon_text_button.dart';
@@ -81,7 +82,7 @@ class GamicoDialogPoster extends StatelessWidget {
                 ),
               if (!simple)
                 GamicoIconTextButton(
-                  color: Colors.orange,
+                  color: ColorService.accentColor,
                   onPressed: () {
                     if (automaticClose) {
                       NavigationService.pop(context);
@@ -95,7 +96,7 @@ class GamicoDialogPoster extends StatelessWidget {
                 ),
               if (simple)
                 GamicoIconTextButton(
-                  color: Colors.orange,
+                  color: ColorService.accentColor,
                   onPressed: () {
                     if (automaticClose) {
                       NavigationService.pop(context);

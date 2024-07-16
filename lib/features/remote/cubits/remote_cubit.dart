@@ -3,13 +3,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
-import 'package:gamico/commons/services/layout.dart';
 import 'package:gamico/commons/services/user.dart';
-import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/services/layout.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/models/gamico_game_model.dart';
+import 'package:gamico/features/adventure/utilities/remote_utility.dart';
 import 'package:gamico/commons/repositories/gamico_games_repository.dart';
 
 part 'remote_state.dart';
@@ -20,12 +20,22 @@ class RemoteCubit extends Cubit<RemoteState> {
   RemoteCubit({
     required this.userCubit,
     required this.gamesRepository,
-  }) : super(const RemoteState());
+    required this.remoteUtility,
+    required int? level,
+  }) : super(RemoteState(
+          level: level,
+        ));
 
   /// Reference to the games repository.
   final GamicoGamesRepository gamesRepository;
 
   final GamicoUserCubit userCubit;
+
+  final RemoteUtility remoteUtility;
+
+  bool get dirtyStateForFakeGame {
+    return isClosed || !createdGameStatus.contains("PENDING");
+  }
 
   bool? creator;
   String gameId = "";
@@ -36,6 +46,12 @@ class RemoteCubit extends Cubit<RemoteState> {
   void init() {
     launch();
     setAnimInit(true);
+  }
+
+  void setForcePop(bool forcePop) {
+    emit(state.copyWith(
+      forcePop: forcePop,
+    ));
   }
 
   void setAnimInit(bool animInit) {
@@ -80,7 +96,7 @@ class RemoteCubit extends Cubit<RemoteState> {
     }
   }
 
-  void reset() {
+  void reset([int? level]) {
     abortGame();
 
     gameId = "";
@@ -94,6 +110,7 @@ class RemoteCubit extends Cubit<RemoteState> {
       finalized: false,
       fakeOpponent: false,
       // animInit: false,
+      level: level == null ? null : () => level,
     ));
 
     launch();
@@ -111,7 +128,7 @@ class RemoteCubit extends Cubit<RemoteState> {
 
     final ref = FirebaseDatabase.instance.ref();
 
-    final matchmakingSettings = Gamico.instance.matchmakingSettings!;
+    final matchmakingSettings = remoteUtility.matchmakingSettings;
 
     int matchmakingLevel =
         matchmakingSettings.getMatchmakingLevel(userCubit.state.user!);
@@ -135,14 +152,22 @@ class RemoteCubit extends Cubit<RemoteState> {
       return level.toString().padLeft(maxLevelLength, "0");
     }
 
+    final modePotentialString = [
+      if (matchmakingSettings.mode != null) matchmakingSettings.mode,
+      if (state.level != null) state.level,
+    ].join(" ");
+
+    final modeString =
+        matchmakingSettings.mode == null ? " " : " $modePotentialString ";
+
     // bool currentPlayerIsCreator;
     // DataSnapshot snapshot;
 
     final snapshot = await ref
         .child("games")
         .orderByChild("status")
-        .startAt("PENDING ${formatLevel(minOpponentLevel)}")
-        .endAt("PENDING ${formatLevel(maxOpponentLevel)}")
+        .startAt("PENDING$modeString${formatLevel(minOpponentLevel)}")
+        .endAt("PENDING$modeString${formatLevel(maxOpponentLevel)}")
         .limitToFirst(1)
         .get();
 
@@ -171,7 +196,7 @@ class RemoteCubit extends Cubit<RemoteState> {
             updatedAt: now,
           ),
         },
-        status: "PENDING ${formatLevel(matchmakingLevel)}",
+        status: "PENDING$modeString${formatLevel(matchmakingLevel)}",
       ));
 
       // Notify Irié Bi Irié Alex
@@ -201,21 +226,45 @@ class RemoteCubit extends Cubit<RemoteState> {
       createdGameStatus = "PENDING";
 
       _streamSubscription?.cancel();
+      // _streamSubscription = FirebaseDatabase.instance
+      //     .ref("games/$gameId/status")
+      //     .onValue
+      //     .listen((event) {
+      //   final status = event.snapshot.value.toString();
+
+      //   createdGameStatus = status;
+
+      //   if (status == "STARTED") {
+      //     launchGame();
+      //     _streamSubscription?.cancel();
+      //   }
+      // });
+
       _streamSubscription = FirebaseDatabase.instance
-          .ref("games/$gameId/status")
+          .ref("games/$gameId")
           .onValue
           .listen((event) {
-        final status = event.snapshot.value.toString();
+        final rawData = event.snapshot.value;
+        final validData = jsonDecode(jsonEncode(rawData));
+        final gameData =
+            GamicoGameModel.fromJson(Map<String, dynamic>.from(validData));
+        final gameStatus = gameData.status ?? "";
+        final gamePlayers = gameData.players?.values ?? [];
+        final gamePlayersIds = gamePlayers.map((e) => e.userId).toSet();
 
-        createdGameStatus = status;
+        createdGameStatus = gameStatus;
 
-        if (status == "STARTED") {
+        if (gameStatus == "STARTED") {
+          emit(state.copyWith(
+            fakeOpponent: gamePlayersIds.length < 2,
+          ));
+
           launchGame();
           _streamSubscription?.cancel();
         }
       });
 
-      if (!Gamico.instance.gameSettings.isDeveloper && !appScreenshots) {
+      if (!remoteUtility.isDeveloper && !appScreenshots) {
         _manageFakeGame();
       }
     } else if (creator == false) {
@@ -273,32 +322,23 @@ class RemoteCubit extends Cubit<RemoteState> {
 
     if (state.status == RemoteGameStatus.success) return;
 
-    if (isClosed || !createdGameStatus.contains("PENDING")) return;
+    if (dirtyStateForFakeGame) return;
 
-    if (state.status != RemoteGameStatus.success &&
-        createdGameStatus.contains("PENDING")) {
-      emit(state.copyWith(
-        fakeOpponent: true,
-      ));
+    final DateTime now = DateTime.now();
 
-      final DateTime now = DateTime.now();
+    await gamesRepository.addGamePlayer(
+      gameId,
+      GamicoGamePlayerModel(
+        createdAt: now,
+        updatedAt: now,
+        status: "ACCEPTED",
+        userId: UserService.uid,
+      ),
+    );
 
-      if (isClosed || !createdGameStatus.contains("PENDING")) return;
+    if (dirtyStateForFakeGame) return;
 
-      await gamesRepository.addGamePlayer(
-        gameId,
-        GamicoGamePlayerModel(
-          createdAt: now,
-          updatedAt: now,
-          status: "ACCEPTED",
-          userId: UserService.uid,
-        ),
-      );
-
-      if (isClosed || !createdGameStatus.contains("PENDING")) return;
-
-      await gamesRepository.updateGameStatus(gameId, "STARTED");
-    }
+    await gamesRepository.updateGameStatus(gameId, "STARTED");
   }
 
   void launchGame() {

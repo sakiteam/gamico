@@ -2,6 +2,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:gamico/commons/enums/game_type.dart';
 import 'package:gamico/commons/cubits/music/music_cubit.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
+import 'package:gamico/commons/generics/pop_scope.dart';
 import 'package:gamico/commons/services/animation.dart';
 import 'package:gamico/commons/services/game.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
@@ -29,7 +30,7 @@ import 'package:gamico/commons/cubits/character/character_cubit.dart';
 import 'package:gamico/languages/languages.dart';
 
 /// Page on which the concrete game is played.
-class GamicoGamePage extends StatelessWidget {
+class GamicoGamePage extends StatefulWidget {
   final Widget child;
   final GameUtility gameUtility;
 
@@ -41,8 +42,16 @@ class GamicoGamePage extends StatelessWidget {
   });
 
   @override
+  State<GamicoGamePage> createState() => _GamicoGamePageState();
+}
+
+class _GamicoGamePageState extends State<GamicoGamePage> {
+  Function? onClosed;
+
+  @override
   Widget build(BuildContext context) {
-    final gameType = gameUtility.gameType;
+    final finalGameUtility = widget.gameUtility;
+    final gameType = finalGameUtility.type;
 
     return MultiBlocProvider(
       providers: [
@@ -55,35 +64,38 @@ class GamicoGamePage extends StatelessWidget {
             characterCubit: context.read<CharacterCubit>(),
           ),
         ),
-        if (gameType == GameType.adventure)
+        if (finalGameUtility is AdventureGameUtility)
           BlocProvider(
             lazy: false,
             create: (context) => GamicoAdventureGameCubit(
-              level: gameUtility.level!,
+              level: finalGameUtility.level,
               gameCubit: context.read<GamicoGameCubit>(),
-              adventureUtility: gameUtility.adventureUtility!,
+              adventureUtility: finalGameUtility.adventureUtility,
             )..init(),
           ),
-        if (gameType == GameType.tutorial)
+        if (finalGameUtility is TutorialGameUtility)
           BlocProvider(
             lazy: false,
             create: (context) => GamicoTutorialGameCubit(
               gameCubit: context.read<GamicoGameCubit>(),
-              tutorialLessonIndex: gameUtility.tutorialLessonIndex ?? 0,
+              tutorialLessonIndex: finalGameUtility.tutorialLessonIndex,
             )..init(),
           ),
-        if (gameType == GameType.remote)
+        if (finalGameUtility is RemoteGameUtility)
           BlocProvider(
             lazy: false,
             create: (context) => GamicoRemoteGameCubit(
-              fakeOpponent: gameUtility.fakeOpponent ?? false,
-              gamesRepository: context.read<GamicoGamesRepository>(),
-              gameId: gameUtility.gameId ?? "",
-              creator: gameUtility.creatorOfCurrentGame ?? true,
+              level: finalGameUtility.level,
+              remoteUtility: finalGameUtility.remoteUtility,
+              adventureUtility: finalGameUtility.adventureUtility,
+              fakeOpponent: finalGameUtility.fakeOpponent,
+              gameId: finalGameUtility.gameId,
+              creator: finalGameUtility.creatorOfCurrentGame,
               gameCubit: context.read<GamicoGameCubit>(),
+              gamesRepository: context.read<GamicoGamesRepository>(),
             )..init(),
           ),
-        if (gameType == GameType.passAndPlay)
+        if (finalGameUtility is PassAndPlayGameUtility)
           BlocProvider(
             lazy: false,
             create: (context) => GamicoPassAndPlayGameCubit(
@@ -97,9 +109,9 @@ class GamicoGamePage extends StatelessWidget {
             listeners: [
               BlocListener<GamicoGameCubit, GamicoGameState>(
                 listener: (context, state) {
-                  context.read<GamicoGameCubit>().setDisplayGamePopup(false);
-
                   if (state.displayGamePopup) {
+                    context.read<GamicoGameCubit>().setDisplayGamePopup(false);
+
                     NavigationService.showPopup(
                       context: context,
                       builder: (_) {
@@ -234,13 +246,13 @@ class GamicoGamePage extends StatelessWidget {
                 },
               ),
             ],
-            child: WillPopScope(
+            child: GamicoPopScope(
               onWillPop: () => _onWillPop(context),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
                   // Concrete game
-                  child,
+                  widget.child,
 
                   /// Widget that displays confettis to the user
                   const GamicoGameConfetti(),
@@ -252,25 +264,25 @@ class GamicoGamePage extends StatelessWidget {
             ),
           );
 
-          if (gameType == GameType.adventure) {
+          if (finalGameUtility is AdventureGameUtility) {
             return AdventureGamePage(
-              level: gameUtility.level!,
-              onBackButtonPressed: gameUtility.onBackButtonPressed,
+              level: finalGameUtility.level,
+              onBackButtonPressed: finalGameUtility.onBackButtonPressed,
               child: finalChild,
             );
-          } else if (gameType == GameType.tutorial) {
+          } else if (finalGameUtility is TutorialGameUtility) {
             return TutorialGamePage(
-              onBackButtonPressed: gameUtility.onBackButtonPressed,
+              onBackButtonPressed: finalGameUtility.onBackButtonPressed,
               child: finalChild,
             );
-          } else if (gameType == GameType.remote) {
+          } else if (finalGameUtility is RemoteGameUtility) {
             return GamicoRemoteGamePage(
-              onBackButtonPressed: gameUtility.onBackButtonPressed,
+              onBackButtonPressed: finalGameUtility.onBackButtonPressed,
               child: finalChild,
             );
-          } else if (gameType == GameType.remote) {
+          } else if (finalGameUtility is PassAndPlayGameUtility) {
             return PassAndPlayGamePage(
-              onBackButtonPressed: gameUtility.onBackButtonPressed,
+              onBackButtonPressed: finalGameUtility.onBackButtonPressed,
               child: finalChild,
             );
           }
@@ -299,7 +311,7 @@ class GamicoGamePage extends StatelessWidget {
 
     await NavigationService.showPopup(
       context: context,
-      builder: (_) {
+      builder: (innerContext) {
         return GamicoPopup(
           child: GamicoDialogPoster(
             icon: Icons.warning,
@@ -311,11 +323,11 @@ class GamicoGamePage extends StatelessWidget {
             automaticClose: false,
             onAccepted: () async {
               back = true;
-              NavigationService.pop(_);
+              NavigationService.pop(innerContext);
             },
             onRejected: () {
               back = false;
-              NavigationService.pop(_);
+              NavigationService.pop(innerContext);
             },
           ),
         );
@@ -341,14 +353,21 @@ class GamicoGamePage extends StatelessWidget {
     gameCubit.onExitGame?.call();
     gameCubit.setAnimInit(false);
 
-    await Future.delayed(AnimationService.animationDuration);
-
-    gameUtility.onBackButtonPressed?.call();
-
     gameCubit.state.gameMode.onExitingGame(context);
 
-    musicCubit.playMainMusic();
+    onClosed = () {
+      widget.gameUtility.onBackButtonPressed?.call();
+      musicCubit.playMainMusic();
+    };
+
+    await Future.delayed(AnimationService.animationDuration);
 
     return true;
+  }
+
+  @override
+  void deactivate() {
+    onClosed?.call();
+    super.deactivate();
   }
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gamico/commons/enums/game_type.dart';
 import 'package:gamico/commons/generics/game_initial_tutorial_popup.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/navigation.dart';
@@ -70,10 +69,9 @@ class TutorialGamePage extends StatelessWidget {
               context,
               Gamico.instance.pagesSettings.gamePage(
                 context,
-                GameUtility(
+                TutorialGameUtility(
                   onBackButtonPressed: onBackButtonPressed,
-                  tutorialLessonIndex: state.tutorialNextLessonIndex,
-                  gameType: GameType.tutorial,
+                  tutorialLessonIndex: state.tutorialNextLessonIndex ?? 0,
                 ),
               ),
             );

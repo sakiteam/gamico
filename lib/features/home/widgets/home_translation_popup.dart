@@ -49,6 +49,7 @@ class _HomeTranslationPopupState extends State<HomeTranslationPopup> {
         width: GamicoPopupButton.defaultWidth,
         height: GamicoPopupButton.defaultHeight,
         child: GamicoPopupButton(
+          icon: Icons.restore,
           text: l.restoreDefaultLanguage,
           // child: Padding(
           //             padding: const EdgeInsets.only(

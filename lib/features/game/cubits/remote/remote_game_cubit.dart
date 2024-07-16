@@ -6,8 +6,11 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/gamico_game_model.dart';
 import 'package:gamico/commons/repositories/gamico_games_repository.dart';
+import 'package:gamico/commons/services/game.dart';
 import 'package:gamico/commons/services/global.dart';
 import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/features/adventure/utilities/adventure_utility.dart';
+import 'package:gamico/features/adventure/utilities/remote_utility.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:meta/meta.dart';
 
@@ -20,12 +23,23 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     required this.gamesRepository,
     required this.gameCubit,
     required bool fakeOpponent,
+    required this.remoteUtility,
+    required int? level,
+    required this.adventureUtility,
   }) : super(GamicoRemoteGameState(
           creator: creator,
           fakeOpponent: fakeOpponent,
+          remoteUtility: remoteUtility,
+          adventureUtility: adventureUtility,
+          level: level,
+          userInitialLevel:
+              adventureUtility?.getUserLevel(gameCubit.userCubit.state.user),
         ));
 
   final GamicoGameCubit gameCubit;
+
+  final RemoteUtility remoteUtility;
+  final AdventureUtility? adventureUtility;
 
   // Usual repository
   final GamicoGamesRepository gamesRepository;
@@ -91,7 +105,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     );
   }
 
-  void replay() {
+  void replay([int? level]) {
     final opponent = state.opponent;
 
     if (opponent == null) return;
@@ -114,6 +128,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         GamicoGameEventModel(
           type: "REPLAY",
           userId: UserService.uid,
+          data: level == null ? null : {"level": level},
         ),
       );
     }
@@ -125,9 +140,10 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     ));
   }
 
-  void setNewRemoteGameActive(bool newRemoteGameActive) {
+  void setNewRemoteGameActive(bool newRemoteGameActive, [int? level]) {
     emit(state.copyWith(
       newRemoteGameActive: newRemoteGameActive,
+      nextLevel: level == null ? null : () => level,
     ));
 
     declareCurrentUserExit();
@@ -190,8 +206,14 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     }
   }
 
+  String get developerAppleId => remoteUtility.developerAppleId;
+  String get developerAndroidId => remoteUtility.developerAndroidId;
+
   void init() {
     gameCubit.onInit = () async {
+      GameService.gameSkipped =
+          adventureUtility != null && (state.userInitialLevel == state.level);
+
       currentGame = await gamesRepository.readGame(gameId);
 
       final playersIds =
@@ -200,7 +222,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         return e.userId.toString();
       }).toList();
 
-      final developerId = Gamico.instance.gameSettings.developerId;
+      final developerId = remoteUtility.developerId;
 
       final opponentId = state.fakeOpponent
           ? developerId
@@ -249,6 +271,12 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         }
       });
 
+      // Seeds
+      final seedModulo = remoteUtility.seedModulo;
+
+      seed1 = (currentGame?.createdAt?.millisecond ?? 0) % seedModulo;
+      seed2 = (currentGame?.createdAt?.microsecond ?? 0) % seedModulo;
+
       // Listen to game events
       if (!state.fakeOpponent) {
         gameEventsStreamSubscription = FirebaseDatabase.instance
@@ -270,7 +298,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
             } else if (currentGameEvent.type == "MOVE") {
               if (currentGameEvent.userId != UserService.uid) {
                 gameCubit.settings
-                    ?.receiveMoveFromRemotePlayer(currentGameEvent.data ?? {});
+                    ?.receiveMoveFromRemotePlayer(currentGameEvent);
               }
             } else if (currentGameEvent.type == "EXIT") {
               if (currentGameEvent.userId != UserService.uid) {
@@ -302,9 +330,23 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
             } else if (currentGameEvent.type == "REPLAY") {
               replayRequests++;
 
+              final level = currentGameEvent.data?["level"]?.toInt();
+
+              if (level != null) {
+                final stateNextLevel = state.nextLevel;
+
+                if (stateNextLevel != null && level != stateNextLevel) {
+                  replayRequests = 0;
+
+                  emit(state.copyWith(
+                    gameEndStatus: "",
+                  ));
+                }
+              }
+
               if (replayRequests == 2) {
                 _launchNewGame();
-              } else {
+              } else if (replayRequests == 1) {
                 if (currentGameEvent.userId == UserService.uid) {
                   emit(state.copyWith(
                     gameEndStatus: "INTERNAL_INVITATION",
@@ -375,17 +417,11 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
       await userDisconnectionReference?.update({
         "coins": ServerValue.increment(
-            -Gamico.instance.gameSettings.playMinimumCowries),
+            -Gamico.instance.gameSettings.playMinimumCoins),
         "defeats": ServerValue.increment(1),
         "trophies": ServerValue.increment(-1),
         "updated_at": DateTime.now().toString(),
       });
-
-      // 10 is the number of fields
-      final seedModulo = Gamico.instance.gameSettings.seedModulo;
-
-      seed1 = (currentGame?.createdAt?.millisecond ?? 0) % seedModulo;
-      seed2 = (currentGame?.createdAt?.microsecond ?? 0) % seedModulo;
 
       // Declare game as ready when really ready
       await GamicoGlobalService.waitWhile(() => state.opponent == null);
@@ -408,7 +444,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     gameCubit.onExitGame = () {
       if (!gameCubit.state.over) {
         gameCubit.userCubit
-            .decrementCowries(Gamico.instance.gameSettings.playMinimumCowries);
+            .decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
         gameCubit.userCubit.incrementDefeats();
       }
 
@@ -450,10 +486,10 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     }
   }
 
-  void sendMoveToRemotePlayer(Map<String, dynamic> data) {
+  Future<void> sendMoveToRemotePlayer(Map<String, dynamic> data) async {
     if (state.fakeOpponent) return;
 
-    gamesRepository.addGameEvent(
+    await gamesRepository.addGameEvent(
       gameId,
       GamicoGameEventModel(
         data: data,

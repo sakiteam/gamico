@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gamico/commons/enums/game_type.dart';
+import 'package:gamico/commons/generics/pop_scope.dart';
 import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/features/adventure/utilities/adventure_utility.dart';
+import 'package:gamico/features/adventure/utilities/remote_utility.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:gamico/commons/services/animation.dart';
 import 'package:gamico/commons/services/navigation.dart';
@@ -16,10 +18,16 @@ import 'package:gamico/commons/repositories/gamico_games_repository.dart';
 
 class GamicoRemotePage extends StatefulWidget {
   final Widget child;
+  final RemoteUtility remoteUtility;
+  final AdventureUtility? adventureGameUtility;
+  final int? level;
 
   const GamicoRemotePage({
     super.key,
     required this.child,
+    required this.remoteUtility,
+    required this.adventureGameUtility,
+    required this.level,
   });
 
   @override
@@ -36,9 +44,11 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
     remoteCubit = RemoteCubit(
       userCubit: context.read<GamicoUserCubit>(),
       gamesRepository: context.read<GamicoGamesRepository>(),
+      remoteUtility: widget.remoteUtility,
+      level: widget.level,
     );
 
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       remoteCubit.init();
     });
   }
@@ -85,6 +95,8 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
             listener: (context, remoteState) async {
               final remoteCubit = context.read<RemoteCubit>();
 
+              final remoteUtility = widget.remoteUtility;
+
               if (remoteState.enabled) {
                 remoteCubit.setAnimGame(true);
                 remoteCubit.setAnimated(true);
@@ -97,17 +109,23 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
                     value: remoteCubit,
                     child: Gamico.instance.pagesSettings.gamePage(
                       context,
-                      GameUtility(
+                      RemoteGameUtility(
+                        level: remoteState.level,
                         gameId: remoteState.gameId,
                         fakeOpponent: remoteState.fakeOpponent,
-                        gameType: GameType.remote,
+                        remoteUtility: remoteUtility,
+                        adventureUtility: widget.adventureGameUtility,
+                        creatorOfCurrentGame: remoteState.creator!,
                         onBackButtonPressed: () async {
-                          remoteCubit.setAnimGame(false);
-
-                          await Future.delayed(
-                              AnimationService.animationDuration);
-
-                          remoteCubit.setAnimated(false);
+                          if (widget.remoteUtility.adventure) {
+                            remoteCubit.setForcePop(true);
+                            NavigationService.pop(context);
+                          } else {
+                            remoteCubit.setAnimGame(false);
+                            await Future.delayed(
+                                AnimationService.animationDuration);
+                            remoteCubit.setAnimated(false);
+                          }
                         },
                       ),
                     ),
@@ -116,21 +134,9 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
 
                 await Future.delayed(AnimationService.animationDuration);
 
-                remoteCubit.setFinalized(true);
+                notifyPlayers();
 
-                if (await NotificationService.allowed()) {
-                  AwesomeNotifications().createNotification(
-                    content: NotificationContent(
-                      id: 2,
-                      channelKey: "default",
-                      title: l.remoteInvitationTitle,
-                      body: l.remoteInvitationDescription,
-                      wakeUpScreen: true,
-                      displayOnForeground: false,
-                      category: NotificationCategory.Alarm,
-                    ),
-                  );
-                }
+                remoteCubit.setFinalized(true);
               }
             },
             listenWhen: (oldState, newState) {
@@ -139,36 +145,60 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
             },
           ),
         ],
-        child: Builder(builder: (context) {
-          final enabled = context
-              .select((RemoteCubit remoteCubit) => remoteCubit.state.enabled);
-
-          return WillPopScope(
-            onWillPop: () async {
-              // Enable back when page is enabled
-              if (enabled) {
+        child: Builder(
+          builder: (context) {
+            return GamicoPopScope(
+              onWillPop: () async {
                 final remoteCubit = context.read<RemoteCubit>();
 
-                remoteCubit.setAnimInit(false);
-                remoteCubit.setAnimated(true);
+                final enabled = remoteCubit.state.enabled;
+                final forcePop = remoteCubit.state.forcePop;
 
-                // Wait for transition to be performed
-                await Future.delayed(AnimationService.animationDuration);
+                if (forcePop) return true;
 
-                // Stop animation
-                remoteCubit.setAnimated(false);
+                // Enable back when page is enabled
+                if (enabled) {
+                  final remoteCubit = context.read<RemoteCubit>();
 
-                // Enable back
-                return true;
-              }
+                  remoteCubit.setAnimInit(false);
+                  remoteCubit.setAnimated(true);
 
-              // Disable back when page is disabled
-              return false;
-            },
-            child: widget.child,
-          );
-        }),
+                  // Wait for transition to be performed
+                  await Future.delayed(AnimationService.animationDuration);
+
+                  // Stop animation
+                  remoteCubit.setAnimated(false);
+
+                  // Enable back
+                  return true;
+                }
+
+                // Disable back when page is disabled
+                return false;
+              },
+              child: widget.child,
+            );
+          },
+        ),
       ),
     );
+  }
+
+  void notifyPlayers() async {
+    final l = GamicoLanguages.of(context);
+
+    if (await NotificationService.allowed()) {
+      AwesomeNotifications().createNotification(
+        content: NotificationContent(
+          id: 2,
+          channelKey: "default",
+          title: l.remoteInvitationTitle,
+          body: l.remoteInvitationDescription,
+          wakeUpScreen: true,
+          displayOnForeground: false,
+          category: NotificationCategory.Alarm,
+        ),
+      );
+    }
   }
 }

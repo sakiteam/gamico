@@ -49,10 +49,12 @@ class GamicoCard extends StatelessWidget {
               RoundedRectangleBorder(
                 borderRadius:
                     borderRadius ?? BorderRadius.circular(defaultBorderRadius),
-                side: BorderSide(
-                  color: borderColor ?? Colors.grey,
-                  width: borderWidth ?? 0.5,
-                ),
+                side: borderWidth == 0
+                    ? BorderSide.none
+                    : BorderSide(
+                        color: borderColor ?? Colors.grey,
+                        width: borderWidth ?? 0.5,
+                      ),
               ),
           child: Padding(
             padding: padding ?? EdgeInsets.zero,

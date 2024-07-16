@@ -7,7 +7,7 @@ import 'package:gamico/commons/generics/icon_text_button.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/gamico_user_model.dart';
 import 'package:gamico/commons/modes/game_mode_settings.dart';
-import 'package:gamico/commons/services/game.dart';
+import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/features/game/cubits/adventure/adventure_game_cubit.dart';
@@ -119,11 +119,6 @@ class AdventureModeSettings implements GameModeSettings {
   }
 
   @override
-  bool isOpponentAvailable(BuildContext context) {
-    return true;
-  }
-
-  @override
   bool isPossibleToPlayAgain(BuildContext context) {
     final level = context
         .select((GamicoAdventureGameCubit userCubit) => userCubit.state.level);
@@ -135,7 +130,7 @@ class AdventureModeSettings implements GameModeSettings {
     final userLevel = context.select((GamicoUserCubit userCubit) =>
         adventureUtility.getUserLevel(userCubit.state.user));
 
-    return coins >= Gamico.instance.gameSettings.playMinimumCowries ||
+    return coins >= Gamico.instance.gameSettings.playMinimumCoins ||
         userLevel > level;
   }
 
@@ -154,7 +149,7 @@ class AdventureModeSettings implements GameModeSettings {
         .select((GamicoAdventureGameCubit userCubit) => userCubit.state.level);
 
     return (userLevel == level + 1
-            ? coins >= Gamico.instance.gameSettings.playMinimumCowries
+            ? coins >= Gamico.instance.gameSettings.playMinimumCoins
             : userLevel > level) &&
         level != adventureUtility.maxLevel;
   }
@@ -179,7 +174,7 @@ class AdventureModeSettings implements GameModeSettings {
         context.select((GamicoGameCubit userCubit) => userCubit.state.victory);
 
     final nextLevelButton = GamicoIconTextButton(
-      color: Colors.orange,
+      color: ColorService.accentColor,
       onPressed: !isPossibleToPlayNextLevel(context)
           ? null
           : () async {
@@ -238,7 +233,7 @@ class AdventureModeSettings implements GameModeSettings {
     if (adventureGameCubit.state.level ==
         adventureUtility.getUserLevel(userCubit.state.user)) {
       return l.adventureComplexCloseDescription(
-          Gamico.instance.gameSettings.playMinimumCowries);
+          Gamico.instance.gameSettings.playMinimumCoins);
     } else {
       return l.adventureSimpleCloseDescription;
     }
@@ -246,62 +241,13 @@ class AdventureModeSettings implements GameModeSettings {
 
   @override
   void gamePageManageCoinsAndStars(BuildContext context) {
-    final gameCubit = context.read<GamicoGameCubit>();
-    final userCubit = context.read<GamicoUserCubit>();
-    final adventureGameCubit = context.read<GamicoAdventureGameCubit>();
+    final aventureGameState = context.read<GamicoAdventureGameCubit>().state;
 
-    final gameState = gameCubit.state;
-    final aventureGameState = adventureGameCubit.state;
-
-    final victory = gameState.victory;
-    final level = aventureGameState.level;
-    final currentLevelStars = gameState.stars;
-    final userStars = (userCubit.state.user?.stars as List<int>?) ?? [];
-    final levelPreviousStars = userStars.elementAtOrNull(level) ?? 0;
-    final adventureUtility = aventureGameState.adventureUtility;
-
-    if (victory == true) {
-      if (currentLevelStars > levelPreviousStars) {
-        final newStars = <int>[];
-
-        for (int i = 0; i <= adventureUtility.maxLevel; i++) {
-          newStars.add(userStars.elementAtOrNull(i) ?? 0);
-        }
-
-        newStars[level] = currentLevelStars;
-
-        userCubit.updateStars(newStars);
-
-        final int currentUserLevel =
-            adventureUtility.getUserLevel(userCubit.state.user);
-        final multiplicationFactor = currentLevelStars - levelPreviousStars;
-
-        if (multiplicationFactor > 0) {
-          final int cowriesReward;
-
-          if (currentUserLevel == adventureUtility.maxLevel) {
-            cowriesReward = adventureUtility.gameEndReward;
-          } else {
-            cowriesReward = Gamico.instance.gameSettings.playMinimumCowries;
-          }
-
-          userCubit
-              .incrementCowries((cowriesReward * multiplicationFactor).toInt());
-        }
-
-        // Increment level if current level is last
-        if (level == adventureUtility.getUserLevel(userCubit.state.user)) {
-          userCubit.incrementLevel();
-        }
-      }
-    } else {
-      // Decrement cowries if current level is last
-      if (level == adventureUtility.getUserLevel(userCubit.state.user)) {
-        userCubit.decrementCowries(
-          Gamico.instance.gameSettings.playMinimumCowries,
-        );
-      }
-    }
+    gamePageManageCoinsAndStarsInAdventureGame(
+      context,
+      aventureGameState.level,
+      aventureGameState.adventureUtility,
+    );
   }
 
   @override
@@ -312,10 +258,11 @@ class AdventureModeSettings implements GameModeSettings {
     final gameState = gameCubit.state;
     final adventureGameState = adventureGameCubit.state;
 
-    return GameService.plays >= 5 ||
-        (gameState.victory == true &&
-            adventureGameState.level ==
-                adventureGameState.adventureUtility.maxLevel);
+    return shouldShowAdsInAdventureGame(
+      gameState.victory,
+      adventureGameState.level,
+      adventureGameState.adventureUtility.maxLevel,
+    );
   }
 
   @override
@@ -330,4 +277,10 @@ class AdventureModeSettings implements GameModeSettings {
   void gamePageManageGamePopup(BuildContext context) {
     context.read<GamicoGameCubit>().setDisplayGamePopup(true);
   }
+
+  @override
+  Widget? levelsBuilder(BuildContext context) => null;
+
+  @override
+  bool isOpponentAvailable(BuildContext context) => true;
 }

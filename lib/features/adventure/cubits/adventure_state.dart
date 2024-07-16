@@ -7,6 +7,7 @@ class GamicoAdventureState {
   final bool animated;
 
   final AdventureUtility adventureUtility;
+  final RemoteUtility? remoteUtility;
 
   bool get enabled => !animated;
 
@@ -15,6 +16,7 @@ class GamicoAdventureState {
     this.animGame = false,
     this.animated = false,
     required this.adventureUtility,
+    required this.remoteUtility,
   });
 
   GamicoAdventureState copyWith({
@@ -22,12 +24,15 @@ class GamicoAdventureState {
     bool? animGame,
     bool? animated,
     AdventureUtility? adventureUtility,
+    RemoteUtility? Function()? remoteUtility,
   }) {
     return GamicoAdventureState(
       animInit: animInit ?? this.animInit,
       animGame: animGame ?? this.animGame,
       animated: animated ?? this.animated,
       adventureUtility: adventureUtility ?? this.adventureUtility,
+      remoteUtility:
+          remoteUtility != null ? remoteUtility() : this.remoteUtility,
     );
   }
 }

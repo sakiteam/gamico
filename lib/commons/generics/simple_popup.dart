@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/cubits/character/character_cubit.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
+import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/layout.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/generics/character.dart';
@@ -197,7 +198,8 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
                                                           GamicoIconTextButton(
                                                         text: l
                                                             .blockedAccountContactSakiHub,
-                                                        color: Colors.orange,
+                                                        color: ColorService
+                                                            .accentColor,
                                                         iconData: Icons.mail,
                                                         onPressed: () {
                                                           launchUrl(Uri.parse(

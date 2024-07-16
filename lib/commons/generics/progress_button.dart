@@ -62,13 +62,13 @@ class _GamicoProgressButtonState extends State<GamicoProgressButton>
       TweenSequenceItem(
         tween: ColorTween(
           begin: ColorService.foregroundBlue,
-          end: ColorService.red,
+          end: ColorService.accentColor,
         ),
         weight: 1,
       ),
       TweenSequenceItem(
         tween: ColorTween(
-          begin: ColorService.red,
+          begin: ColorService.accentColor,
           end: ColorService.foregroundBlue,
         ),
         weight: 1,
@@ -118,7 +118,7 @@ class _GamicoProgressButtonState extends State<GamicoProgressButton>
             cowriesDifference = state.cowriesUpdateDifference;
 
             if (cowriesDifference < 0) {
-              cowriesUpdateColor = Colors.orange;
+              cowriesUpdateColor = ColorService.accentColor;
             } else {
               cowriesUpdateColor = Colors.blue;
             }
@@ -199,8 +199,7 @@ class _GamicoProgressButtonState extends State<GamicoProgressButton>
                         GamicoProgressButton.popupVisible = true;
                       });
 
-                      await NavigationService.showCowriesPopup(
-                          context, null, null);
+                      await NavigationService.showCowriesPopup(context, null);
 
                       setState(() {
                         GamicoProgressButton.popupVisible = false;
@@ -215,10 +214,7 @@ class _GamicoProgressButtonState extends State<GamicoProgressButton>
                             return GamicoAuthenticationPopup(
                               onSuccess: () {
                                 NavigationService.showCowriesPopup(
-                                  context,
-                                  null,
-                                  null,
-                                );
+                                    context, null);
                               },
                             );
                           }

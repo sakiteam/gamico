@@ -3,10 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:gamico/commons/generics/content_container.dart';
 import 'package:gamico/commons/generics/outlined_text.dart';
+import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 
 const fontSize = 40.0;
-const color = Colors.orange;
+final color = ColorService.accentColor;
 
 class GamicoGameCongratulationsText extends StatefulWidget {
   const GamicoGameCongratulationsText({
@@ -92,11 +93,11 @@ class _GamicoGameCongratulationsTextState
                             text,
                             strokeColor: Colors.brown,
                             strokeWidth: 2.5,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: fontSize,
                               color: color,
                               fontWeight: FontWeight.bold,
-                              shadows: [
+                              shadows: const [
                                 Shadow(
                                   offset: Offset(-0, -0.5),
                                   blurRadius: 0,
@@ -113,7 +114,7 @@ class _GamicoGameCongratulationsTextState
                           GamicoOutlinedText(
                             text,
                             strokeColor: Colors.brown,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: fontSize,
                               color: color,
                             ),

@@ -5,6 +5,7 @@ import 'package:gamico/commons/generics/poster.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
 import 'package:gamico/commons/generics/ad_button.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
+import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -30,9 +31,11 @@ class GamicoGamePopup extends StatelessWidget {
         victory == true &&
         !tripleAdWatched;
 
+    final levelsBuilder = gameMode.levelsBuilder(context);
+
     return GamicoPopup(
       additionalChild: GamicoAdButton(
-        color: tripleAd ? Colors.orange : null,
+        color: tripleAd ? ColorService.accentColor : null,
         onPressed: () async {
           final AdmobCubit admobCubit = context.read<AdmobCubit>();
 
@@ -44,8 +47,7 @@ class GamicoGamePopup extends StatelessWidget {
           });
         },
         text: tripleAd
-            ? l.gamePopupWatchAd(
-                Gamico.instance.gameSettings.playMinimumCowries)
+            ? l.gamePopupWatchAd(Gamico.instance.gameSettings.playMinimumCoins)
             : null,
       ),
       child: GamicoPoster(
@@ -60,18 +62,20 @@ class GamicoGamePopup extends StatelessWidget {
                 : null,
         title: gameMode.gamePopupTitle(context) ?? getDefaultTitle(context),
         description: gameMode.gamePopupDescription(context) ?? "",
-        content: Row(
-          key: gameMode.gamePopupContentKey(context),
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: gameMode.gamePopupButtons(
-            context,
-            const GamicoGameExitButton(),
-            GamicoGameReplayButton(
-              enabled: gameMode.isPossibleToPlayAgain(context) &&
-                  gameMode.isOpponentAvailable(context),
+        contentPadding: EdgeInsets.zero,
+        content: levelsBuilder ??
+            Row(
+              key: gameMode.gamePopupContentKey(context),
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: gameMode.gamePopupButtons(
+                context,
+                const GamicoGameExitButton(),
+                GamicoGameReplayButton(
+                  enabled: gameMode.isPossibleToPlayAgain(context) &&
+                      gameMode.isOpponentAvailable(context),
+                ),
+              ),
             ),
-          ),
-        ),
         expandContent: true,
       ),
     );

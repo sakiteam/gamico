@@ -25,9 +25,7 @@ class GamicoAdventureGameCubit extends Cubit<GamicoAdventureGameState> {
   void init() {
     gameCubit.onInit = () async {
       // Initial configs
-      GameService.gameSkipped =
-          adventureUtility.getUserLevel(gameCubit.userCubit.state.user) ==
-              state.level;
+      GameService.gameSkipped = state.userInitialLevel == state.level;
 
       gameCubit.settings!.initGame();
 
@@ -42,8 +40,8 @@ class GamicoAdventureGameCubit extends Cubit<GamicoAdventureGameState> {
       if (!gameCubit.state.over) {
         if (state.level ==
             adventureUtility.getUserLevel(gameCubit.userCubit.state.user)) {
-          gameCubit.userCubit.decrementCowries(
-              Gamico.instance.gameSettings.playMinimumCowries);
+          gameCubit.userCubit
+              .decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
         }
       }
     };

@@ -59,7 +59,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     _disconnectionSubscription = FirebaseDatabase.instance
         .ref(".info/connected")
         .onValue
-        .listen((event) async {
+        .listen((event) {
       final online = event.snapshot.value as bool? ?? false;
 
       if (online) {
@@ -115,7 +115,6 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
   // void rewardReferrer(String referrerId) {
   //   usersRepository.incrementUserCoins(referrerId, 50);
-
   //
   //   // GlobalService.sendUserNotification(
   //   //   referrerId,
@@ -354,11 +353,8 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
   // void upgradeCard(String cardId) {
   //   final cards = state.user?.cards ?? {};
-
   //   final currentLevel = (cards[cardId] ?? 0);
-
   //   cards[cardId] = currentLevel + 1;
-
   //   decrementCowries(currentLevel * 10);
   //   setCards(cards);
   // }
@@ -368,10 +364,8 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   //   List<List<String>> decks = state.user?.decks ?? [];
   //   decks += List.filled(3 - decks.length, List.filled(8, ""));
   //   final currentDeck = decks[activeDeck];
-
   //   final currentCardIndex = currentDeck.indexOf(cardId);
   //   currentDeck[currentCardIndex] = "";
-
   //   setDecks(decks);
   // }
 
@@ -380,24 +374,19 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   //   List<List<String>> decks = state.user?.decks ?? [];
   //   decks += List.filled(3 - decks.length, List.filled(8, ""));
   //   final currentDeck = decks[activeDeck];
-
   //   for (int i = 0; i < currentDeck.length; i++) {
   //     if (currentDeck[i].isEmpty) {
   //       currentDeck[i] = card.type.id;
   //       break;
   //     }
   //   }
-
   //   setDecks(decks);
   // }
 
   // void acquireCard(CardUtility card) {
   //   final cards = state.user?.cards ?? {};
-
   //   cards[card.type.id] = 1;
-
   //   decrementCowries(card.cost);
-
   //   setCards(cards);
   // }
 }

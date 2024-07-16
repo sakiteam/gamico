@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/game.dart';
-import 'package:gamico/commons/enums/game_type.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
 import 'package:gamico/commons/cubits/internet/internet_cubit.dart';
 import 'package:gamico/features/game/cubits/remote/remote_game_cubit.dart';
+import 'package:gamico/features/remote/cubits/remote_cubit.dart';
 
 class GamicoRemoteGamePage extends StatelessWidget {
   final Widget child;
@@ -57,19 +57,22 @@ class GamicoRemoteGamePage extends StatelessWidget {
             gameCubit.setActive(false);
             gameCubit.setAnimGame(true);
 
-            final remoteCubit = context.read<GamicoRemoteGameCubit>();
+            // final remoteCubit = ;
 
             await NavigationService.replace(
               context,
               BlocProvider.value(
-                value: remoteCubit,
+                value: context.read<RemoteCubit>(),
                 child: Gamico.instance.pagesSettings.gamePage(
                   context,
-                  GameUtility(
+                  RemoteGameUtility(
                     onBackButtonPressed: onBackButtonPressed,
                     gameId: gameState.newGameId,
                     creatorOfCurrentGame: gameState.newGameCreator,
-                    gameType: GameType.remote,
+                    fakeOpponent: false,
+                    level: gameState.nextLevel ?? gameState.level,
+                    remoteUtility: gameState.remoteUtility,
+                    adventureUtility: gameState.adventureUtility,
                   ),
                 ),
               ),

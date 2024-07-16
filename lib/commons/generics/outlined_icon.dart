@@ -7,6 +7,8 @@ class GamicoOutlinedIcon extends StatelessWidget {
   final double? strokeWidth;
   final Color? strokeColor;
 
+  static bool simple = false;
+
   const GamicoOutlinedIcon(
     this.iconData, {
     super.key,
@@ -24,6 +26,14 @@ class GamicoOutlinedIcon extends StatelessWidget {
     final double margin = -(strokeWidth ?? 0.25);
 
     final finalStrokeColor = strokeColor ?? Colors.black;
+
+    if (simple) {
+      return Icon(
+        iconData,
+        size: size,
+        color: color,
+      );
+    }
 
     return SizedBox(
       width: maxSize,

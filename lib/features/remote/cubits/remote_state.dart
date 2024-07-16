@@ -17,8 +17,9 @@ class RemoteState {
   bool get enabled => animInit && !animGame;
 
   final bool internetError;
-
   final bool fakeOpponent;
+  final int? level;
+  final bool forcePop;
 
   const RemoteState({
     this.status = RemoteGameStatus.initial,
@@ -30,6 +31,8 @@ class RemoteState {
     this.internetError = false,
     this.animated = false,
     this.fakeOpponent = false,
+    this.level,
+    this.forcePop = false,
   });
 
   RemoteState copyWith({
@@ -42,8 +45,11 @@ class RemoteState {
     bool? internetError,
     bool? animated,
     bool? fakeOpponent,
+    int? Function()? level,
+    bool? forcePop,
   }) {
     return RemoteState(
+      level: level != null ? level() : this.level,
       animated: animated ?? this.animated,
       status: status ?? this.status,
       creator: creator != null ? creator() : this.creator,
@@ -53,6 +59,7 @@ class RemoteState {
       animGame: animGame ?? this.animGame,
       internetError: internetError ?? this.internetError,
       fakeOpponent: fakeOpponent ?? this.fakeOpponent,
+      forcePop: forcePop ?? this.forcePop,
     );
   }
 }

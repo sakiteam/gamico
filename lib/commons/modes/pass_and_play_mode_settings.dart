@@ -80,11 +80,6 @@ class PassAndPlayModeSettings implements GameModeSettings {
   }
 
   @override
-  bool isOpponentAvailable(BuildContext context) {
-    return true;
-  }
-
-  @override
   bool isPossibleToPlayAgain(BuildContext context) {
     return true;
   }
@@ -148,4 +143,10 @@ class PassAndPlayModeSettings implements GameModeSettings {
   void gamePageManageGamePopup(BuildContext context) {
     context.read<GamicoGameCubit>().setDisplayGamePopup(true);
   }
+
+  @override
+  Widget? levelsBuilder(BuildContext context) => null;
+
+  @override
+  bool isOpponentAvailable(BuildContext context) => true;
 }

@@ -8,6 +8,7 @@ const bool landscapeScreenshots = false;
 const bool perfectSize = true;
 final Size portraitSize =
     perfectSize ? const Size(450, 750) * 2 : const Size(900, 1600);
+bool showTrueLoader = false;
 
 class LayoutService {
   static void init(BuildContext context) {

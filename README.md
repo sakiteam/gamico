@@ -42,16 +42,15 @@ from the package authors, and more.
 FUTTER
 ---
 
-Créer un projet Flutter de façon classique
-Remplacer le nom de package par le bon nom de package
-Remplacer le nom de l'équipe par le bon nom d'équipe de développement
-Créer un projet Firebase
-Activer Google Play Integrity & Google People API & Google Play Game Services dans GCP
-Créer les applis Android et iOS sur Firebase
-Cocher GameCenter, Push Notifications, Background Modes (background fetch & remote notifications) dans XCode
-Ajouter un dossier contenant les images de la mascotte et mettre son nom dans CharacterSettings
-Ajouter le nécessaire dans le pubspec.yaml en prenant un ancien projet
-Ajouter des Client ID dans GCP pour Web, Android et iOS
+- Créer un projet Flutter de façon classique
+- Remplacer le nom de package par le bon nom de package
+- Créer un projet Firebase
+- Activer Google Play Integrity & Google People API & Google Play Game Services dans GCP
+- Créer les applis Android et iOS sur Firebase
+- Cocher GameCenter, Push Notifications, Background Modes (background fetch & remote notifications) dans XCode
+* Ajouter un dossier contenant les images de la mascotte et mettre son nom dans CharacterSettings
+- Ajouter le nécessaire dans le pubspec.yaml en prenant un ancien projet
+- Ajouter des Client ID dans GCP pour Web, Android et iOS
 
 ---
 GOOGLE & APPLE
@@ -64,9 +63,9 @@ Créer 2 applications Admob pour le projet
 FIREBASE
 ---
 
-Activer Firebase Realtime Database
+Activer Firebase Realtime Database et copier les règles d'un ancien projet
 Exécuter flutterfire configure
-Firebase Auth (à configurer dans GCP)
+Configurer Firebase Auth (avec GCP pour Android et rien pour iOS)
 
 ---
 ANDROID
@@ -78,18 +77,21 @@ Ajouter un key.properties à la racine de android
 Configurer Android pour les écrans (le plein écran)
 Configurer Firebase Game Services
 Ajouter ic_stat_nom pour les notifications dans les ressources de l'application et le manifest
+Mettre une description, une image et une feature graphic pour Game Services dans Play Console
+Publier les changements de Game Services dans Play Console
 
 ---
 IOS
 ---
 
+Cocher Game Center dans la console
 Firebase Game Services (à configurer)
 Configurer Info.plist (en prenant un ancien projet)
 Mettre à 12 la version minimale du projet (dans le Podfile)
-Ajouter les URL Types (REVERSED CLIENT ID) sous l'onglet Info
 
---
-GCP
---
+---
+FINALISATION
+---
 
-Mettre le SHA-1 de Release dans les credentials de GCP et lier ça dans Play Console
+Mettre les SHA-1 de Release dans Firebase
+Mettre le SHA-1 de Release dans les credentials de GCP et lier ça dans Play Console (sinon les connexions ne passeront pas en release)

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gamico/commons/enums/game_type.dart';
 import 'package:gamico/commons/generics/coins_popup.dart';
 import 'package:gamico/commons/cubits/music/music_cubit.dart';
 
@@ -128,7 +127,6 @@ class NavigationService {
   static Future<void> showCowriesPopup(
     BuildContext context,
     int? minimumRequiredCowries,
-    GameType? mode,
   ) async {
     await NavigationService.showPopup(
       context: context,
