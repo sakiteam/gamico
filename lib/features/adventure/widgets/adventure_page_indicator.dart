@@ -6,15 +6,14 @@ import 'package:gamico/features/adventure/cubits/adventure_cubit.dart';
 class AdventurePageIndicator extends StatelessWidget {
   final PageController controller;
 
-  const AdventurePageIndicator({
-    super.key,
-    required this.controller,
-  });
+  const AdventurePageIndicator({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    final chapters = context.select((GamicoAdventureCubit adventureCubit) =>
-        adventureCubit.state.adventureUtility.chapters);
+    final chapters = context.select(
+      (GamicoAdventureCubit adventureCubit) =>
+          adventureCubit.state.adventureUtility.chapters,
+    );
 
     return GamicoPageIndicator(
       controller: controller,

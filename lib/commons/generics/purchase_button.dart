@@ -10,15 +10,13 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 class GamicoPurchaseButton extends StatelessWidget {
   final ProductDetails productDetails;
 
-  const GamicoPurchaseButton({
-    super.key,
-    required this.productDetails,
-  });
+  const GamicoPurchaseButton({super.key, required this.productDetails});
 
   @override
   Widget build(BuildContext context) {
-    final status = context
-        .select((PurchasesCubit purchasesCubit) => purchasesCubit.state.status);
+    final status = context.select(
+      (PurchasesCubit purchasesCubit) => purchasesCubit.state.status,
+    );
 
     final title = GamicoGlobalService.simplifyProductName(productDetails.title);
 
@@ -26,12 +24,9 @@ class GamicoPurchaseButton extends StatelessWidget {
       disabled: status == PurchasesStatus.failure,
       child: GamicoIconTextButton(
         loading: status == PurchasesStatus.loading,
-        iconWidget: const CoinsWidget(
-          size: 50,
-          color: Colors.white,
-        ),
+        iconWidget: const CoinsWidget(size: 50, color: Colors.white),
         text:
-            "$title\n(${productDetails.rawPrice} ${productDetails.currencyCode})",
+            "$title\n(${productDetails.rawPrice.toStringAsFixed(2)} ${productDetails.currencyCode})",
         onPressed: () {
           context.read<PurchasesCubit>().purchase(productDetails);
         },

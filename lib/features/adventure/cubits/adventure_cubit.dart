@@ -9,30 +9,34 @@ class GamicoAdventureCubit extends Cubit<GamicoAdventureState> {
   GamicoAdventureCubit({
     required AdventureUtility adventureUtility,
     required RemoteUtility? remoteUtility,
-  }) : super(GamicoAdventureState(
-          adventureUtility: adventureUtility,
-          remoteUtility: remoteUtility,
-        ));
+  }) : super(
+         GamicoAdventureState(
+           adventureUtility: adventureUtility,
+           remoteUtility: remoteUtility,
+         ),
+       );
 
   void init() {
     setAnimInit(true);
   }
 
   void setAnimInit(bool animInit) {
-    emit(state.copyWith(
-      animInit: animInit,
-    ));
+    emit(state.copyWith(animInit: animInit));
   }
 
   void setAnimGame(bool animGame) {
-    emit(state.copyWith(
-      animGame: animGame,
-    ));
+    emit(state.copyWith(animGame: animGame));
   }
 
   void setAnimated(bool animated) {
-    emit(state.copyWith(
-      animated: animated,
-    ));
+    emit(state.copyWith(animated: animated));
+  }
+
+  void setNextLevelActive(bool nextLevelActive) {
+    emit(state.copyWith(nextLevelActive: nextLevelActive));
+  }
+
+  void setNextLevelToPlay(int? nextLevelToPlay) {
+    emit(state.copyWith(nextLevelToPlay: () => nextLevelToPlay));
   }
 }

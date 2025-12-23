@@ -48,6 +48,21 @@ final defaultLanguagesSettings = LanguagesSettings(
 
 class GamicoLanguageEnDefault extends GamicoLanguageEn {
   @override
+  String get friendPageTitle => "Search Friends";
+
+  @override
+  String get friendPageSearchHint => "Search by name...";
+
+  @override
+  String get friendPagePendingInvitations => "Pending Invitations";
+
+  @override
+  String get friendPageGameInvitation => "Game Invitation";
+
+  @override
+  String friendPageInvitationFrom(String name) => "From: $name";
+
+  @override
   String get adventureDrawImpossibleToPlayNextLevelDescription => "";
 
   @override
@@ -82,6 +97,9 @@ class GamicoLanguageEnDefault extends GamicoLanguageEn {
 
   @override
   String get homeGratificationPopupIncorrectTimestampDescription => "";
+
+  @override
+  String get homeGratificationBrokeUserPopupInstructionDescription => "";
 
   @override
   String get homeGratificationPopupInstructionDescription => "";
@@ -113,6 +131,21 @@ class GamicoLanguageEnDefault extends GamicoLanguageEn {
 
 class GamicoLanguageFrDefault extends GamicoLanguageFr {
   @override
+  String get friendPageTitle => "Rechercher des amis";
+
+  @override
+  String get friendPageSearchHint => "Rechercher par nom...";
+
+  @override
+  String get friendPagePendingInvitations => "Invitations en attente";
+
+  @override
+  String get friendPageGameInvitation => "Invitation à jouer";
+
+  @override
+  String friendPageInvitationFrom(String name) => "De : $name";
+
+  @override
   String get adventureDrawImpossibleToPlayNextLevelDescription => "";
 
   @override
@@ -148,6 +181,8 @@ class GamicoLanguageFrDefault extends GamicoLanguageFr {
   @override
   String get homeGratificationPopupIncorrectTimestampDescription => "";
 
+  @override
+  String get homeGratificationBrokeUserPopupInstructionDescription => "";
   @override
   String get homeGratificationPopupInstructionDescription => "";
 
@@ -237,6 +272,21 @@ class GamicoLanguageFrDefault extends GamicoLanguageFr {
 
 class GamicoLanguageZhDefault extends GamicoLanguageZh {
   @override
+  String get friendPageTitle => "搜索好友";
+
+  @override
+  String get friendPageSearchHint => "按名字搜索...";
+
+  @override
+  String get friendPagePendingInvitations => "待处理邀请";
+
+  @override
+  String get friendPageGameInvitation => "游戏邀请";
+
+  @override
+  String friendPageInvitationFrom(String name) => "来自：$name";
+
+  @override
   String get adventureDrawImpossibleToPlayNextLevelDescription => "";
 
   @override
@@ -272,6 +322,8 @@ class GamicoLanguageZhDefault extends GamicoLanguageZh {
   @override
   String get homeGratificationPopupIncorrectTimestampDescription => "";
 
+  @override
+  String get homeGratificationBrokeUserPopupInstructionDescription => "";
   @override
   String get homeGratificationPopupInstructionDescription => "";
 
@@ -302,6 +354,21 @@ class GamicoLanguageZhDefault extends GamicoLanguageZh {
 
 class GamicoLanguageHiDefault extends GamicoLanguageHi {
   @override
+  String get friendPageTitle => "दोस्त खोजें";
+
+  @override
+  String get friendPageSearchHint => "नाम से खोजें...";
+
+  @override
+  String get friendPagePendingInvitations => "लंबित निमंत्रण";
+
+  @override
+  String get friendPageGameInvitation => "खेल का निमंत्रण";
+
+  @override
+  String friendPageInvitationFrom(String name) => "से: $name";
+
+  @override
   String get adventureDrawImpossibleToPlayNextLevelDescription => "";
 
   @override
@@ -337,6 +404,8 @@ class GamicoLanguageHiDefault extends GamicoLanguageHi {
   @override
   String get homeGratificationPopupIncorrectTimestampDescription => "";
 
+  @override
+  String get homeGratificationBrokeUserPopupInstructionDescription => "";
   @override
   String get homeGratificationPopupInstructionDescription => "";
 
@@ -367,6 +436,21 @@ class GamicoLanguageHiDefault extends GamicoLanguageHi {
 
 class GamicoLanguageEsDefault extends GamicoLanguageEs {
   @override
+  String get friendPageTitle => "Buscar amigos";
+
+  @override
+  String get friendPageSearchHint => "Buscar por nombre...";
+
+  @override
+  String get friendPagePendingInvitations => "Invitaciones pendientes";
+
+  @override
+  String get friendPageGameInvitation => "Invitación al juego";
+
+  @override
+  String friendPageInvitationFrom(String name) => "De: $name";
+
+  @override
   String get adventureDrawImpossibleToPlayNextLevelDescription => "";
 
   @override
@@ -402,6 +486,8 @@ class GamicoLanguageEsDefault extends GamicoLanguageEs {
   @override
   String get homeGratificationPopupIncorrectTimestampDescription => "";
 
+  @override
+  String get homeGratificationBrokeUserPopupInstructionDescription => "";
   @override
   String get homeGratificationPopupInstructionDescription => "";
 
@@ -432,6 +518,21 @@ class GamicoLanguageEsDefault extends GamicoLanguageEs {
 
 class GamicoLanguageDeDefault extends GamicoLanguageDe {
   @override
+  String get friendPageTitle => "Freunde suchen";
+
+  @override
+  String get friendPageSearchHint => "Nach Namen suchen...";
+
+  @override
+  String get friendPagePendingInvitations => "Ausstehende Einladungen";
+
+  @override
+  String get friendPageGameInvitation => "Spieleinladung";
+
+  @override
+  String friendPageInvitationFrom(String name) => "Von: $name";
+
+  @override
   String get adventureDrawImpossibleToPlayNextLevelDescription => "";
 
   @override
@@ -467,6 +568,8 @@ class GamicoLanguageDeDefault extends GamicoLanguageDe {
   @override
   String get homeGratificationPopupIncorrectTimestampDescription => "";
 
+  @override
+  String get homeGratificationBrokeUserPopupInstructionDescription => "";
   @override
   String get homeGratificationPopupInstructionDescription => "";
 
@@ -497,6 +600,21 @@ class GamicoLanguageDeDefault extends GamicoLanguageDe {
 
 class GamicoLanguageBnDefault extends GamicoLanguageBn {
   @override
+  String get friendPageTitle => "বন্ধু খুঁজুন";
+
+  @override
+  String get friendPageSearchHint => "নাম দিয়ে খুঁজুন...";
+
+  @override
+  String get friendPagePendingInvitations => "অপেক্ষমান আমন্ত্রণ";
+
+  @override
+  String get friendPageGameInvitation => "খেলার আমন্ত্রণ";
+
+  @override
+  String friendPageInvitationFrom(String name) => "থেকে: $name";
+
+  @override
   String get adventureDrawImpossibleToPlayNextLevelDescription => "";
 
   @override
@@ -532,6 +650,8 @@ class GamicoLanguageBnDefault extends GamicoLanguageBn {
   @override
   String get homeGratificationPopupIncorrectTimestampDescription => "";
 
+  @override
+  String get homeGratificationBrokeUserPopupInstructionDescription => "";
   @override
   String get homeGratificationPopupInstructionDescription => "";
 
@@ -562,6 +682,21 @@ class GamicoLanguageBnDefault extends GamicoLanguageBn {
 
 class GamicoLanguageRuDefault extends GamicoLanguageRu {
   @override
+  String get friendPageTitle => "Поиск друзей";
+
+  @override
+  String get friendPageSearchHint => "Поиск по имени...";
+
+  @override
+  String get friendPagePendingInvitations => "Ожидающие приглашения";
+
+  @override
+  String get friendPageGameInvitation => "Приглашение в игру";
+
+  @override
+  String friendPageInvitationFrom(String name) => "От: $name";
+
+  @override
   String get adventureDrawImpossibleToPlayNextLevelDescription => "";
 
   @override
@@ -597,6 +732,8 @@ class GamicoLanguageRuDefault extends GamicoLanguageRu {
   @override
   String get homeGratificationPopupIncorrectTimestampDescription => "";
 
+  @override
+  String get homeGratificationBrokeUserPopupInstructionDescription => "";
   @override
   String get homeGratificationPopupInstructionDescription => "";
 
@@ -627,6 +764,21 @@ class GamicoLanguageRuDefault extends GamicoLanguageRu {
 
 class GamicoLanguagePtDefault extends GamicoLanguagePt {
   @override
+  String get friendPageTitle => "Procurar amigos";
+
+  @override
+  String get friendPageSearchHint => "Buscar por nome...";
+
+  @override
+  String get friendPagePendingInvitations => "Convites pendentes";
+
+  @override
+  String get friendPageGameInvitation => "Convite para jogo";
+
+  @override
+  String friendPageInvitationFrom(String name) => "De: $name";
+
+  @override
   String get adventureDrawImpossibleToPlayNextLevelDescription => "";
 
   @override
@@ -662,6 +814,8 @@ class GamicoLanguagePtDefault extends GamicoLanguagePt {
   @override
   String get homeGratificationPopupIncorrectTimestampDescription => "";
 
+  @override
+  String get homeGratificationBrokeUserPopupInstructionDescription => "";
   @override
   String get homeGratificationPopupInstructionDescription => "";
 

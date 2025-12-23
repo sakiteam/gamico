@@ -1,6 +1,5 @@
-library gamico;
-
 // ORGANISATIONNEL
+
 // Bien gérer la logique des tutos avec Gamico (supprimer la dépendance cyclique)
 // Permettre de pouvoir utiliser un utilisateur générique dans Gamico
 // Déplacer la logique de GamicoGamePage dans le cubit
@@ -11,6 +10,7 @@ library gamico;
 // Rendre GamicoMusicCubit facilement utilisable pour intérer d'autres musiques
 
 // FONCTIONNEL
+
 // Sur l'écran de loading, le chargement ne doit pas être bloqué même si on manque d'internet
 // Régler les noms des IAs jusqu'au dernier niveau
 // Permettre le chat pendant la partie

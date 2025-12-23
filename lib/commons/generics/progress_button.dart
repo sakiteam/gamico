@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:gamico/commons/cubits/authentication/authentication_cubit.dart';
 import 'package:gamico/commons/cubits/gratification/gratification_cubit.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
@@ -16,13 +15,17 @@ import 'package:gamico/commons/generics/outlined_text.dart';
 import 'package:gamico/languages/languages.dart';
 
 class GamicoProgressButton extends StatefulWidget {
+  static Color beginAnimationColor = ColorService.foregroundBlue;
+  static Color endAnimationColor = ColorService.accentColor;
+
   final double size;
   final Widget Function(
     BuildContext context,
     int coins,
     Color? color,
     void Function() onPressed,
-  ) builder;
+  )
+  builder;
 
   static bool popupVisible = false;
 
@@ -61,15 +64,15 @@ class _GamicoProgressButtonState extends State<GamicoProgressButton>
     _blinkAnimation = TweenSequence([
       TweenSequenceItem(
         tween: ColorTween(
-          begin: ColorService.foregroundBlue,
-          end: ColorService.accentColor,
+          begin: GamicoProgressButton.beginAnimationColor,
+          end: GamicoProgressButton.endAnimationColor,
         ),
         weight: 1,
       ),
       TweenSequenceItem(
         tween: ColorTween(
-          begin: ColorService.accentColor,
-          end: ColorService.foregroundBlue,
+          begin: GamicoProgressButton.endAnimationColor,
+          end: GamicoProgressButton.beginAnimationColor,
         ),
         weight: 1,
       ),
@@ -91,9 +94,9 @@ class _GamicoProgressButtonState extends State<GamicoProgressButton>
       end: 0.0,
     ).animate(_cowriesUpdateController);
 
-    if (kReleaseMode) {
-      _animationController.repeat();
-    }
+    // if (kReleaseMode) {
+    _animationController.repeat();
+    // }
   }
 
   @override
@@ -162,17 +165,21 @@ class _GamicoProgressButtonState extends State<GamicoProgressButton>
       child: () {
         // final cowries = state.user?.cowries ?? 0;
 
-        final cowries = context.select(
-                (GamicoUserCubit userCubit) => userCubit.state.user?.coins) ??
+        final cowries =
+            context.select(
+              (GamicoUserCubit userCubit) => userCubit.state.user?.coins,
+            ) ??
             0;
 
         final authenticated = context.select(
-            (AuthenticationCubit authenticationCubit) =>
-                authenticationCubit.state.authenticated);
+          (AuthenticationCubit authenticationCubit) =>
+              authenticationCubit.state.authenticated,
+        );
 
         final gratificationEnabled = context.select(
-            (GratificationCubit gratificationCubit) =>
-                gratificationCubit.state.gratificationEnabled);
+          (GratificationCubit gratificationCubit) =>
+              gratificationCubit.state.gratificationEnabled,
+        );
 
         return SizedBox(
           width: widget.size,
@@ -184,59 +191,63 @@ class _GamicoProgressButtonState extends State<GamicoProgressButton>
                 animation: _blinkAnimation,
                 builder: (context, child) {
                   return widget.builder(
-                      context,
-                      cowries,
-                      (gratificationEnabled || cowries == 0) &&
-                              authenticated &&
-                              !GamicoProgressButton.popupVisible
-                          ? _blinkAnimation.value
-                          : null, () async {
-                    final authenticationCubit =
-                        context.read<AuthenticationCubit>();
+                    context,
+                    cowries,
+                    (gratificationEnabled || cowries == 0) &&
+                            authenticated &&
+                            !GamicoProgressButton.popupVisible
+                        ? _blinkAnimation.value
+                        : null,
+                    () async {
+                      final authenticationCubit =
+                          context.read<AuthenticationCubit>();
 
-                    if (authenticationCubit.state.authenticated) {
-                      setState(() {
-                        GamicoProgressButton.popupVisible = true;
-                      });
+                      if (authenticationCubit.state.authenticated) {
+                        setState(() {
+                          GamicoProgressButton.popupVisible = true;
+                        });
 
-                      await NavigationService.showCowriesPopup(context, null);
+                        await NavigationService.showCowriesPopup(context, null);
 
-                      setState(() {
-                        GamicoProgressButton.popupVisible = false;
-                      });
-                    } else {
-                      NavigationService.showPopup(
-                        context: context,
-                        dismissible: !GameService.tutorialPassed,
-                        draggable: !GameService.tutorialPassed,
-                        builder: (_) {
-                          if (GameService.tutorialPassed) {
-                            return GamicoAuthenticationPopup(
-                              onSuccess: () {
-                                NavigationService.showCowriesPopup(
-                                    context, null);
-                              },
-                            );
-                          }
+                        setState(() {
+                          GamicoProgressButton.popupVisible = false;
+                        });
+                      } else {
+                        NavigationService.showPopup(
+                          context: context,
+                          dismissible: !GameService.tutorialPassed,
+                          draggable: !GameService.tutorialPassed,
+                          builder: (_) {
+                            if (GameService.tutorialPassed) {
+                              return GamicoAuthenticationPopup(
+                                onSuccess: () {
+                                  NavigationService.showCowriesPopup(
+                                    context,
+                                    null,
+                                  );
+                                },
+                              );
+                            }
 
-                          return GamicoPopup(
-                            child: GamicoDialogPoster(
-                              iconWidget: CoinsWidget(
-                                color: Colors.brown.shade700,
-                                outlined: false,
-                                size: 60,
+                            return GamicoPopup(
+                              child: GamicoDialogPoster(
+                                iconWidget: CoinsWidget(
+                                  color: Colors.brown.shade700,
+                                  outlined: false,
+                                  size: 60,
+                                ),
+                                title:
+                                    l.progressOptionButtonNotAuthenticatedTitle,
+                                description:
+                                    l.progressOptionButtonNotAuthenticationDescription,
+                                simple: true,
                               ),
-                              title:
-                                  l.progressOptionButtonNotAuthenticatedTitle,
-                              description: l
-                                  .progressOptionButtonNotAuthenticationDescription,
-                              simple: true,
-                            ),
-                          );
-                        },
-                      );
-                    }
-                  });
+                            );
+                          },
+                        );
+                      }
+                    },
+                  );
                 },
               ),
 

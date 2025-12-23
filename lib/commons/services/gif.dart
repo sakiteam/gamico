@@ -1,12 +1,3 @@
-///
-/// * author: Pierluigi Zagaria
-/// * email: pierluigizagaria@gmail.com
-///
-/// A package provides an easy way to manage Gifs with animation controllers
-///
-
-library gif;
-
 import 'dart:io';
 // import 'dart:typed_data';
 import 'dart:ui';

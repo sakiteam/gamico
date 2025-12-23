@@ -10,6 +10,32 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
   @override
   String get globalOK => "OK";
 
+  /* FRIEND */
+
+  @override
+  String get friendPageTitle => "Поиск друзей";
+
+  @override
+  String get friendPageSearchHint => "Поиск по имени...";
+
+  @override
+  String get friendPagePendingInvitations => "Ожидающие приглашения";
+
+  @override
+  String get friendPageGameInvitation => "Приглашение в игру";
+
+  @override
+  String friendPageInvitationFrom(String name) => "От: $name";
+
+  @override
+  String get friendPageInvitationSent => "Приглашение отправлено!";
+
+  @override
+  String get friendPageFailedToSendInvitation => "Не удалось отправить приглашение";
+
+  @override
+  String get friendPageUnknown => "Неизвестно";
+
   /* ADVENTURE */
 
   @override

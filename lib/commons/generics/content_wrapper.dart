@@ -34,6 +34,7 @@ class GamicoContentWrapper extends StatelessWidget {
           behavior: const GamicoScrollBehavior(),
           child: OnlyOnePointerRecognizerWidget(
             child: Scaffold(
+              resizeToAvoidBottomInset: false,
               body: Stack(
                 children: [
                   // Backgound color
@@ -75,7 +76,6 @@ class GamicoContentWrapper extends StatelessWidget {
                   // Container(
                   //   child: background,
                   // ),
-
                   Positioned.fill(
                     child: FittedBox(
                       child: DeferredPointerHandler(
@@ -147,8 +147,9 @@ class GamicoContentWrapper extends StatelessWidget {
                                 clipBehavior: Clip.none,
                                 children: [
                                   ...(decorations ?? []),
-                                  ...GamicoCharacterPosition.values
-                                      .map((e) => GamicoCharacter(position: e)),
+                                  ...GamicoCharacterPosition.values.map(
+                                    (e) => GamicoCharacter(position: e),
+                                  ),
                                 ],
                               ),
                             ),
@@ -165,12 +166,11 @@ class GamicoContentWrapper extends StatelessWidget {
 
         if (blocked) {
           return ColorFiltered(
-            colorFilter:
-                const ColorFilter.mode(Colors.grey, BlendMode.saturation),
-            child: AbsorbPointer(
-              absorbing: blocked,
-              child: content,
+            colorFilter: const ColorFilter.mode(
+              Colors.grey,
+              BlendMode.saturation,
             ),
+            child: AbsorbPointer(absorbing: blocked, child: content),
           );
         }
 

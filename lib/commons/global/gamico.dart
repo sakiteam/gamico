@@ -1,11 +1,14 @@
-import 'package:firebase_core/firebase_core.dart';
+// import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:gamico/commons/repositories/gamico_users_repository.dart';
+import 'package:gamico/commons/services/notification.dart';
+import 'package:gamico/commons/settings/about_settings.dart';
 import 'package:gamico/commons/settings/admob_settings.dart';
 import 'package:gamico/commons/settings/cache_settings.dart';
 import 'package:gamico/commons/settings/character_settings.dart';
@@ -45,6 +48,7 @@ class Gamico {
   final PurchasesSettings? purchasesSettings;
   final CharacterSettings? characterSettings;
   final GratificationSettings? gratificationSettings;
+  final AboutSettings? aboutSettings;
 
   GamicoUsersRepository get usersRepository => userSettings.usersRepository;
   dynamic Function(Map<String, dynamic>) get userFromJson =>
@@ -66,6 +70,7 @@ class Gamico {
     this.playSettings,
     this.tutorialSettings,
     this.cacheSettings,
+    this.aboutSettings,
   }) {
     instance = this;
 
@@ -82,8 +87,6 @@ class Gamico {
 
     // Wait for initial utilities to be loaded
     await Future.wait([
-      Firebase.initializeApp(),
-
       // Enable full screen
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive),
 
@@ -122,6 +125,12 @@ class Gamico {
 
     // Enable data persistence
     FirebaseDatabase.instance.setPersistenceEnabled(true);
+
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+
+    if (initialMessage != null) {
+      handleInitialMessage(initialMessage);
+    }
 
     try {
       if (UserService.authenticated) {

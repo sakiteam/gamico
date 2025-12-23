@@ -3,13 +3,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:bloc/bloc.dart';
 import 'package:flutter/material.dart';
+import 'package:games_services/games_services.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/global.dart';
 import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/commons/services/play.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:gamico/commons/services/gratification.dart';
-import 'package:firebase_game_services/firebase_game_services.dart';
 import 'package:gamico/commons/repositories/gamico_users_repository.dart';
 
 part 'user_state.dart';
@@ -22,9 +22,7 @@ enum AchievementType {
 
   final String id;
 
-  const AchievementType({
-    required this.id,
-  });
+  const AchievementType({required this.id});
 }
 
 class GamicoUserCubit extends Cubit<GamicoUserState> {
@@ -60,24 +58,21 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
         .ref(".info/connected")
         .onValue
         .listen((event) {
-      final online = event.snapshot.value as bool? ?? false;
+          final online = event.snapshot.value as bool? ?? false;
 
-      if (online) {
-        final now = DateTime.now();
+          if (online) {
+            final now = DateTime.now();
 
-        _disconnectionReference = ref.onDisconnect();
+            _disconnectionReference = ref.onDisconnect();
 
-        _disconnectionReference?.update({
-          "online": false,
-          "updated_at": "$now",
+            _disconnectionReference?.update({
+              "online": false,
+              "updated_at": "$now",
+            });
+
+            ref.update({"online": true, "updated_at": "$now"});
+          }
         });
-
-        ref.update({
-          "online": true,
-          "updated_at": "$now",
-        });
-      }
-    });
   }
 
   bool isAchivementUnlocked(String id) {
@@ -90,9 +85,10 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
       if (!isAchivementUnlocked(id)) {
         () async {
           await GamicoGlobalService.waitWhile(
-              () => !PlayService.gameServicesEnabled);
+            () => !PlayService.gameServicesEnabled,
+          );
 
-          FirebaseGameServices.instance.unlock(
+          Achievements.unlock(
             achievement: Achievement(
               androidID: id,
               iOSID: id,
@@ -143,7 +139,9 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     final finalCrowns = (state.user?.trophies ?? 0) - 1;
 
     await usersRepository.decrementUserTrophies(
-        UserService.uid, finalCrowns >= 0 ? 1 : 0);
+      UserService.uid,
+      finalCrowns >= 0 ? 1 : 0,
+    );
 
     if (finalCrowns >= 0) {
       await _submitTacticiansScore(finalCrowns);
@@ -163,10 +161,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     final finalDiamonds = (state.user?.coins ?? 0) + cowries;
 
     // Increment user diamonds really
-    await usersRepository.incrementUserCoins(
-      UserService.uid,
-      cowries,
-    );
+    await usersRepository.incrementUserCoins(UserService.uid, cowries);
 
     // Submit score to leaderboards
     await _submitCollectorsScore(finalDiamonds);
@@ -196,7 +191,12 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
   Future<void> _submitCollectorsScore(int score) async {
     await GamicoGlobalService.waitWhile(() => !PlayService.gameServicesEnabled);
-    await FirebaseGameServices.instance.submitScore(
+
+    if ((Gamico.instance.playSettings?.inactivePlayersLeaderboardId ?? "")
+        .isEmpty)
+      return;
+
+    await Leaderboards.submitScore(
       score: Score(
         androidLeaderboardID:
             Gamico.instance.playSettings?.inactivePlayersLeaderboardId ?? "",
@@ -209,7 +209,12 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
   Future<void> _submitTacticiansScore(int score) async {
     await GamicoGlobalService.waitWhile(() => !PlayService.gameServicesEnabled);
-    await FirebaseGameServices.instance.submitScore(
+
+    if ((Gamico.instance.playSettings?.activePlayersLeaderboardId ?? "")
+        .isEmpty)
+      return;
+
+    await Leaderboards.submitScore(
       score: Score(
         androidLeaderboardID:
             Gamico.instance.playSettings?.activePlayersLeaderboardId ?? "",
@@ -222,9 +227,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
   // dynamic?
   void setUser(dynamic user) {
-    emit(state.copyWith(
-      user: () => user,
-    ));
+    emit(state.copyWith(user: () => user));
 
     UserService.setUser(user);
   }

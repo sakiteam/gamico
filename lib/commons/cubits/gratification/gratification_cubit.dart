@@ -28,59 +28,78 @@ class GratificationCubit extends Cubit<GratificationState> {
   InternetCubit internetCubit;
   GamicoUserCubit userCubit;
 
-  GratificationCubit({
-    required this.userCubit,
-    required this.internetCubit,
-  }) : super(const GratificationState()) {
+  GratificationCubit({required this.userCubit, required this.internetCubit})
+    : super(const GratificationState()) {
     loadWorldDate();
 
     countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (UserService.authenticated) {
-        final gratifiedAt = GratificationService.gratifiedAt ??
+        final gratifiedAt =
+            GratificationService.gratifiedAt ??
             userCubit.state.user?.gratifiedAt ??
             DateTime(2000);
         final now = DateTime.now();
-        final gratifiedAtWithoutMinutes = DateTime(gratifiedAt.year,
-            gratifiedAt.month, gratifiedAt.day, gratifiedAt.hour);
+        final gratifiedAtWithoutMinutes = DateTime(
+          gratifiedAt.year,
+          gratifiedAt.month,
+          gratifiedAt.day,
+          gratifiedAt.hour,
+        );
         final durationDifference = now.difference(gratifiedAtWithoutMinutes);
         final remainingDuration =
             GratificationService.getSpecialOfferRemainingDuration();
 
-        emit(state.copyWith(
-          gratificationEnabled: durationDifference.inHours > 0,
-          durationDifference: durationDifference,
-          offerEnabled: remainingDuration.inSeconds == 0,
-          offerRemainingDuration: remainingDuration,
-        ));
+        emit(
+          state.copyWith(
+            gratificationEnabled: durationDifference.inHours > 0,
+            durationDifference: durationDifference,
+            offerEnabled: remainingDuration.inSeconds == 0,
+            offerRemainingDuration: remainingDuration,
+          ),
+        );
       }
     });
   }
 
+  DateTime? lastCall;
+
   void loadWorldDate() async {
     if (internetCubit.state.connected) {
+      if (lastCall != null &&
+          lastCall!.difference(DateTime.now()).inMinutes < 1) {
+        return;
+      }
+
+      lastCall = DateTime.now();
+
       emit(state.copyWith(loading: true));
 
       try {
         final response = await http.get(
           Uri.parse(
-              "http://worldtimeapi.org/api/timezone/${TimeZoneService.timeZone}"),
+            "http://worldtimeapi.org/api/timezone/${TimeZoneService.timeZone}",
+          ),
         );
 
-        final worldTime = DateTime.tryParse(
-                jsonDecode(response.body)["datetime"].toString()) ??
+        final worldTime =
+            DateTime.tryParse(
+              jsonDecode(response.body)["datetime"].toString(),
+            ) ??
             DateTime.now();
 
-        emit(state.copyWith(
-          loading: false,
-          worldDateTimeDifference: worldTime.difference(DateTime.now()).abs(),
-        ));
+        emit(
+          state.copyWith(
+            loading: false,
+            worldDateTimeDifference: worldTime.difference(DateTime.now()).abs(),
+          ),
+        );
       } catch (e) {
-        debugPrint(e.toString());
-
-        emit(state.copyWith(
-          loading: false,
-          worldDateTimeDifference: Duration.zero,
-        ));
+        emit(
+          state.copyWith(
+            loading: false,
+            worldDateTimeDifference: Duration.zero,
+          ),
+        );
       }
     }
   }

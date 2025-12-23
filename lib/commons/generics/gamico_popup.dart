@@ -3,14 +3,16 @@ import 'package:gamico/commons/generics/character.dart';
 import 'package:gamico/commons/generics/simple_popup.dart';
 
 class GamicoPopup extends StatelessWidget {
-  static const double watchButtonDefaultHeight =
+  static double get watchButtonDefaultHeight =>
       GamicoSimplePopup.watchButtonDefaultHeight;
-  static const double watchButtonMargin = GamicoSimplePopup.watchButtonMargin;
-  static const double watchButtonFinalHeight =
+  static double get watchButtonMargin => GamicoSimplePopup.watchButtonMargin;
+  static double get watchButtonFinalHeight =>
       GamicoSimplePopup.watchButtonFinalHeight;
   static Widget Function(
-          BuildContext context, GamicoSimplePopup gamicoSimplePopup) builder =
-      (context, gamicoSimplePopup) {
+    BuildContext context,
+    GamicoSimplePopup gamicoSimplePopup,
+  )
+  builder = (context, gamicoSimplePopup) {
     return gamicoSimplePopup;
   };
 

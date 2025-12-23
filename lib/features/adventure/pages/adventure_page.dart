@@ -2,18 +2,19 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/generics/pop_scope.dart';
+import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/animation.dart';
+import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
+import 'package:gamico/commons/utilities/game/game_utility.dart';
 import 'package:gamico/features/adventure/cubits/adventure_cubit.dart';
 import 'package:gamico/features/adventure/utilities/remote_utility.dart';
 import 'package:gamico/features/adventure/utilities/adventure_utility.dart';
 
 /// Page on which game levels are selected.
 class GamicoAdventurePage extends StatefulWidget {
-  final Widget Function(
-    BuildContext context,
-    PageController pageController,
-  ) builder;
+  final Widget Function(BuildContext context, PageController pageController)
+  builder;
 
   final AdventureUtility adventureUtility;
   final RemoteUtility? remoteUtility;
@@ -43,8 +44,11 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
     pageController = PageController(
       viewportFraction: widget.viewportFraction ?? 1.0,
       initialPage: min(
-        getChapterByLevel(widget.adventureUtility
-            .getUserLevel(context.read<GamicoUserCubit>().state.user)),
+        getChapterByLevel(
+          widget.adventureUtility.getUserLevel(
+            context.read<GamicoUserCubit>().state.user,
+          ),
+        ),
         getChapterByLevel(widget.adventureUtility.maxLevel),
       ),
     );
@@ -96,8 +100,10 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
         }
       },
       listenWhen: (previous, current) {
-        final previousLevel =
-            widget.adventureUtility.getUserLevel(previous.user);
+        final previousLevel = widget.adventureUtility.getUserLevel(
+          previous.user,
+        );
+
         final currentLevel = widget.adventureUtility.getUserLevel(current.user);
 
         return previousLevel != currentLevel;
@@ -108,19 +114,71 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
           adventureUtility: widget.adventureUtility,
           remoteUtility: widget.remoteUtility,
         )..init(),
-        child: BlocBuilder<GamicoAdventureCubit, GamicoAdventureState>(
-          builder: (context, adventureState) {
-            return GamicoPopScope(
-              onWillPop: () => _manageBack(context),
-              child: AbsorbPointer(
-                // Activation
-                absorbing: !adventureState.enabled,
+        child: BlocListener<GamicoAdventureCubit, GamicoAdventureState>(
+          listener: (context, state) async {
+            final adventureCubit = context.read<GamicoAdventureCubit>();
+            final adventureUtility = adventureCubit.state.adventureUtility;
+            final remoteUtility = adventureCubit.state.remoteUtility;
 
-                // Concrete content
-                child: widget.builder(context, pageController),
-              ),
-            );
+            final user = context.read<GamicoUserCubit>().state.user;
+            final userLevel = adventureUtility.getUserLevel(user);
+            final nextLevel = userLevel;
+
+            adventureCubit.setNextLevelActive(false);
+
+            void onBackButtonPressed() async {
+              adventureCubit.setAnimGame(false);
+              await Future.delayed(AnimationService.animationDuration);
+              adventureCubit.setAnimated(false);
+            }
+
+            adventureCubit.setAnimGame(true);
+            adventureCubit.setAnimated(true);
+
+            if (remoteUtility != null) {
+              await NavigationService.pushPageWithAnimation(
+                context,
+                Gamico.instance.pagesSettings.remotePage(
+                  context,
+                  remoteUtility,
+                  adventureUtility,
+                  state.nextLevelToPlay ?? nextLevel,
+                ),
+              );
+
+              onBackButtonPressed();
+            } else {
+              NavigationService.pushPageWithAnimation(
+                context,
+                Gamico.instance.pagesSettings.gamePage(
+                  context,
+                  AdventureGameUtility(
+                    level: state.nextLevelToPlay ?? nextLevel,
+                    onBackButtonPressed: onBackButtonPressed,
+                    adventureUtility: adventureUtility,
+                    remoteUtility: null,
+                  ),
+                ),
+              );
+            }
           },
+          listenWhen: (previous, current) {
+            return !previous.nextLevelActive && current.nextLevelActive;
+          },
+          child: BlocBuilder<GamicoAdventureCubit, GamicoAdventureState>(
+            builder: (context, adventureState) {
+              return GamicoPopScope(
+                onWillPop: () => _manageBack(context),
+                child: AbsorbPointer(
+                  // Activation
+                  absorbing: !adventureState.enabled,
+
+                  // Concrete content
+                  child: widget.builder(context, pageController),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );

@@ -20,7 +20,9 @@ class GamicoIconButton extends StatelessWidget {
       child: Icon(
         icon,
         color: color ??
-            (onPressed == null ? Colors.black.withOpacity(0.5) : Colors.black),
+            (onPressed == null
+                ? Colors.black.withAlpha(255 ~/ 2)
+                : Colors.black),
         size: 32,
       ),
     );

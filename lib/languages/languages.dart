@@ -41,6 +41,17 @@ abstract class GamicoLanguages {
   String get globalOK;
   String get globalAd;
 
+  /* FRIEND */
+
+  String get friendPageTitle;
+  String get friendPageSearchHint;
+  String get friendPagePendingInvitations;
+  String get friendPageGameInvitation;
+  String friendPageInvitationFrom(String name);
+  String get friendPageInvitationSent;
+  String get friendPageFailedToSendInvitation;
+  String get friendPageUnknown;
+
   /* ADVENTURE */
 
   String get adventureHelpTitle;
@@ -121,6 +132,7 @@ abstract class GamicoLanguages {
   //
   String get homeGratificationPopupIncorrectTimestampDescription;
   String get homeGratificationPopupInstructionDescription;
+  String get homeGratificationBrokeUserPopupInstructionDescription;
   String homeGratificationPopupHourReward(int cowries, int hour);
   String homeGratificationPopupNextReward(int nextGratificationsCowries);
   //
@@ -522,7 +534,7 @@ abstract class GamicoLanguages {
   String get specialConquerOrdinaryCitizenDescription;
   String get specialConnectKingDescription;
 
-/* SKILLS */
+  /* SKILLS */
 
   String get attackSkillNull;
   String get attackSkillVeryBad;

@@ -12,6 +12,7 @@ import 'package:gamico/commons/modes/game_mode_settings.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/features/game/cubits/adventure/adventure_game_cubit.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:gamico/features/game/cubits/remote/remote_game_cubit.dart';
 import 'package:gamico/features/remote/cubits/remote_cubit.dart';
@@ -41,7 +42,8 @@ class RemoteModeSettings implements GameModeSettings {
   @override
   GamicoUserModel otherPlayerProfile(BuildContext context) {
     return context.select(
-            (GamicoRemoteGameCubit gameCubit) => gameCubit.state.opponent) ??
+          (GamicoRemoteGameCubit gameCubit) => gameCubit.state.opponent,
+        ) ??
         const GamicoUserModel();
   }
 
@@ -50,12 +52,15 @@ class RemoteModeSettings implements GameModeSettings {
     final l = GamicoLanguages.of(context);
 
     final gameEndStatus = context.select(
-        (GamicoRemoteGameCubit remoteGameCubit) =>
-            remoteGameCubit.state.gameEndStatus);
-    final opponent = context.select((GamicoRemoteGameCubit remoteGameCubit) =>
-        remoteGameCubit.state.opponent);
-    final victory =
-        context.select((GamicoGameCubit gameCubit) => gameCubit.state.victory);
+      (GamicoRemoteGameCubit remoteGameCubit) =>
+          remoteGameCubit.state.gameEndStatus,
+    );
+    final opponent = context.select(
+      (GamicoRemoteGameCubit remoteGameCubit) => remoteGameCubit.state.opponent,
+    );
+    final victory = context.select(
+      (GamicoGameCubit gameCubit) => gameCubit.state.victory,
+    );
 
     final possibleToPlayAgain = isPossibleToPlayAgain(context);
 
@@ -106,8 +111,9 @@ class RemoteModeSettings implements GameModeSettings {
     final l = GamicoLanguages.of(context);
 
     final gameEndStatus = context.select(
-        (GamicoRemoteGameCubit remoteGameCubit) =>
-            remoteGameCubit.state.gameEndStatus);
+      (GamicoRemoteGameCubit remoteGameCubit) =>
+          remoteGameCubit.state.gameEndStatus,
+    );
 
     switch (gameEndStatus) {
       case "INTERNAL_INVITATION":
@@ -141,15 +147,18 @@ class RemoteModeSettings implements GameModeSettings {
   @override
   bool isOpponentAvailable(BuildContext context) {
     final opponentExited = context.select(
-        (GamicoRemoteGameCubit remoteGameCubit) =>
-            remoteGameCubit.state.opponentExited);
+      (GamicoRemoteGameCubit remoteGameCubit) =>
+          remoteGameCubit.state.opponentExited,
+    );
 
-    final opponent = context.select((GamicoRemoteGameCubit remoteGameCubit) =>
-        remoteGameCubit.state.opponent);
+    final opponent = context.select(
+      (GamicoRemoteGameCubit remoteGameCubit) => remoteGameCubit.state.opponent,
+    );
 
     final fakeOpponent = context.select(
-        (GamicoRemoteGameCubit remoteGameCubit) =>
-            remoteGameCubit.state.fakeOpponent);
+      (GamicoRemoteGameCubit remoteGameCubit) =>
+          remoteGameCubit.state.fakeOpponent,
+    );
 
     return !(opponentExited ||
         opponent == null ||
@@ -161,14 +170,15 @@ class RemoteModeSettings implements GameModeSettings {
   @override
   bool isPossibleToPlayAgain(BuildContext context) {
     final coins = context.select(
-        (GamicoUserCubit userCubit) => userCubit.state.user?.coins ?? 0);
+      (GamicoUserCubit userCubit) => userCubit.state.user?.coins ?? 0,
+    );
 
     return coins >= Gamico.instance.gameSettings.playMinimumCoins;
   }
 
   @override
   bool isPossibleToPlayNextLevel(BuildContext context) {
-    return false;
+    return true;
   }
 
   @override
@@ -180,8 +190,9 @@ class RemoteModeSettings implements GameModeSettings {
     final l = GamicoLanguages.of(context);
 
     final gameEndStatus = context.select(
-        (GamicoRemoteGameCubit remoteGameCubit) =>
-            remoteGameCubit.state.gameEndStatus);
+      (GamicoRemoteGameCubit remoteGameCubit) =>
+          remoteGameCubit.state.gameEndStatus,
+    );
 
     final possibleToPlayAgain = isPossibleToPlayAgain(context);
 
@@ -214,15 +225,10 @@ class RemoteModeSettings implements GameModeSettings {
           iconData: Icons.check,
           text: l.globalAccept,
         );
-        return [
-          rejectionButton,
-          acceptationButton,
-        ];
+        return [rejectionButton, acceptationButton];
 
       case "INVITATION_ACCEPTATION":
-        return const [
-          Center(child: GamicoLoader()),
-        ];
+        return const [Center(child: GamicoLoader())];
 
       case "REPLAY_IMPOSSIBLE":
         final impossibleReplayButton = GamicoIconTextButton(
@@ -255,14 +261,62 @@ class RemoteModeSettings implements GameModeSettings {
         return [externalNeedinessButton];
 
       default:
+        final l = GamicoLanguages.of(context);
+
         final newGameButton = GamicoIconTextButton(
           text: l.gamePopupNewGame,
           iconData: Icons.sports_esports,
           onPressed: !possibleToPlayAgain ? null : () => playNewGame(context),
         );
+
+        final adventureUtility = context.select(
+          (GamicoRemoteGameCubit remoteGameCubit) =>
+              remoteGameCubit.state.adventureUtility,
+        );
+
+        // adventureUtility.getUserLevel
+
+        final userLevel = context.select(
+          (GamicoUserCubit userCubit) =>
+              adventureUtility?.getUserLevel(userCubit.state.user) ?? 1,
+        );
+        // final level = adventureUtility.getUserLevel();
+        final level = context.select(
+          (GamicoRemoteGameCubit remoteGameCubit) =>
+              remoteGameCubit.state.level ?? 0,
+        );
+
+        // context.select(
+        //   (GamicoAdventureGameCubit userCubit) => userCubit.state.level,
+        // );
+
+        // final victory = context.select(
+        //   (GamicoGameCubit userCubit) => userCubit.state.victory,
+        // );
+
+        final nextLevelButton = GamicoIconTextButton(
+          color: ColorService.accentColor,
+          onPressed: isPossibleToPlayNextLevel(context)
+              ? () async {
+                  NavigationService.pop(context);
+                  NavigationService.pop(context);
+                  NavigationService.pop(context, true);
+                }
+              : null,
+          text: l.gamePopupNextLevel,
+          iconData: Icons.keyboard_double_arrow_right,
+        );
+
+        final nextLevelVisible =
+            (
+            //victory == true ||
+            userLevel > level) &&
+            level != adventureUtility?.maxLevel;
+
         return [
           exitButton,
-          newGameButton,
+          if (adventureUtility == null) newGameButton,
+          if (nextLevelVisible) nextLevelButton,
           replayButton,
         ];
     }
@@ -279,15 +333,19 @@ class RemoteModeSettings implements GameModeSettings {
   @override
   bool hasTripleAdAfterVictory(BuildContext context) {
     final adventureUtility = context.select(
-        (GamicoRemoteGameCubit remoteGameCubit) =>
-            remoteGameCubit.state.adventureUtility);
+      (GamicoRemoteGameCubit remoteGameCubit) =>
+          remoteGameCubit.state.adventureUtility,
+    );
 
     if (adventureUtility != null) {
       final userInitialLevel = context.select(
-          (GamicoRemoteGameCubit remoteGameCubit) =>
-              remoteGameCubit.state.userInitialLevel);
-      final userLevel = context.select((GamicoUserCubit userCubit) =>
-          adventureUtility.getUserLevel(userCubit.state.user));
+        (GamicoRemoteGameCubit remoteGameCubit) =>
+            remoteGameCubit.state.userInitialLevel,
+      );
+      final userLevel = context.select(
+        (GamicoUserCubit userCubit) =>
+            adventureUtility.getUserLevel(userCubit.state.user),
+      );
 
       return userLevel == (userInitialLevel ?? 1) + 1;
     } else {
@@ -297,15 +355,19 @@ class RemoteModeSettings implements GameModeSettings {
 
   @override
   Key? gamePopupContentKey(BuildContext context) {
-    return Key(context.select(
-        (GamicoRemoteGameCubit gameCubit) => gameCubit.state.gameEndStatus));
+    return Key(
+      context.select(
+        (GamicoRemoteGameCubit gameCubit) => gameCubit.state.gameEndStatus,
+      ),
+    );
   }
 
   @override
   bool displayStarsAfterVictory(BuildContext context) {
     return context
         .select(
-            (GamicoRemoteGameCubit gameCubit) => gameCubit.state.gameEndStatus)
+          (GamicoRemoteGameCubit gameCubit) => gameCubit.state.gameEndStatus,
+        )
         .isEmpty;
   }
 
@@ -314,7 +376,8 @@ class RemoteModeSettings implements GameModeSettings {
     final l = GamicoLanguages.of(context);
 
     return l.remoteComplexCloseDescription(
-        Gamico.instance.gameSettings.playMinimumCoins);
+      Gamico.instance.gameSettings.playMinimumCoins,
+    );
   }
 
   @override
@@ -331,11 +394,13 @@ class RemoteModeSettings implements GameModeSettings {
 
       if (gameState.victory == true) {
         userCubit.incrementCowries(
-            Gamico.instance.gameSettings.playMinimumCoins * gameState.stars);
+          Gamico.instance.gameSettings.playMinimumCoins * gameState.stars,
+        );
         userCubit.incrementVictories();
       } else {
-        userCubit
-            .decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
+        userCubit.decrementCowries(
+          Gamico.instance.gameSettings.playMinimumCoins,
+        );
         userCubit.incrementDefeats();
       }
     } else {
@@ -370,13 +435,17 @@ class RemoteModeSettings implements GameModeSettings {
 
   @override
   void onExitingGame(BuildContext context) {
-    final remoteCubit = context.read<RemoteCubit>();
-    final remoteGameCubit = context.read<GamicoRemoteGameCubit>();
+    try {
+      final remoteCubit = context.read<RemoteCubit>();
+      final remoteGameCubit = context.read<GamicoRemoteGameCubit>();
 
-    if (remoteGameCubit.state.newRemoteGameActive) {
-      remoteCubit.reset();
-    } else if (remoteGameCubit.state.remoteGameInternetError) {
-      remoteCubit.setInternetError(true);
+      if (remoteGameCubit.state.newRemoteGameActive) {
+        remoteCubit.reset();
+      } else if (remoteGameCubit.state.remoteGameInternetError) {
+        remoteCubit.setInternetError(true);
+      }
+    } catch (e) {
+      //
     }
   }
 
@@ -396,22 +465,27 @@ class RemoteModeSettings implements GameModeSettings {
   @override
   Widget? levelsBuilder(BuildContext context) {
     final remoteUtility = context.select(
-        (GamicoRemoteGameCubit gamicoRemoteGameCubit) =>
-            gamicoRemoteGameCubit.state.remoteUtility);
+      (GamicoRemoteGameCubit gamicoRemoteGameCubit) =>
+          gamicoRemoteGameCubit.state.remoteUtility,
+    );
     final adventureUtility = context.select(
-        (GamicoRemoteGameCubit gamicoRemoteGameCubit) =>
-            gamicoRemoteGameCubit.state.adventureUtility);
+      (GamicoRemoteGameCubit gamicoRemoteGameCubit) =>
+          gamicoRemoteGameCubit.state.adventureUtility,
+    );
 
     final levelsBuilder = remoteUtility.levelsBuilder;
 
     if (levelsBuilder == null || adventureUtility == null) return null;
 
-    final initialLevel = context.select(
-            (GamicoRemoteGameCubit gamicoRemoteGameCubit) =>
-                gamicoRemoteGameCubit.state.level) ??
+    final initialLevel =
+        context.select(
+          (GamicoRemoteGameCubit gamicoRemoteGameCubit) =>
+              gamicoRemoteGameCubit.state.level,
+        ) ??
         1;
     final user = context.select(
-        (GamicoUserCubit gamicoUserCubit) => gamicoUserCubit.state.user);
+      (GamicoUserCubit gamicoUserCubit) => gamicoUserCubit.state.user,
+    );
     final userStars = (user?.stars as List<int>?) ?? [];
 
     final userCurrentLevel = adventureUtility.getUserLevel(user);
@@ -421,7 +495,8 @@ class RemoteModeSettings implements GameModeSettings {
     return Padding(
       padding: const EdgeInsets.only(top: 16),
       child: GamicoSimplePageView(
-        initialPage: (initialLevel != userCurrentLevel
+        initialPage:
+            (initialLevel != userCurrentLevel
                 ? userCurrentLevel
                 : initialLevel) -
             1,

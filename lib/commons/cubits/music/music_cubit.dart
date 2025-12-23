@@ -15,8 +15,9 @@ part 'music_state.dart';
 class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   // Constructor
   GamicoMusicCubit()
-      : super(GamicoMusicState(
-            mute: LocalStorageService.getBool("mute") ?? false)) {
+    : super(
+        GamicoMusicState(mute: LocalStorageService.getBool("mute") ?? false),
+      ) {
     // Load music
     _initMusic();
 
@@ -43,22 +44,22 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   // Bruitage players list
   List<AudioPlayer> get _bruitagePlayers => [
-        _winPlayer,
-        _drawPlayer,
-        _losePlayer,
-        _voicePlayer,
-        _clockPlayer,
-      ];
+    _winPlayer,
+    _drawPlayer,
+    _losePlayer,
+    _voicePlayer,
+    _clockPlayer,
+  ];
 
   // All players list
   List<AudioPlayer> get _allPlayers => [
-        _mainPlayer,
-        _winPlayer,
-        _drawPlayer,
-        _losePlayer,
-        _voicePlayer,
-        _clockPlayer,
-      ];
+    _mainPlayer,
+    _winPlayer,
+    _drawPlayer,
+    _losePlayer,
+    _voicePlayer,
+    _clockPlayer,
+  ];
 
   // Init music
   Future<void> _initMusic() async {
@@ -75,8 +76,10 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     musicInitialized = true;
 
     if (!state.mute) {
-      await GamicoGlobalService.waitWhile(() =>
-          WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed);
+      await GamicoGlobalService.waitWhile(
+        () =>
+            WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed,
+      );
 
       await _mainPlayer.safelyPlay();
     }
@@ -197,9 +200,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     playBruitage("assets/bruitages/click.wav", true);
 
     // Emit state
-    emit(state.copyWith(
-      mute: !state.mute,
-    ));
+    emit(state.copyWith(mute: !state.mute));
 
     // Toggle players playing state
     if (state.mute) {
@@ -216,7 +217,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
         _playMusic(),
         ..._bruitagePlayers.map((bruitagePlayer) {
           return bruitagePlayer.setVolume(1);
-        })
+        }),
       ]);
     }
 
@@ -232,13 +233,15 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   // Pause players
   Future<void> pause() async {
     await GamicoGlobalService.waitWhile(
-        () => !musicInitialized || !bruitagesInitialized);
+      () => !musicInitialized || !bruitagesInitialized,
+    );
 
     await Future.wait([
       _mainPlayer.pause(),
       ..._bruitagePlayers.map((bruitagePlayer) {
         return bruitagePlayer.stop();
       }),
+      _clockPlayer.stop(),
     ]);
   }
 

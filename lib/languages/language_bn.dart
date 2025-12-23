@@ -10,6 +10,32 @@ abstract class GamicoLanguageBn extends GamicoLanguages {
   @override
   String get globalOK => "ঠিক আছে";
 
+  /* FRIEND */
+
+  @override
+  String get friendPageTitle => "বন্ধু খুঁজুন";
+
+  @override
+  String get friendPageSearchHint => "নাম দিয়ে খুঁজুন...";
+
+  @override
+  String get friendPagePendingInvitations => "অপেক্ষমান আমন্ত্রণ";
+
+  @override
+  String get friendPageGameInvitation => "খেলার আমন্ত্রণ";
+
+  @override
+  String friendPageInvitationFrom(String name) => "থেকে: $name";
+
+  @override
+  String get friendPageInvitationSent => "আমন্ত্রণ পাঠানো হয়েছে!";
+
+  @override
+  String get friendPageFailedToSendInvitation => "আমন্ত্রণ পাঠাতে ব্যর্থ";
+
+  @override
+  String get friendPageUnknown => "অজানা";
+
   /* ADVENTURE */
 
   @override

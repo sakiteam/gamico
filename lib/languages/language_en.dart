@@ -13,6 +13,32 @@ abstract class GamicoLanguageEn extends GamicoLanguages {
   @override
   String get homeLanguagesTitle => "Languages";
 
+  /* FRIEND */
+
+  @override
+  String get friendPageTitle => "Search Friends";
+
+  @override
+  String get friendPageSearchHint => "Search by name...";
+
+  @override
+  String get friendPagePendingInvitations => "Pending Invitations";
+
+  @override
+  String get friendPageGameInvitation => "Game Invitation";
+
+  @override
+  String friendPageInvitationFrom(String name) => "From: $name";
+
+  @override
+  String get friendPageInvitationSent => "Invitation sent!";
+
+  @override
+  String get friendPageFailedToSendInvitation => "Failed to send invitation";
+
+  @override
+  String get friendPageUnknown => "Unknown";
+
   /* ADVENTURE */
 
   @override
@@ -689,58 +715,58 @@ abstract class GamicoLanguageEn extends GamicoLanguages {
 
   @override
   List<String> get names => [
-        "Alex",
-        "Sonia",
-        "Basile",
-        "Yoann",
-        "Isaac",
-        "Roberto",
-        "Tanguy",
-        "Jessé",
-        "Alice",
-        "Christian",
-        "Fabienne",
-        "Mimi",
-        "Maurice",
-        "Lucie",
-        "Josiane",
-        "Vianney",
-        "Anicette",
-        "Adeline",
-        "Bénédicte",
-        "Rosa",
-        "Déborah",
-        "Ange",
-        "Clémence",
-        "Aude",
-        "Mireille",
-        "Cécile",
-        "Laurence",
-        "Marius",
-        "Nadège",
-        "Sylvie",
-        "Clarisse",
-        "Claude",
-        "Clotilde",
-        "André",
-        "Christine",
-        "Léopold",
-        "Geneviève",
-        "Esther",
-        "Flore",
-        "Angèle",
-        "Jennifer",
-        "Hugues",
-        "Huguette",
-        "Olivier",
-        "Judith",
-        "Martine",
-        "Rachel",
-        "Antoine",
-        "Alfred",
-        "Marthe",
-        "Bob",
-      ];
+    "Alex",
+    "Sonia",
+    "Basile",
+    "Yoann",
+    "Isaac",
+    "Roberto",
+    "Tanguy",
+    "Jessé",
+    "Alice",
+    "Christian",
+    "Fabienne",
+    "Mimi",
+    "Maurice",
+    "Lucie",
+    "Josiane",
+    "Vianney",
+    "Anicette",
+    "Adeline",
+    "Bénédicte",
+    "Rosa",
+    "Déborah",
+    "Ange",
+    "Clémence",
+    "Aude",
+    "Mireille",
+    "Cécile",
+    "Laurence",
+    "Marius",
+    "Nadège",
+    "Sylvie",
+    "Clarisse",
+    "Claude",
+    "Clotilde",
+    "André",
+    "Christine",
+    "Léopold",
+    "Geneviève",
+    "Esther",
+    "Flore",
+    "Angèle",
+    "Jennifer",
+    "Hugues",
+    "Huguette",
+    "Olivier",
+    "Judith",
+    "Martine",
+    "Rachel",
+    "Antoine",
+    "Alfred",
+    "Marthe",
+    "Bob",
+  ];
 
   @override
   String gameTileNameLevel(int level) => "Level $level";

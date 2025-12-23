@@ -8,6 +8,7 @@ class GamicoUserModel {
   final DateTime? updatedAt;
   final String? token;
   final String? name;
+  final String? formattedName;
   final String? type;
   final String? photo;
   final String? firebaseId;
@@ -25,6 +26,8 @@ class GamicoUserModel {
   final int? trophies;
   final int? lastGratification;
   final int? nextGratification;
+  final List<String>? skins;
+  final String? activeSkin;
 
   bool? get broke {
     return coins == null
@@ -38,6 +41,7 @@ class GamicoUserModel {
     this.updatedAt,
     this.token,
     this.name,
+    this.formattedName,
     this.type,
     this.photo,
     this.level,
@@ -55,6 +59,8 @@ class GamicoUserModel {
     this.trophies,
     this.lastGratification,
     this.nextGratification,
+    this.skins,
+    this.activeSkin,
   });
 
   Map<String, dynamic> toJson() {
@@ -64,6 +70,7 @@ class GamicoUserModel {
       "updated_at": updatedAt?.toString(),
       "token": token,
       "name": name,
+      "formatted_name": formattedName,
       "type": type,
       "photo": photo,
       "coins": coins,
@@ -81,6 +88,8 @@ class GamicoUserModel {
       "referrer_id": referrerId,
       "online": online,
       "stars": stars,
+      "skins": skins,
+      "active_skin": activeSkin,
     };
   }
 
@@ -91,6 +100,7 @@ class GamicoUserModel {
       updatedAt: DateTime.tryParse(json["updated_at"] ?? ""),
       token: json["token"],
       name: json["name"],
+      formattedName: json["formatted_name"],
       type: json["type"],
       photo: json["photo"],
       coins: json["coins"]?.toInt(),
@@ -112,9 +122,15 @@ class GamicoUserModel {
       gratifiedAt: DateTime.tryParse(json["gratified_at"] ?? ""),
       referrerId: json["referrer_id"],
       online: json["online"],
-      stars: (json["stars"] as List?)?.map<int>((e) {
-        return e.toInt();
-      }).toList(),
+      stars:
+          (json["stars"] as List?)?.map<int>((e) {
+            return e.toInt();
+          }).toList(),
+      skins:
+          (json["skins"] as List?)?.map<String>((e) {
+            return e.toString();
+          }).toList(),
+      activeSkin: json["active_skin"]?.toString(),
     );
   }
 }

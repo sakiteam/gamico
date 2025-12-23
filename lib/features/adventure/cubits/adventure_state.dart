@@ -5,9 +5,12 @@ class GamicoAdventureState {
   final bool animInit;
   final bool animGame;
   final bool animated;
+  final bool nextLevelActive;
 
   final AdventureUtility adventureUtility;
   final RemoteUtility? remoteUtility;
+
+  final int? nextLevelToPlay;
 
   bool get enabled => !animated;
 
@@ -15,6 +18,8 @@ class GamicoAdventureState {
     this.animInit = false,
     this.animGame = false,
     this.animated = false,
+    this.nextLevelActive = false,
+    this.nextLevelToPlay,
     required this.adventureUtility,
     required this.remoteUtility,
   });
@@ -23,6 +28,8 @@ class GamicoAdventureState {
     bool? animInit,
     bool? animGame,
     bool? animated,
+    bool? nextLevelActive,
+    int? Function()? nextLevelToPlay,
     AdventureUtility? adventureUtility,
     RemoteUtility? Function()? remoteUtility,
   }) {
@@ -30,9 +37,14 @@ class GamicoAdventureState {
       animInit: animInit ?? this.animInit,
       animGame: animGame ?? this.animGame,
       animated: animated ?? this.animated,
+      nextLevelActive: nextLevelActive ?? this.nextLevelActive,
       adventureUtility: adventureUtility ?? this.adventureUtility,
-      remoteUtility:
-          remoteUtility != null ? remoteUtility() : this.remoteUtility,
+      remoteUtility: remoteUtility != null
+          ? remoteUtility()
+          : this.remoteUtility,
+      nextLevelToPlay: nextLevelToPlay != null
+          ? nextLevelToPlay()
+          : this.nextLevelToPlay,
     );
   }
 }

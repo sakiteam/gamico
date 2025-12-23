@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:core';
 import 'dart:convert';
+import 'dart:io';
 // import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:games_services/games_services.dart';
 
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/global/gamico.dart';
@@ -11,22 +14,31 @@ import 'package:gamico/commons/repositories/gamico_users_repository.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:gamico/commons/services/local_storage.dart';
-import 'package:firebase_game_services/firebase_game_services.dart';
 import 'package:gamico/commons/services/play.dart';
 import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/features/friend/cubits/friend_invitation_cubit.dart';
 
 part 'authentication_state.dart';
 
 class AuthenticationCubit extends Cubit<AuthenticationState> {
+  static PlayerData? player;
+
+  final FriendInvitationCubit friendInvitationCubit;
+
   AuthenticationCubit({
     required this.usersRepository,
     required this.userCubit,
+    required this.friendInvitationCubit,
   }) : super(
-          AuthenticationState(
-            status: AuthenticationStateStatus.initial,
-            authenticated: UserService.authenticated,
-          ),
-        ) {
+         AuthenticationState(
+           status: AuthenticationStateStatus.initial,
+           authenticated: UserService.authenticated,
+         ),
+       ) {
+    subscription = GameAuth.player.listen((p) {
+      player = p;
+    });
+
     if (UserService.authenticated) {
       _saveToken();
 
@@ -41,7 +53,19 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
   final GamicoUsersRepository usersRepository;
   final GamicoUserCubit userCubit;
 
+  StreamSubscription<PlayerData?>? subscription;
+
   Future<void> _saveToken() async {
+    if (Platform.isIOS) {
+      String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+
+      if (apnsToken == null) {
+        await Future.delayed(const Duration(minutes: 1));
+        _saveToken();
+        return;
+      }
+    }
+
     String? token = await FirebaseMessaging.instance.getToken();
 
     if (token != null) await _updateUser(token);
@@ -61,9 +85,7 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
     if (state.status == AuthenticationStateStatus.loading) return;
 
     // Initiate loading
-    emit(state.copyWith(
-      status: AuthenticationStateStatus.loading,
-    ));
+    emit(state.copyWith(status: AuthenticationStateStatus.loading));
 
     // Sign out if not already done
     try {
@@ -75,21 +97,21 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
     // Sign in to game services
     try {
       if (await PlayService.enableGameServices()) {
-        UserService.displayName =
-            (await FirebaseGameServices.instance.getPlayerName()) ?? "";
+        UserService.displayName = player?.displayName ?? "";
         String firebaseId = FirebaseAuth.instance.currentUser?.uid ?? "";
-        String socialId =
-            (await FirebaseGameServices.instance.getPlayerId()) ?? "";
-        FirebaseAuth.instance.currentUser
-            ?.updateDisplayName(UserService.displayName);
+        String socialId = player?.playerID ?? "";
+        FirebaseAuth.instance.currentUser?.updateDisplayName(
+          UserService.displayName,
+        );
 
-        final snapshot = await FirebaseDatabase.instance
-            .ref()
-            .child("users")
-            .orderByChild("social_id")
-            .equalTo(socialId)
-            .limitToFirst(1)
-            .get();
+        final snapshot =
+            await FirebaseDatabase.instance
+                .ref()
+                .child("users")
+                .orderByChild("social_id")
+                .equalTo(socialId)
+                .limitToFirst(1)
+                .get();
 
         if (snapshot.exists) {
           final data = jsonDecode(jsonEncode(snapshot.value));
@@ -97,14 +119,21 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
           UserService.uid = data.keys.first;
           UserService.authenticated = true;
 
-          userCubit.setUser(Gamico.instance
-              .userFromJson(Map<String, dynamic>.from(data.values.first)));
+          userCubit.setUser(
+            Gamico.instance.userFromJson(
+              Map<String, dynamic>.from(data.values.first),
+            ),
+          );
+
+          friendInvitationCubit.listenToInvitations();
         } else {
           // String? referrerId =
           //     GlobalService.dynamicLink?.link.queryParameters["referrer_id"];
 
-          final user =
-              Gamico.instance.userSettings.createNewUser(firebaseId, socialId);
+          final user = Gamico.instance.userSettings.createNewUser(
+            firebaseId,
+            socialId,
+          );
 
           // T(
           //   type: Platform.isAndroid ? "google" : "apple",
@@ -156,10 +185,12 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
           // userCubit.unlockBeginnerAchievement();
         }
 
-        emit(state.copyWith(
-          status: AuthenticationStateStatus.success,
-          authenticated: true,
-        ));
+        emit(
+          state.copyWith(
+            status: AuthenticationStateStatus.success,
+            authenticated: true,
+          ),
+        );
       } else {
         declareError();
       }
@@ -176,9 +207,7 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
     UserService.uid = "";
     userCubit.setUser(null);
 
-    emit(state.copyWith(
-      authenticated: false,
-    ));
+    emit(state.copyWith(authenticated: false));
   }
 
   void declareError() {
@@ -186,9 +215,17 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
     UserService.uid = "";
     userCubit.setUser(null);
 
-    emit(state.copyWith(
-      status: AuthenticationStateStatus.failure,
-      authenticated: false,
-    ));
+    emit(
+      state.copyWith(
+        status: AuthenticationStateStatus.failure,
+        authenticated: false,
+      ),
+    );
+  }
+
+  @override
+  Future<void> close() {
+    subscription?.cancel();
+    return super.close();
   }
 }

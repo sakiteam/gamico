@@ -20,10 +20,7 @@ class CoinsPopup extends StatefulWidget {
 
   final int? minimumRequiredCowries;
 
-  const CoinsPopup({
-    super.key,
-    required this.minimumRequiredCowries,
-  });
+  const CoinsPopup({super.key, required this.minimumRequiredCowries});
 
   @override
   State<CoinsPopup> createState() => _CoinsPopupState();
@@ -75,7 +72,8 @@ class _CoinsPopupState extends State<CoinsPopup> {
   @override
   Widget build(BuildContext context) {
     final products = context.select(
-        (PurchasesCubit purchasesCubit) => purchasesCubit.state.products);
+      (PurchasesCubit purchasesCubit) => purchasesCubit.state.products,
+    );
 
     final content = [
       const GamicoGratificationPoster(),
@@ -92,17 +90,20 @@ class _CoinsPopupState extends State<CoinsPopup> {
     return GamicoPopup(
       pageController: pageController,
       pageControllerLength: content.length,
-      additionalChild: GamicoAdButton(
-        onPressed: () async {
-          final admobCubit = context.read<AdmobCubit>();
+      additionalChild:
+          Gamico.instance.admobSettings?.displayAdButton == false
+              ? null
+              : GamicoAdButton(
+                onPressed: () async {
+                  final admobCubit = context.read<AdmobCubit>();
 
-          await admobCubit.ensureRewardedAdLoaded();
+                  await admobCubit.ensureRewardedAdLoaded();
 
-          admobCubit.showRewardedAd(() {
-            context.read<GamicoUserCubit>().incrementCowries();
-          });
-        },
-      ),
+                  admobCubit.showRewardedAd(() {
+                    context.read<GamicoUserCubit>().incrementCowries();
+                  });
+                },
+              ),
       child: PageView(
         controller: pageController,
         physics: const AlwaysScrollableScrollPhysics(),

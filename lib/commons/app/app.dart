@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:awesome_notifications/awesome_notifications.dart';
+// import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -26,11 +27,16 @@ import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/game.dart';
 import 'package:gamico/commons/services/gif.dart';
 import 'package:gamico/commons/services/locale.dart';
+import 'package:gamico/commons/services/navigation.dart';
+// import 'package:gamico/commons/services/notification.dart';
 import 'package:gamico/commons/services/time_zone.dart';
 import 'package:gamico/commons/services/version.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
 import 'package:gamico/commons/generics/content_wrapper.dart';
 import 'package:gamico/commons/generics/material_app_wrapper.dart';
+import 'package:gamico/features/friend/cubits/friend_invitation_cubit.dart';
+// import 'package:gamico/features/friend/cubits/invitation_cubit.dart';
+// import 'package:gamico/features/friend/models/invitation_model.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:gamico/languages/localizations.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -45,6 +51,8 @@ class GamicoApp extends StatefulWidget {
   final Widget Function(BuildContext context, Widget child)? builder;
   final Iterable<LocalizationsDelegate<dynamic>>? localizationsDelegates;
 
+  final double? dividerThickness;
+
   const GamicoApp({
     super.key,
     this.decorations,
@@ -53,6 +61,7 @@ class GamicoApp extends StatefulWidget {
     this.localizationsDelegates,
     this.textColor,
     this.fontFamily,
+    this.dividerThickness,
   });
 
   @override
@@ -69,13 +78,16 @@ class _GamicoAppState extends State<GamicoApp> {
     // Initilize plugins for the proper functioning of the app
     try {
       // Handle message processings
-      FirebaseMessaging.onMessage.listen(foregroundNotificationHandler);
-      FirebaseMessaging.onBackgroundMessage(backgroundNotificationHandler);
+      // FirebaseMessaging.onMessage.listen(foregroundNotificationHandler);
+      // FirebaseMessaging.onBackgroundMessage(backgroundNotificationHandler);
 
-      await Future.wait([
-        VersionService.init(),
-        TimeZoneService.initTimeZone(),
-      ]);
+      // await
+      // Future.wait([
+
+      // ]);
+
+      await VersionService.init();
+      TimeZoneService.initTimeZone();
 
       // GlobalService.dynamicLink =
       //     await FirebaseDynamicLinks.instance.getInitialLink();
@@ -99,8 +111,20 @@ class _GamicoAppState extends State<GamicoApp> {
             enableVibration: true,
             channelShowBadge: true,
             importance: NotificationImportance.Max,
-          )
+          ),
+          NotificationChannel(
+            channelKey: 'invitations',
+            channelName: 'invitations',
+            channelDescription: 'invitations',
+            // defaultColor: const Color(0xFF9D50DD),
+            // ledColor: const Color(0xFF9D50DD),
+            enableVibration: true,
+            channelShowBadge: true,
+            importance: NotificationImportance.Max,
+            // channelShowBadge: true,
+          ),
         ],
+
         // Channel groups are only visual and are not required
         // channelGroups: [
         //   NotificationChannelGroup(
@@ -160,9 +184,8 @@ class _GamicoAppState extends State<GamicoApp> {
           // ),
         ),
         RepositoryProvider(
-          create: (context) => GamicoGamesRepository(
-            gamesProvider: GamicoGamesProvider(),
-          ),
+          create: (context) =>
+              GamicoGamesRepository(gamesProvider: GamicoGamesProvider()),
         ),
         RepositoryProvider(
           create: (context) => GamicoPurchasesRepository(
@@ -172,6 +195,10 @@ class _GamicoAppState extends State<GamicoApp> {
       ],
       child: MultiBlocProvider(
         providers: [
+          BlocProvider(
+            lazy: false,
+            create: (context) => FriendInvitationCubit(),
+          ),
           BlocProvider(
             lazy: false,
             create: (context) => GamicoUserCubit(
@@ -188,29 +215,18 @@ class _GamicoAppState extends State<GamicoApp> {
           //     toJson: gamico.userToJson,
           //   ),
           // ),
-          BlocProvider(
-            lazy: false,
-            create: (context) => GamicoMusicCubit(),
-          ),
+          BlocProvider(lazy: false, create: (context) => GamicoMusicCubit()),
           BlocProvider(
             lazy: false,
             create: (context) => AuthenticationCubit(
+              friendInvitationCubit: context.read<FriendInvitationCubit>(),
               userCubit: context.read<GamicoUserCubit>(),
               usersRepository: Gamico.instance.usersRepository,
             ),
           ),
-          BlocProvider(
-            lazy: false,
-            create: (context) => InternetCubit(),
-          ),
-          BlocProvider(
-            lazy: false,
-            create: (context) => AdmobCubit(),
-          ),
-          BlocProvider(
-            lazy: false,
-            create: (context) => ShowcaseCubit(),
-          ),
+          BlocProvider(lazy: false, create: (context) => InternetCubit()),
+          BlocProvider(lazy: false, create: (context) => AdmobCubit()),
+          BlocProvider(lazy: false, create: (context) => ShowcaseCubit()),
           BlocProvider(
             lazy: false,
             create: (context) => PurchasesCubit(
@@ -221,14 +237,11 @@ class _GamicoAppState extends State<GamicoApp> {
           BlocProvider(
             lazy: false,
             create: (context) => ReferralCubit(
-                // authenticationCubit: context.read<AuthenticationCubit>(),
-                // internetCubit: context.read<InternetCubit>(),
-                ),
+              // authenticationCubit: context.read<AuthenticationCubit>(),
+              // internetCubit: context.read<InternetCubit>(),
+            ),
           ),
-          BlocProvider(
-            lazy: false,
-            create: (context) => CharacterCubit(),
-          ),
+          BlocProvider(lazy: false, create: (context) => CharacterCubit()),
           BlocProvider(
             lazy: false,
             create: (context) => GratificationCubit(
@@ -245,6 +258,7 @@ class _GamicoAppState extends State<GamicoApp> {
           builder: (context, localeState) {
             return GamicoMaterialAppWrapper(
               child: MaterialApp(
+                navigatorKey: NavigationService.globalNavigatorKey,
                 home: ValueListenableBuilder(
                   valueListenable: loadingNotifier,
                   builder: (context, loading, child) {
@@ -296,7 +310,8 @@ class _GamicoAppState extends State<GamicoApp> {
                 },
                 theme: ThemeData(
                   colorScheme: ColorScheme.fromSeed(
-                      seedColor: ColorService.primaryColor),
+                    seedColor: ColorService.primaryColor,
+                  ),
                   fontFamily: widget.fontFamily,
                   textTheme: TextTheme(
                     bodyMedium: TextStyle(
@@ -305,9 +320,9 @@ class _GamicoAppState extends State<GamicoApp> {
                       color: widget.textColor,
                     ),
                   ),
-                  dividerTheme: const DividerThemeData(
+                  dividerTheme: DividerThemeData(
                     space: 0,
-                    thickness: 1,
+                    thickness: widget.dividerThickness ?? 1,
                     color: Colors.black,
                   ),
                   dividerColor: Colors.black,

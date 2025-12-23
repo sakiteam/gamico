@@ -1,8 +1,8 @@
-import 'dart:math';
 import 'dart:async';
 import 'dart:convert';
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
+import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/commons/services/layout.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -22,9 +22,9 @@ class RemoteCubit extends Cubit<RemoteState> {
     required this.gamesRepository,
     required this.remoteUtility,
     required int? level,
-  }) : super(RemoteState(
-          level: level,
-        ));
+    this.receiverId,
+    this.senderId,
+  }) : super(RemoteState(level: level));
 
   /// Reference to the games repository.
   final GamicoGamesRepository gamesRepository;
@@ -32,6 +32,9 @@ class RemoteCubit extends Cubit<RemoteState> {
   final GamicoUserCubit userCubit;
 
   final RemoteUtility remoteUtility;
+
+  final String? receiverId;
+  final String? senderId;
 
   bool get dirtyStateForFakeGame {
     return isClosed || !createdGameStatus.contains("PENDING");
@@ -49,50 +52,35 @@ class RemoteCubit extends Cubit<RemoteState> {
   }
 
   void setForcePop(bool forcePop) {
-    emit(state.copyWith(
-      forcePop: forcePop,
-    ));
+    emit(state.copyWith(forcePop: forcePop));
   }
 
   void setAnimInit(bool animInit) {
-    emit(state.copyWith(
-      animInit: animInit,
-    ));
+    emit(state.copyWith(animInit: animInit));
   }
 
   void setAnimGame(bool animGame) {
-    emit(state.copyWith(
-      animGame: animGame,
-    ));
+    emit(state.copyWith(animGame: animGame));
   }
 
   void setAnimated(bool animated) {
-    emit(state.copyWith(
-      animated: animated,
-    ));
+    emit(state.copyWith(animated: animated));
   }
 
   /// Set whether the game has already been started or not
   void setFinalized(bool finalized) {
-    emit(state.copyWith(
-      finalized: finalized,
-    ));
+    emit(state.copyWith(finalized: finalized));
   }
 
   void setInternetError(bool internetError) {
-    emit(state.copyWith(
-      internetError: internetError,
-    ));
+    emit(state.copyWith(internetError: internetError));
   }
 
   void launch() {
     try {
       _init();
     } catch (e) {
-      emit(state.copyWith(
-        status: RemoteGameStatus.failure,
-        creator: null,
-      ));
+      emit(state.copyWith(status: RemoteGameStatus.failure, creator: null));
     }
   }
 
@@ -102,16 +90,18 @@ class RemoteCubit extends Cubit<RemoteState> {
     gameId = "";
     _streamSubscription?.cancel();
 
-    emit(state.copyWith(
-      status: RemoteGameStatus.initial,
-      creator: null,
-      gameId: "",
-      animGame: false,
-      finalized: false,
-      fakeOpponent: false,
-      // animInit: false,
-      level: level == null ? null : () => level,
-    ));
+    emit(
+      state.copyWith(
+        status: RemoteGameStatus.initial,
+        creator: null,
+        gameId: "",
+        animGame: false,
+        finalized: false,
+        fakeOpponent: false,
+        // animInit: false,
+        level: level == null ? null : () => level,
+      ),
+    );
 
     launch();
   }
@@ -119,32 +109,41 @@ class RemoteCubit extends Cubit<RemoteState> {
   void _init() async {
     if (isClosed) return;
 
-    emit(state.copyWith(
-      status: RemoteGameStatus.loading,
-      creator: null,
-      finalized: false,
-      fakeOpponent: false,
-    ));
+    emit(
+      state.copyWith(
+        status: RemoteGameStatus.loading,
+        creator: null,
+        finalized: false,
+        fakeOpponent: false,
+      ),
+    );
 
     final ref = FirebaseDatabase.instance.ref();
 
     final matchmakingSettings = remoteUtility.matchmakingSettings;
 
-    int matchmakingLevel =
-        matchmakingSettings.getMatchmakingLevel(userCubit.state.user!);
+    int matchmakingLevel = matchmakingSettings.getMatchmakingLevel(
+      userCubit.state.user!,
+    );
 
     final int minOpponentLevel;
     final int maxOpponentLevel;
 
-    if (DateTime.now().year < 2025) {
-      minOpponentLevel = matchmakingSettings.minLevel;
-      maxOpponentLevel = matchmakingSettings.maxLevel;
-    } else {
-      minOpponentLevel = max(matchmakingSettings.minLevel,
-          matchmakingLevel - matchmakingSettings.increment);
-      maxOpponentLevel = min(matchmakingSettings.maxLevel,
-          matchmakingLevel + matchmakingSettings.increment);
-    }
+    // if (DateTime.now().year < 2025) {
+
+    minOpponentLevel = matchmakingSettings.minLevel;
+    maxOpponentLevel = matchmakingSettings.maxLevel;
+
+    // } else {
+    // minOpponentLevel = max(
+    //   matchmakingSettings.minLevel,
+    //   matchmakingLevel - matchmakingSettings.increment,
+    // );
+    // maxOpponentLevel = min(
+    //   matchmakingSettings.maxLevel,
+    //   matchmakingLevel + matchmakingSettings.increment,
+    // );
+    // }
 
     final maxLevelLength = matchmakingSettings.maxLevel.toString().length;
 
@@ -157,8 +156,9 @@ class RemoteCubit extends Cubit<RemoteState> {
       if (state.level != null) state.level,
     ].join(" ");
 
-    final modeString =
-        matchmakingSettings.mode == null ? " " : " $modePotentialString ";
+    final modeString = matchmakingSettings.mode == null
+        ? " "
+        : " $modePotentialString ";
 
     // bool currentPlayerIsCreator;
     // DataSnapshot snapshot;
@@ -186,18 +186,20 @@ class RemoteCubit extends Cubit<RemoteState> {
       // Generate a new child location
       String playerKey = ref.push().key ?? "";
 
-      gameId = await gamesRepository.createGame(GamicoGameModel(
-        events: const {},
-        players: {
-          playerKey: GamicoGamePlayerModel(
-            status: "ACCEPTED",
-            userId: UserService.uid,
-            createdAt: now,
-            updatedAt: now,
-          ),
-        },
-        status: "PENDING$modeString${formatLevel(matchmakingLevel)}",
-      ));
+      gameId = await gamesRepository.createGame(
+        GamicoGameModel(
+          events: const {},
+          players: {
+            playerKey: GamicoGamePlayerModel(
+              status: "ACCEPTED",
+              userId: UserService.uid,
+              createdAt: now,
+              updatedAt: now,
+            ),
+          },
+          status: "PENDING$modeString${formatLevel(matchmakingLevel)}",
+        ),
+      );
 
       // Notify Irié Bi Irié Alex
       // _sendUserNotification(
@@ -209,11 +211,11 @@ class RemoteCubit extends Cubit<RemoteState> {
       //   null,
       // );
 
-      _userDisconnectionReference =
-          FirebaseDatabase.instance.ref("games").child(gameId).onDisconnect();
-      await _userDisconnectionReference?.update({
-        "status": "ABORTED",
-      });
+      _userDisconnectionReference = FirebaseDatabase.instance
+          .ref("games")
+          .child(gameId)
+          .onDisconnect();
+      await _userDisconnectionReference?.update({"status": "ABORTED"});
 
       // await gamesRepository.addGamePlayer(
       //   gameId,
@@ -244,27 +246,28 @@ class RemoteCubit extends Cubit<RemoteState> {
           .ref("games/$gameId")
           .onValue
           .listen((event) {
-        final rawData = event.snapshot.value;
-        final validData = jsonDecode(jsonEncode(rawData));
-        final gameData =
-            GamicoGameModel.fromJson(Map<String, dynamic>.from(validData));
-        final gameStatus = gameData.status ?? "";
-        final gamePlayers = gameData.players?.values ?? [];
-        final gamePlayersIds = gamePlayers.map((e) => e.userId).toSet();
+            final rawData = event.snapshot.value;
+            final validData = jsonDecode(jsonEncode(rawData));
+            final gameData = GamicoGameModel.fromJson(
+              Map<String, dynamic>.from(validData ?? {}),
+            );
+            final gameStatus = gameData.status ?? "";
+            final gamePlayers = gameData.players?.values ?? [];
+            final gamePlayersIds = gamePlayers.map((e) => e.userId).toSet();
 
-        createdGameStatus = gameStatus;
+            createdGameStatus = gameStatus;
 
-        if (gameStatus == "STARTED") {
-          emit(state.copyWith(
-            fakeOpponent: gamePlayersIds.length < 2,
-          ));
+            if (gameStatus == "STARTED") {
+              emit(state.copyWith(fakeOpponent: gamePlayersIds.length < 2));
 
-          launchGame();
-          _streamSubscription?.cancel();
-        }
-      });
+              launchGame();
+              _streamSubscription?.cancel();
+            }
+          });
 
-      if (!remoteUtility.isDeveloper && !appScreenshots) {
+      if (!remoteUtility.isDeveloper &&
+          !appScreenshots &&
+          Gamico.instance.playSettings?.enableFakeOpponent == true) {
         _manageFakeGame();
       }
     } else if (creator == false) {
@@ -272,8 +275,9 @@ class RemoteCubit extends Cubit<RemoteState> {
 
       gameId = data.keys.first ?? "";
 
-      DatabaseReference gameRef =
-          FirebaseDatabase.instance.ref().child("games/$gameId");
+      DatabaseReference gameRef = FirebaseDatabase.instance.ref().child(
+        "games/$gameId",
+      );
 
       bool firstRun = true;
       final result = await gameRef.runTransaction((Object? game) {
@@ -286,8 +290,9 @@ class RemoteCubit extends Cubit<RemoteState> {
           return Transaction.abort();
         }
 
-        Map<String, dynamic> currentGame =
-            Map<String, dynamic>.from(game as Map);
+        Map<String, dynamic> currentGame = Map<String, dynamic>.from(
+          game as Map,
+        );
 
         if (!currentGame["status"].toString().contains("PENDING")) {
           return Transaction.abort();
@@ -344,11 +349,13 @@ class RemoteCubit extends Cubit<RemoteState> {
   void launchGame() {
     if (isClosed) return;
 
-    emit(state.copyWith(
-      status: RemoteGameStatus.success,
-      creator: () => creator,
-      gameId: gameId,
-    ));
+    emit(
+      state.copyWith(
+        status: RemoteGameStatus.success,
+        creator: () => creator,
+        gameId: gameId,
+      ),
+    );
   }
 
   void abortGame() {

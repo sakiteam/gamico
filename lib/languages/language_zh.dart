@@ -10,6 +10,32 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
   @override
   String get globalOK => "确定";
 
+  /* FRIEND */
+
+  @override
+  String get friendPageTitle => "搜索好友";
+
+  @override
+  String get friendPageSearchHint => "按名字搜索...";
+
+  @override
+  String get friendPagePendingInvitations => "待处理邀请";
+
+  @override
+  String get friendPageGameInvitation => "游戏邀请";
+
+  @override
+  String friendPageInvitationFrom(String name) => "来自：$name";
+
+  @override
+  String get friendPageInvitationSent => "邀请已发送！";
+
+  @override
+  String get friendPageFailedToSendInvitation => "发送邀请失败";
+
+  @override
+  String get friendPageUnknown => "未知";
+
   /* ADVENTURE */
 
   @override

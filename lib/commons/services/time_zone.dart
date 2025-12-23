@@ -4,6 +4,6 @@ class TimeZoneService {
   static String timeZone = "Africa/Abidjan";
 
   static Future<void> initTimeZone() async {
-    timeZone = await FlutterTimezone.getLocalTimezone();
+    timeZone = (await FlutterTimezone.getLocalTimezone()).identifier;
   }
 }

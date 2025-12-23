@@ -10,6 +10,32 @@ abstract class GamicoLanguageHi extends GamicoLanguages {
   @override
   String get globalOK => "ठीक है";
 
+  /* FRIEND */
+
+  @override
+  String get friendPageTitle => "दोस्त खोजें";
+
+  @override
+  String get friendPageSearchHint => "नाम से खोजें...";
+
+  @override
+  String get friendPagePendingInvitations => "लंबित निमंत्रण";
+
+  @override
+  String get friendPageGameInvitation => "खेल का निमंत्रण";
+
+  @override
+  String friendPageInvitationFrom(String name) => "से: $name";
+
+  @override
+  String get friendPageInvitationSent => "निमंत्रण भेजा गया!";
+
+  @override
+  String get friendPageFailedToSendInvitation => "निमंत्रण भेजने में विफल";
+
+  @override
+  String get friendPageUnknown => "अज्ञात";
+
   /* ADVENTURE */
 
   @override

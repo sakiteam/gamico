@@ -21,6 +21,8 @@ class GamicoRemotePage extends StatefulWidget {
   final RemoteUtility remoteUtility;
   final AdventureUtility? adventureGameUtility;
   final int? level;
+  final String? senderId;
+  final String? receiverId;
 
   const GamicoRemotePage({
     super.key,
@@ -28,6 +30,8 @@ class GamicoRemotePage extends StatefulWidget {
     required this.remoteUtility,
     required this.adventureGameUtility,
     required this.level,
+    this.receiverId,
+    this.senderId,
   });
 
   @override
@@ -59,20 +63,15 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
 
     return BlocProvider(
       // lazy: false,
-      create: (context) => remoteCubit
-
+      create: (context) => remoteCubit,
       // RemoteCubit(
       //   userCubit: context.read<GamicoUserCubit>(),
       //   gamesRepository: context.read<GamicoGamesRepository>(),
       // )..init()
-
-      ,
       child: MultiBlocListener(
         listeners: [
           BlocListener<RemoteCubit, RemoteState>(
             listener: (context, state) {
-              context.read<RemoteCubit>().setInternetError(false);
-
               NavigationService.showPopup(
                 context: context,
                 builder: (_) {
@@ -82,6 +81,10 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
                       title: l.remoteConnexionProblemTitle,
                       description: l.remoteConnexionProblemDescription,
                       simple: true,
+                      onAccepted: () {
+                        context.read<RemoteCubit>().setInternetError(false);
+                        Navigator.of(context).pop();
+                      },
                     ),
                   );
                 },
@@ -123,7 +126,8 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
                           } else {
                             remoteCubit.setAnimGame(false);
                             await Future.delayed(
-                                AnimationService.animationDuration);
+                              AnimationService.animationDuration,
+                            );
                             remoteCubit.setAnimated(false);
                           }
                         },

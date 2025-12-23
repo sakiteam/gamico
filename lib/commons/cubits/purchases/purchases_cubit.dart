@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:bloc/bloc.dart';
+import 'package:gamico/commons/analytics/analytics_utils.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/gamico_purchase_model.dart';
@@ -45,21 +46,39 @@ class PurchasesCubit extends Cubit<PurchasesState> {
           //     purchase.pendingCompletePurchase.toString() +
           //     purchase.transactionDate.toString());
 
+          final product = _getProductById(purchase.productID);
+
           switch (purchase.status) {
             case PurchaseStatus.purchased:
+              logEvent(
+                name: "iap_completed",
+                parameters: {
+                  "product": product.title,
+                },
+              );
+
               _confirmPurchase(purchase);
               break;
             case PurchaseStatus.pending:
-            case PurchaseStatus.restored:
-              _confirmPurchase(purchase);
+              // case PurchaseStatus.restored:
+              // _confirmPurchase(purchase);
               break;
             case PurchaseStatus.canceled:
+              logEvent(
+                name: "iap_canceled",
+                parameters: {
+                  "product": product.title,
+                },
+              );
+
               resetStatus();
               break;
             case PurchaseStatus.error:
               emit(state.copyWith(
                 status: PurchasesStatus.transactionFailure,
               ));
+              break;
+            case PurchaseStatus.restored:
               break;
           }
         }
@@ -137,6 +156,10 @@ class PurchasesCubit extends Cubit<PurchasesState> {
     emit(state.copyWith(
       products: response.productDetails,
     ));
+  }
+
+  ProductDetails _getProductById(String id) {
+    return state.products.firstWhere((element) => element.id == id);
   }
 
   Future<void> purchase(ProductDetails product) async {

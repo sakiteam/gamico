@@ -64,8 +64,9 @@ void gamePageManageCoinsAndStarsInAdventureGame(
 
       userCubit.updateStars(newStars);
 
-      final int currentUserLevel =
-          adventureUtility.getUserLevel(userCubit.state.user);
+      final int currentUserLevel = adventureUtility.getUserLevel(
+        userCubit.state.user,
+      );
       final multiplicationFactor = currentLevelStars - levelPreviousStars;
 
       if (multiplicationFactor > 0) {
@@ -77,19 +78,18 @@ void gamePageManageCoinsAndStarsInAdventureGame(
           cowriesReward = Gamico.instance.gameSettings.playMinimumCoins;
         }
 
-        userCubit
-            .incrementCowries((cowriesReward * multiplicationFactor).toInt());
+        userCubit.incrementCowries(
+          (cowriesReward * multiplicationFactor).toInt(),
+        );
       }
+    }
 
-      if (isCurrentLevelLast) {
-        userCubit.incrementLevel();
-      }
+    if (isCurrentLevelLast) {
+      userCubit.incrementLevel();
     }
   } else {
     if (isCurrentLevelLast) {
-      userCubit.decrementCowries(
-        Gamico.instance.gameSettings.playMinimumCoins,
-      );
+      userCubit.decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
     }
   }
 }

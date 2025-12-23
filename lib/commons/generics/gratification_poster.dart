@@ -71,7 +71,8 @@ class GamicoGratificationPoster extends StatelessWidget {
               builder: (_, state) {
                 final user = state.user!;
 
-                int nextGratificationsCowries = user.nextGratification ??
+                int nextGratificationsCowries =
+                    user.nextGratification ??
                     GratificationCubit.hour1Gratification;
 
                 if (gratificationState.durationDifference.inHours > 1) {
@@ -87,65 +88,90 @@ class GamicoGratificationPoster extends StatelessWidget {
 
                 return GamicoPoster(
                   icon: Icons.redeem,
-                  description: l.homeGratificationPopupInstructionDescription,
+                  description: user.broke
+                      ? l.homeGratificationBrokeUserPopupInstructionDescription
+                      : l.homeGratificationPopupInstructionDescription,
                   title: gratificationState.gratificationEnabled
                       ? l.homeGratificationPopupNextReward(
-                          nextGratificationsCowries)
+                          nextGratificationsCowries,
+                        )
                       : TimestampService.getCountdownString(
-                          TimestampService.durationToNextHour()),
+                          TimestampService.durationToNextHour(),
+                        ),
                   expandContent: true,
                   content: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       GamicoDisabler(
-                        disabled: !(gratificationState.gratificationEnabled &&
-                            nextGratificationsCowries ==
-                                GratificationCubit.hour1Gratification),
+                        disabled:
+                            !(gratificationState.gratificationEnabled &&
+                                nextGratificationsCowries ==
+                                    GratificationCubit.hour1Gratification),
                         child: GamicoIconTextButton(
                           iconWidget: cowrieImage,
                           onPressed: () {
-                            _rewardUser(GratificationCubit.hour1Gratification,
-                                GratificationCubit.hour2Gratification, context);
+                            _rewardUser(
+                              GratificationCubit.hour1Gratification,
+                              GratificationCubit.hour2Gratification,
+                              context,
+                            );
                           },
                           text: l.homeGratificationPopupHourReward(
-                              GratificationCubit.hour1Gratification, 1),
-                          color: nextGratificationsCowries ==
+                            GratificationCubit.hour1Gratification,
+                            1,
+                          ),
+                          color:
+                              nextGratificationsCowries ==
                                   GratificationCubit.hour1Gratification
                               ? ColorService.accentColor
                               : null,
                         ),
                       ),
                       GamicoDisabler(
-                        disabled: !(gratificationState.gratificationEnabled &&
-                            nextGratificationsCowries ==
-                                GratificationCubit.hour2Gratification),
+                        disabled:
+                            !(gratificationState.gratificationEnabled &&
+                                nextGratificationsCowries ==
+                                    GratificationCubit.hour2Gratification),
                         child: GamicoIconTextButton(
                           iconWidget: cowrieImage,
                           onPressed: () {
-                            _rewardUser(GratificationCubit.hour2Gratification,
-                                GratificationCubit.hour3Gratification, context);
+                            _rewardUser(
+                              GratificationCubit.hour2Gratification,
+                              GratificationCubit.hour3Gratification,
+                              context,
+                            );
                           },
                           text: l.homeGratificationPopupHourReward(
-                              GratificationCubit.hour2Gratification, 2),
-                          color: nextGratificationsCowries ==
+                            GratificationCubit.hour2Gratification,
+                            2,
+                          ),
+                          color:
+                              nextGratificationsCowries ==
                                   GratificationCubit.hour2Gratification
                               ? ColorService.accentColor
                               : null,
                         ),
                       ),
                       GamicoDisabler(
-                        disabled: !(gratificationState.gratificationEnabled &&
-                            nextGratificationsCowries ==
-                                GratificationCubit.hour3Gratification),
+                        disabled:
+                            !(gratificationState.gratificationEnabled &&
+                                nextGratificationsCowries ==
+                                    GratificationCubit.hour3Gratification),
                         child: GamicoIconTextButton(
                           iconWidget: cowrieImage,
                           onPressed: () {
-                            _rewardUser(GratificationCubit.hour3Gratification,
-                                GratificationCubit.hour1Gratification, context);
+                            _rewardUser(
+                              GratificationCubit.hour3Gratification,
+                              GratificationCubit.hour1Gratification,
+                              context,
+                            );
                           },
                           text: l.homeGratificationPopupHourReward(
-                              GratificationCubit.hour3Gratification, 3),
-                          color: nextGratificationsCowries ==
+                            GratificationCubit.hour3Gratification,
+                            3,
+                          ),
+                          color:
+                              nextGratificationsCowries ==
                                   GratificationCubit.hour3Gratification
                               ? ColorService.accentColor
                               : null,
@@ -162,11 +188,15 @@ class GamicoGratificationPoster extends StatelessWidget {
     );
   }
 
-  void _rewardUser(int lastGratification, int nextGratification,
-      BuildContext context) async {
-    context
-        .read<GamicoUserCubit>()
-        .updateUserGratification(lastGratification, nextGratification);
+  void _rewardUser(
+    int lastGratification,
+    int nextGratification,
+    BuildContext context,
+  ) async {
+    context.read<GamicoUserCubit>().updateUserGratification(
+      lastGratification,
+      nextGratification,
+    );
 
     if (await AwesomeNotifications().isNotificationAllowed()) {
       NotificationService.scheduleReminder();

@@ -20,10 +20,12 @@ class GamicoDialogPoster extends StatelessWidget {
   final String? acceptationText;
   final IconData? acceptationIcon;
   final Function? onAccepted;
+  final bool acceptationButtonEnabled;
 
   final String? rejectionText;
   final IconData? rejectionIcon;
   final Function? onRejected;
+  final bool rejectionButtonEnabled;
 
   final bool automaticClose;
   final bool simple;
@@ -56,6 +58,9 @@ class GamicoDialogPoster extends StatelessWidget {
     //
     this.acceptationIconWidget,
     this.rejectionIconWidget,
+    //
+    this.acceptationButtonEnabled = true,
+    this.rejectionButtonEnabled = true,
   });
 
   @override
@@ -63,19 +68,23 @@ class GamicoDialogPoster extends StatelessWidget {
     final l = GamicoLanguages.of(context);
 
     return GamicoPoster(
-      content: content ??
+      content:
+          content ??
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               if (!simple)
                 GamicoIconTextButton(
-                  onPressed: () {
-                    if (automaticClose) {
-                      NavigationService.pop(context);
-                    }
+                  onPressed:
+                      !rejectionButtonEnabled
+                          ? null
+                          : () {
+                            if (automaticClose) {
+                              NavigationService.pop(context);
+                            }
 
-                    onRejected?.call();
-                  },
+                            onRejected?.call();
+                          },
                   iconData: rejectionIcon ?? Icons.close,
                   text: rejectionText ?? l.globalCancel,
                   iconWidget: rejectionIconWidget,
@@ -83,13 +92,16 @@ class GamicoDialogPoster extends StatelessWidget {
               if (!simple)
                 GamicoIconTextButton(
                   color: ColorService.accentColor,
-                  onPressed: () {
-                    if (automaticClose) {
-                      NavigationService.pop(context);
-                    }
+                  onPressed:
+                      !acceptationButtonEnabled
+                          ? null
+                          : () {
+                            if (automaticClose) {
+                              NavigationService.pop(context);
+                            }
 
-                    onAccepted?.call();
-                  },
+                            onAccepted?.call();
+                          },
                   text: acceptationText ?? l.globalValidate,
                   iconData: acceptationIcon ?? Icons.check,
                   iconWidget: acceptationIconWidget,

@@ -17,7 +17,8 @@ class AdventureLevelButton extends StatelessWidget {
     bool locked,
     int stars,
     void Function() pushGamePage,
-  ) builder;
+  )
+  builder;
 
   /// Adventure level button.
   const AdventureLevelButton({
@@ -26,20 +27,24 @@ class AdventureLevelButton extends StatelessWidget {
     required this.builder,
   });
 
-  /// Build.
   @override
   Widget build(BuildContext context) {
     final adventureUtility = context.select(
-        (GamicoAdventureCubit adventureCubit) =>
-            adventureCubit.state.adventureUtility);
+      (GamicoAdventureCubit adventureCubit) =>
+          adventureCubit.state.adventureUtility,
+    );
 
     // Retrieve the level of the current user
-    final userLevel = context.select((GamicoUserCubit userCubit) =>
-        adventureUtility.getUserLevel(userCubit.state.user));
+    final userLevel = context.select(
+      (GamicoUserCubit userCubit) =>
+          adventureUtility.getUserLevel(userCubit.state.user),
+    );
 
     // Retrieve the stars of the current user
-    final stars = context.select((GamicoUserCubit userCubit) =>
-        adventureUtility.getUserStars(userCubit.state.user));
+    final stars = context.select(
+      (GamicoUserCubit userCubit) =>
+          adventureUtility.getUserStars(userCubit.state.user),
+    );
 
     // Retrieve the stars of the current level
     final currentLevelStars = stars.elementAtOrNull(level) ?? 0;
@@ -62,10 +67,14 @@ class AdventureLevelButton extends StatelessWidget {
 
   /// Callback for when the current back button is pressed.
   void _onPressed(BuildContext context) async {
-    final adventureUtility =
-        context.read<GamicoAdventureCubit>().state.adventureUtility;
-    final remoteUtility =
-        context.read<GamicoAdventureCubit>().state.remoteUtility;
+    final adventureUtility = context
+        .read<GamicoAdventureCubit>()
+        .state
+        .adventureUtility;
+    final remoteUtility = context
+        .read<GamicoAdventureCubit>()
+        .state
+        .remoteUtility;
 
     // Reference to the user data
     final user = context.read<GamicoUserCubit>().state.user;
@@ -97,17 +106,23 @@ class AdventureLevelButton extends StatelessWidget {
 
         if (remoteUtility != null) {
           // Push remote page
-          await NavigationService.pushPageWithAnimation(
-            context,
-            Gamico.instance.pagesSettings.remotePage(
-              context,
-              remoteUtility,
-              adventureUtility,
-              level,
-            ),
-          );
+          final playNextLevel =
+              await NavigationService.pushPageWithAnimation<bool>(
+                context,
+                Gamico.instance.pagesSettings.remotePage(
+                  context,
+                  remoteUtility,
+                  adventureUtility,
+                  level,
+                ),
+              );
 
           onBackButtonPressed();
+
+          if (playNextLevel == true) {
+            adventureCubit.setNextLevelToPlay(level + 1);
+            adventureCubit.setNextLevelActive(true);
+          }
         } else {
           // Push game page
           NavigationService.pushPageWithAnimation(

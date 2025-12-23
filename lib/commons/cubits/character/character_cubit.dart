@@ -8,12 +8,7 @@ import 'package:flame/components.dart' as flame_components;
 
 part 'character_state.dart';
 
-enum FeelingType {
-  sad,
-  happy,
-  normal,
-  anxious,
-}
+enum FeelingType { sad, happy, normal, anxious }
 
 class CharacterCubit extends Cubit<CharacterState> {
   Timer? _timer;
@@ -67,10 +62,12 @@ class CharacterCubit extends Cubit<CharacterState> {
       stepTime: 0.125,
     );
 
-    emit(state.copyWith(
-      position: state.position,
-      animation: normalSpriteAnimation,
-    ));
+    emit(
+      state.copyWith(
+        position: state.position,
+        animation: normalSpriteAnimation,
+      ),
+    );
 
     _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (!_blocking) {
@@ -111,52 +108,47 @@ class CharacterCubit extends Cubit<CharacterState> {
     activeAnimationTicker?.reset();
     activeAnimationTicker?.update(elapsed);
 
-    emit(state.copyWith(
-      animation: activeAnimation,
-      position: state.position,
-    ));
+    emit(state.copyWith(animation: activeAnimation, position: state.position));
   }
 
   Future<void> _fillList(
-      List<flame_components.Sprite> spritesList, String name) async {
+    List<flame_components.Sprite> spritesList,
+    String name,
+  ) async {
     spritesList.clear();
 
     for (int i = 1; i <= 30; i++) {
       int index = i <= 26 ? ((i == 10 || i == 20) ? 10 : (i % 10)) : i - 16;
       String n = index < 10 ? "0$index" : "$index";
-      spritesList.add(await flame_components.Sprite.load(
-          "${Gamico.instance.characterSettings?.name}/$name/$n.png"));
+      spritesList.add(
+        await flame_components.Sprite.load(
+          "${Gamico.instance.characterSettings?.name}/$name/$n.png",
+        ),
+      );
     }
   }
 
   void setPosition() async {
     if (_positionsListList.isNotEmpty) {
-      final positions =
-          List<GamicoCharacterPosition>.from(_positionsListList.last);
+      final positions = List<GamicoCharacterPosition>.from(
+        _positionsListList.last,
+      );
       positions.shuffle();
 
       if (positions.isNotEmpty) {
-        emit(state.copyWith(
-          position: positions.first,
-        ));
+        emit(state.copyWith(position: positions.first));
       } else {
-        emit(state.copyWith(
-          position: null,
-        ));
+        emit(state.copyWith(position: null));
       }
     } else {
-      emit(state.copyWith(
-        position: null,
-      ));
+      emit(state.copyWith(position: null));
     }
   }
 
   void nullifyPosition() async {
     _blocking = true;
 
-    emit(state.copyWith(
-      position: null,
-    ));
+    emit(state.copyWith(position: null));
 
     await Future.delayed(const Duration(seconds: 3));
 

@@ -56,10 +56,12 @@ class GamicoRemoteGameState {
     int? Function()? nextLevel,
   }) {
     return GamicoRemoteGameState(
-      userInitialLevel:
-          userInitialLevel != null ? userInitialLevel() : this.userInitialLevel,
-      adventureUtility:
-          adventureUtility != null ? adventureUtility() : this.adventureUtility,
+      userInitialLevel: userInitialLevel != null
+          ? userInitialLevel()
+          : this.userInitialLevel,
+      adventureUtility: adventureUtility != null
+          ? adventureUtility()
+          : this.adventureUtility,
       level: level != null ? level() : this.level,
       remoteUtility: remoteUtility ?? this.remoteUtility,
       replay: replay ?? this.replay,

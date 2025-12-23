@@ -3,19 +3,19 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 const bool appScreenshots = 1 == 0 && !kReleaseMode;
-const bool androidScreenshots = 1 == 0 && appScreenshots;
+const bool androidScreenshots = 1 == 1 && appScreenshots;
 const bool landscapeScreenshots = false;
 const bool perfectSize = true;
-final Size portraitSize =
-    perfectSize ? const Size(450, 750) * 2 : const Size(900, 1600);
-bool showTrueLoader = false;
+final Size portraitSize = perfectSize
+    ? Size(LayoutService.referenceWidth, LayoutService.referenceHeight) * 2
+    : const Size(900, 1600);
 
 class LayoutService {
   static void init(BuildContext context) {
     final size = androidScreenshots
         ? (landscapeScreenshots
-            ? const Size(1366, 1366 * 9 / 16)
-            : portraitSize)
+              ? const Size(1366, 1366 * 9 / 16)
+              : portraitSize)
         : MediaQuery.of(context).size;
     final padding = androidScreenshots
         ? const EdgeInsets.all(0)
@@ -57,8 +57,8 @@ class LayoutService {
     LayoutService.realUselessSpacing = realUselessSpacing;
   }
 
-  static const double referenceWidth = 450;
-  static const double referenceHeight = 750;
+  static double referenceWidth = 450;
+  static double referenceHeight = 750;
 
   static double get remainingWidth => referenceWidth - optionButtonMargin * 2;
 
@@ -84,6 +84,8 @@ class LayoutService {
 
   static EdgeInsets get realTotalSpacing =>
       realUsefulSpacing + realUselessSpacing;
+
+  // static double get scaledUsefulHeight =
 
   //
 

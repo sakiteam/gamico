@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/utilities/couple/couple_utility.dart';
 import 'package:gamico/commons/generics/poster.dart';
 
 class GamicoInfoLine extends StatelessWidget {
   final GamicoCoupleUtility<String> coupleUtility;
 
-  const GamicoInfoLine({
-    super.key,
-    required this.coupleUtility,
-  });
+  const GamicoInfoLine({super.key, required this.coupleUtility});
 
   @override
   Widget build(BuildContext context) {
@@ -17,9 +15,11 @@ class GamicoInfoLine extends StatelessWidget {
         Text(
           coupleUtility.first,
           textAlign: TextAlign.justify,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: GamicoPoster.descriptionFontSize,
-            color: Colors.black,
+            color:
+                Gamico.instance.aboutSettings?.infoLineTitleColor ??
+                Colors.black,
           ),
         ),
         Expanded(
@@ -28,7 +28,9 @@ class GamicoInfoLine extends StatelessWidget {
             alignment: Alignment.bottomCenter,
             child: Container(
               height: 0.5,
-              color: Colors.brown,
+              color:
+                  Gamico.instance.aboutSettings?.infoLineSeparatorColor ??
+                  Colors.brown,
               margin: const EdgeInsets.symmetric(horizontal: 2),
             ),
           ),
@@ -36,9 +38,11 @@ class GamicoInfoLine extends StatelessWidget {
         Text(
           coupleUtility.last,
           textAlign: TextAlign.justify,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: GamicoPoster.descriptionFontSize,
-            color: Colors.brown,
+            color:
+                Gamico.instance.aboutSettings?.infoLineDescriptionColor ??
+                Colors.brown,
           ),
         ),
       ],

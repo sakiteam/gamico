@@ -5,6 +5,7 @@ class GamicoPageIndicator extends StatefulWidget {
   final double indicatorSize;
   final int count;
   final Color? color;
+  final Widget Function(bool active)? builder;
 
   const GamicoPageIndicator({
     super.key,
@@ -12,6 +13,7 @@ class GamicoPageIndicator extends StatefulWidget {
     this.indicatorSize = 8 * 450 / 400,
     required this.count,
     this.color,
+    this.builder,
   });
 
   @override
@@ -50,35 +52,33 @@ class _GamicoPageIndicatorState extends State<GamicoPageIndicator> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(
-        widget.count,
-        (index) {
-          final active = index == _index;
+      children: List.generate(widget.count, (index) {
+        final active = index == _index;
 
-          // onTap: () {
-          //       widget.controller.animateToPage(
-          //         index,
-          //         duration: const Duration(milliseconds: 500),
-          //         curve: Curves.linear,
-          //       );
-          //     },
+        // onTap: () {
+        //       widget.controller.animateToPage(
+        //         index,
+        //         duration: const Duration(milliseconds: 500),
+        //         curve: Curves.linear,
+        //       );
+        //     },
 
-          final mainColor = widget.color ?? Colors.brown;
+        final mainColor = widget.color ?? Colors.brown;
 
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2.0),
-            child: Container(
-              width: widget.indicatorSize,
-              height: widget.indicatorSize,
-              decoration: BoxDecoration(
-                color: active ? mainColor : mainColor.withAlpha(100),
-                borderRadius: BorderRadius.circular(widget.indicatorSize),
-                border: Border.all(color: Colors.grey.shade700),
+        return widget.builder?.call(active) ??
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2.0),
+              child: Container(
+                width: widget.indicatorSize,
+                height: widget.indicatorSize,
+                decoration: BoxDecoration(
+                  color: active ? mainColor : mainColor.withAlpha(100),
+                  borderRadius: BorderRadius.circular(widget.indicatorSize),
+                  border: Border.all(color: Colors.grey.shade700),
+                ),
               ),
-            ),
-          );
-        },
-      ),
+            );
+      }),
     );
   }
 }

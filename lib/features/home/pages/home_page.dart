@@ -18,10 +18,7 @@ class GamicoHomePage extends StatefulWidget {
   final Widget child;
 
   /// The page that welcomes the player.
-  const GamicoHomePage({
-    super.key,
-    required this.child,
-  });
+  const GamicoHomePage({super.key, required this.child});
 
   @override
   State<GamicoHomePage> createState() => _GamicoHomePageState();
@@ -60,6 +57,7 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
       _showUpdatePopup();
 
       // Schedule notifications if they are allowed
+      NotificationService.init();
       NotificationService.scheduleNotificationsIfAllowed();
     }
     // Display the notifications popup
@@ -73,9 +71,9 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
       await Future.delayed(const Duration(seconds: 1));
 
       // Remove due coins
-      context
-          .read<GamicoUserCubit>()
-          .decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
+      context.read<GamicoUserCubit>().decrementCowries(
+        Gamico.instance.gameSettings.playMinimumCoins,
+      );
 
       // Come back to the initial state
       GameService.gameSkipped = false;
@@ -103,6 +101,7 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
                 await AwesomeNotifications()
                     .requestPermissionToSendNotifications();
 
+                NotificationService.init();
                 NotificationService.scheduleNotificationsIfAllowed();
               }
 
@@ -132,8 +131,9 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
         VersionService.storeVersion = status.storeVersion;
       }
 
-      final forceUpdate =
-          VersionService.forceUpdate(VersionService.storeVersion);
+      final forceUpdate = VersionService.forceUpdate(
+        VersionService.storeVersion,
+      );
 
       NavigationService.showPopup(
         context: context,
@@ -145,9 +145,10 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
             child: GamicoDialogPoster(
               icon: Icons.download,
               title: l.homeUpdateTitle,
-              description: forceUpdate
-                  ? l.homeUpdateForceDescription
-                  : l.homeUpdateSimpleDescription,
+              description:
+                  forceUpdate
+                      ? l.homeUpdateForceDescription
+                      : l.homeUpdateSimpleDescription,
               simple: forceUpdate,
               automaticClose: !forceUpdate,
               acceptationText: l.homeUpdateInstall,

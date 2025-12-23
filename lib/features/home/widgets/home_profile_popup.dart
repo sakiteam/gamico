@@ -1,7 +1,8 @@
-import 'package:firebase_game_services/firebase_game_services.dart';
+import 'package:games_services/games_services.dart';
 import 'package:gamico/commons/cubits/authentication/authentication_cubit.dart';
 import 'package:gamico/commons/cubits/referral/referral_cubit.dart';
 import 'package:gamico/commons/generics/coins_widget.dart';
+import 'package:gamico/commons/generics/outlined_image.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/global.dart';
 import 'package:gamico/commons/services/navigation.dart';
@@ -44,28 +45,44 @@ class HomeProfilePopup extends StatelessWidget {
           topRightWidget: Stack(
             children: [
               IconButton(
-                onPressed: () {
-                  //
-                },
+                onPressed: null,
+
+                //  () {
+                //   //
+                // },
                 icon: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Image.asset(
-                      "assets/images/golden_crown.png",
-                      width: 32,
-                    ),
-                    Positioned(
-                      bottom: -16,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: Text(
-                          "${state.user?.trophies ?? 0}",
-                          // color: Colors.blue,
-                          style: const TextStyle(color: Colors.brown),
+                    Badge(
+                      offset: const Offset(6, -4),
+                      label: Text(
+                        "${state.user?.trophies ?? 0}",
+                        // color: Colors.blue,
+                        // style: const TextStyle(color: Colors.brown),
+                      ),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        alignment: Alignment.center,
+                        child: GamicoOutlinedImage(
+                          url: "assets/images/golden_crown.png",
+                          // "assets/images/golden_crown.png",
+                          width: 32,
                         ),
                       ),
                     ),
+                    // Positioned(
+                    //   bottom: -16,
+                    //   left: 0,
+                    //   right: 0,
+                    //   child: Center(
+                    //     child: Text(
+                    //       "${state.user?.trophies ?? 0}",
+                    //       // color: Colors.blue,
+                    //       style: const TextStyle(color: Colors.brown),
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
               ),
@@ -86,26 +103,22 @@ class HomeProfilePopup extends StatelessWidget {
                   iconColor: Colors.white.withAlpha(75),
                   onPressed: () async {
                     await GamicoGlobalService.waitWhile(
-                        () => !PlayService.gameServicesEnabled);
-                    await FirebaseGameServices.instance.showSingleLeaderboard(
-                      androidLeaderboardID: Gamico.instance.playSettings
+                      () => !PlayService.gameServicesEnabled,
+                    );
+                    await Leaderboards.showLeaderboards(
+                      androidLeaderboardID:
+                          Gamico
+                              .instance
+                              .playSettings
                               ?.activePlayersLeaderboardId ??
                           "",
-                      iOSLeaderboardID: Gamico.instance.playSettings
+                      iOSLeaderboardID:
+                          Gamico
+                              .instance
+                              .playSettings
                               ?.activePlayersLeaderboardId ??
                           "",
                     );
-                  },
-                ),
-                GamicoIconTextButton(
-                  color: Colors.brown.shade300,
-                  iconColor: Colors.white.withAlpha(75),
-                  iconData: Icons.star,
-                  text: l.homeProfilePopupCheckAchievements,
-                  onPressed: () async {
-                    await GamicoGlobalService.waitWhile(
-                        () => !PlayService.gameServicesEnabled);
-                    await FirebaseGameServices.instance.showAchievements();
                   },
                 ),
                 GamicoIconTextButton(
@@ -118,15 +131,35 @@ class HomeProfilePopup extends StatelessWidget {
                   text: l.homeProfilePopupBestCollectors,
                   onPressed: () async {
                     await GamicoGlobalService.waitWhile(
-                        () => !PlayService.gameServicesEnabled);
-                    await FirebaseGameServices.instance.showSingleLeaderboard(
-                      androidLeaderboardID: Gamico.instance.playSettings
+                      () => !PlayService.gameServicesEnabled,
+                    );
+
+                    await Leaderboards.showLeaderboards(
+                      androidLeaderboardID:
+                          Gamico
+                              .instance
+                              .playSettings
                               ?.inactivePlayersLeaderboardId ??
                           "",
-                      iOSLeaderboardID: Gamico.instance.playSettings
+                      iOSLeaderboardID:
+                          Gamico
+                              .instance
+                              .playSettings
                               ?.inactivePlayersLeaderboardId ??
                           "",
                     );
+                  },
+                ),
+                GamicoIconTextButton(
+                  color: Colors.brown.shade300,
+                  iconColor: Colors.white.withAlpha(75),
+                  iconData: Icons.star,
+                  text: l.homeProfilePopupCheckAchievements,
+                  onPressed: () async {
+                    await GamicoGlobalService.waitWhile(
+                      () => !PlayService.gameServicesEnabled,
+                    );
+                    await Achievements.showAchievements();
                   },
                 ),
               ],

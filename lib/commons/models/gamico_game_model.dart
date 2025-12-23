@@ -27,10 +27,10 @@ class GamicoGameModel {
       "created_at": createdAt?.toString(),
       "updated_at": updatedAt?.toString(),
       "status": status,
-      "events": events?.map((key, value) {
+      "events": events?.map<String, Map<String, dynamic>>((key, value) {
         return MapEntry(key, value.toJson());
       }),
-      "players": players?.map((key, value) {
+      "players": players?.map<String, Map<String, dynamic>>((key, value) {
         return MapEntry(key, value.toJson());
       }),
     };
@@ -45,8 +45,10 @@ class GamicoGameModel {
       events: json["events"]?.map<String, GamicoGameEventModel>((key, value) {
         return MapEntry(key.toString(), GamicoGameEventModel.fromJson(value));
       }),
-      players:
-          json["players"]?.map<String, GamicoGamePlayerModel>((key, value) {
+      players: json["players"]?.map<String, GamicoGamePlayerModel>((
+        key,
+        value,
+      ) {
         return MapEntry(key.toString(), GamicoGamePlayerModel.fromJson(value));
       }),
     );

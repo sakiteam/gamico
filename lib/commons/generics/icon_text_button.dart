@@ -30,7 +30,10 @@ class GamicoIconTextButton extends StatelessWidget {
   static bool simple = false;
 
   static Widget Function(
-      BuildContext context, GamicoIconTextButton gamicoIconTextButton)? builder;
+    BuildContext context,
+    GamicoIconTextButton gamicoIconTextButton,
+  )?
+  builder;
 
   const GamicoIconTextButton({
     super.key,
@@ -71,7 +74,8 @@ class GamicoIconTextButton extends StatelessWidget {
                     visible: iconVisible,
                     child: Transform.rotate(
                       angle: iconAngle ?? 0,
-                      child: iconWidget ??
+                      child:
+                          iconWidget ??
                           GamicoOutlinedIcon(
                             iconData,
                             color: iconColor ?? finalContentColor,
@@ -92,25 +96,32 @@ class GamicoIconTextButton extends StatelessWidget {
                 ],
               );
 
-        final finalForegroundColor =
-            enabled ? (color ?? defaultForegroundColor) : Colors.grey;
+        final finalForegroundColor = enabled
+            ? (color ?? defaultForegroundColor)
+            : (simple ? Colors.grey.withAlpha(100) : Colors.grey);
         final finalBackgroundColor = enabled
             ? (backgroundColor ??
-                (color == null ? defaultBackgroundColor : Colors.brown))
+                  (color == null
+                      ? defaultBackgroundColor
+                      : ColorService.accentBackgroundColor))
             : Colors.grey.shade700;
 
         if (simple) {
           return ClipRRect(
-            borderRadius:
-                BorderRadius.circular(GamicoButton.defaultBorderRadius),
+            borderRadius: BorderRadius.circular(
+              GamicoButton.defaultBorderRadius,
+            ),
             child: Container(
               width: finalSize,
               height: finalSize,
               color: finalForegroundColor,
-              child: GamicoButton(
-                bruitage: enabled ? null : "",
-                onPressed: enabled ? onPressed : animate,
-                child: contentChild,
+              child: Opacity(
+                opacity: enabled ? 1.0 : 0.25,
+                child: GamicoButton(
+                  bruitage: enabled ? null : "",
+                  onPressed: enabled ? onPressed : animate,
+                  child: contentChild,
+                ),
               ),
             ),
           );

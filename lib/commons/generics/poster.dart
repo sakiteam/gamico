@@ -25,6 +25,7 @@ class GamicoPoster extends StatelessWidget {
 
   static const double titleFontSize = 22 * 450 / 400;
   static const double descriptionFontSize = 17 * 450 / 400;
+  static Color titleColor = Colors.white;
   static Color iconColor = Colors.brown.shade700;
   static Color descriptionColor = Colors.brown.shade700;
   static EdgeInsets defaultPadding = EdgeInsets.symmetric(
@@ -64,28 +65,24 @@ class GamicoPoster extends StatelessWidget {
   Widget build(BuildContext context) {
     final finalDefaultPadding = padding ?? defaultPadding;
 
-    final defaultIconWidget = iconWidget ??
+    final defaultIconWidget =
+        iconWidget ??
         (icon == null
             ? null
-            : Icon(
-                icon,
-                size: 60 * 450 / 400,
-                color: iconColor,
-              ));
+            : Icon(icon, size: 60 * 450 / 400, color: iconColor));
 
     final finalIconWidget = defaultIconWidget != null
         ? expandIcon
-            ? Expanded(
-                child: defaultIconWidget,
-              )
-            : Container(
-                height: 100 * 450 / 400,
-                alignment: Alignment.center,
-                child: defaultIconWidget,
-              )
+              ? Expanded(child: defaultIconWidget)
+              : Container(
+                  height: 100 * 450 / 400,
+                  alignment: Alignment.center,
+                  child: defaultIconWidget,
+                )
         : null;
 
-    final finalDescriptionWidget = descriptionWidget ??
+    final finalDescriptionWidget =
+        descriptionWidget ??
         (description != null
             ? SizedBox(
                 // color: Colors.red,
@@ -108,40 +105,26 @@ class GamicoPoster extends StatelessWidget {
     final Widget? finalContentWidget;
 
     if (loading) {
-      final loader = Center(
-          child: GamicoLoader(
-        color: loaderColor,
-      ));
+      final loader = Center(child: GamicoLoader(color: loaderColor));
 
       finalContentWidget = expandContent
-          ? Expanded(
-              child: loader,
-            )
-          : SizedBox(
-              height: 100 * 450 / 400,
-              child: loader,
-            );
+          ? Expanded(child: loader)
+          : SizedBox(height: 100 * 450 / 400, child: loader);
     } else {
       final finalContentPadding = contentPadding ?? finalDefaultPadding;
 
       finalContentWidget = content == null
           ? null
           : expandContent
-              ? Expanded(
-                  child: Padding(
-                    padding: finalContentPadding,
-                    child: content!,
-                  ),
-                )
-              : SizedBox(
-                  height: 100 * 450 / 400,
-                  child: Center(
-                    child: Padding(
-                      padding: finalContentPadding,
-                      child: content!,
-                    ),
-                  ),
-                );
+          ? Expanded(
+              child: Padding(padding: finalContentPadding, child: content!),
+            )
+          : SizedBox(
+              height: 100 * 450 / 400,
+              child: Center(
+                child: Padding(padding: finalContentPadding, child: content!),
+              ),
+            );
     }
 
     return Column(
@@ -154,8 +137,9 @@ class GamicoPoster extends StatelessWidget {
             child: finalIconWidget
                 .animate(target: animationTarget)
                 .fadeIn(
-                    delay: AnimationService.animationDurationQuarter * 0,
-                    duration: AnimationService.animationDurationQuarter)
+                  delay: AnimationService.animationDurationQuarter * 0,
+                  duration: AnimationService.animationDurationQuarter,
+                )
                 .slideY(begin: 0.125),
           ),
         if (finalIconWidget != null && finalTitleWidget != null)
@@ -166,8 +150,9 @@ class GamicoPoster extends StatelessWidget {
             child: finalTitleWidget
                 .animate(target: animationTarget)
                 .fadeIn(
-                    delay: AnimationService.animationDurationQuarter * 1,
-                    duration: AnimationService.animationDurationQuarter)
+                  delay: AnimationService.animationDurationQuarter * 1,
+                  duration: AnimationService.animationDurationQuarter,
+                )
                 .slideY(begin: 0.125),
           ),
         if (finalTitleWidget != null && finalDescriptionWidget != null)
@@ -178,8 +163,9 @@ class GamicoPoster extends StatelessWidget {
             child: finalDescriptionWidget
                 .animate(target: animationTarget)
                 .fadeIn(
-                    delay: AnimationService.animationDurationQuarter * 2,
-                    duration: AnimationService.animationDurationQuarter)
+                  delay: AnimationService.animationDurationQuarter * 2,
+                  duration: AnimationService.animationDurationQuarter,
+                )
                 .slideY(begin: 0.125),
           ),
         if (finalDescriptionWidget != null &&
@@ -190,8 +176,9 @@ class GamicoPoster extends StatelessWidget {
           finalContentWidget
               .animate(target: animationTarget)
               .fadeIn(
-                  delay: AnimationService.animationDurationQuarter * 3,
-                  duration: AnimationService.animationDurationQuarter)
+                delay: AnimationService.animationDurationQuarter * 3,
+                duration: AnimationService.animationDurationQuarter,
+              )
               .slideY(begin: 0.125),
       ],
     );
@@ -199,10 +186,7 @@ class GamicoPoster extends StatelessWidget {
 }
 
 class GamicoPosterTitle extends StatelessWidget {
-  const GamicoPosterTitle(
-    this.title, {
-    super.key,
-  });
+  const GamicoPosterTitle(this.title, {super.key});
 
   final String? title;
 
@@ -211,10 +195,10 @@ class GamicoPosterTitle extends StatelessWidget {
     return GamicoOutlinedText(
       title ?? "",
       textAlign: TextAlign.center,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: GamicoPoster.titleFontSize,
         fontWeight: FontWeight.bold,
-        color: Colors.white,
+        color: GamicoPoster.titleColor,
       ),
     );
   }

@@ -4,6 +4,9 @@ import 'package:gamico/commons/generics/coins_popup.dart';
 import 'package:gamico/commons/cubits/music/music_cubit.dart';
 
 class NavigationService {
+  static final GlobalKey<NavigatorState> globalNavigatorKey =
+      GlobalKey<NavigatorState>();
+
   static BuildContext? currentPopupContext;
 
   static List<BuildContext> popupsContexts = [];
@@ -30,11 +33,11 @@ class NavigationService {
     );
   }
 
-  static void pop(BuildContext context) {
+  static void pop<T>(BuildContext context, [T? result]) {
     popupsContexts.remove(context);
 
     if (context.mounted) {
-      Navigator.pop(context);
+      Navigator.pop(context, result);
     }
   }
 
@@ -42,13 +45,13 @@ class NavigationService {
     await Navigator.maybePop(context);
   }
 
-  static Future<void> pushPageWithAnimation(
+  static Future<T?> pushPageWithAnimation<T>(
     BuildContext context,
     Widget page,
   ) async {
     // await Future.delayed(AnimationService.animationDuration);
 
-    await Navigator.push(
+    return await Navigator.push<T>(
       context,
       PageRouteBuilder(
         pageBuilder: (_, __, ___) => page,
@@ -130,9 +133,8 @@ class NavigationService {
   ) async {
     await NavigationService.showPopup(
       context: context,
-      builder: (_) => CoinsPopup(
-        minimumRequiredCowries: minimumRequiredCowries,
-      ),
+      builder: (_) =>
+          CoinsPopup(minimumRequiredCowries: minimumRequiredCowries),
     );
   }
 }

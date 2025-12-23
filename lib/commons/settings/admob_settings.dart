@@ -7,7 +7,10 @@ class AdmobSettings {
   final String androidInterstitialAdUnitId;
   final String iosInterstitialAdUnitId;
 
+  final bool displayAdButton;
+
   const AdmobSettings({
+    this.displayAdButton = true,
     required this.androidInterstitialAdUnitId,
     required this.androidRewardedAdUnitId,
     required this.iosInterstitialAdUnitId,

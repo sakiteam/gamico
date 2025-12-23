@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 class ColorService {
   static Color accentColor = Colors.orange;
+  static Color accentBackgroundColor = Colors.brown;
   static Color blue = Colors.blue;
 
   // const Color(0xFFD2B58D);
@@ -18,13 +19,10 @@ class ColorService {
   static const backgroundBlue = Color(0xFF0E4BB2);
   static const borderBlue = Color(0xFF0A3178);
 
-  static ColorFilter tintMatrix({
-    Color color = Colors.grey,
-    double scale = 1,
-  }) {
-    final int r = color.red;
-    final int g = color.green;
-    final int b = color.blue;
+  static ColorFilter tintMatrix({Color color = Colors.grey, double scale = 1}) {
+    final r = color.r;
+    final g = color.g;
+    final b = color.b;
 
     final double rTint = r / 255;
     final double gTint = g / 255;

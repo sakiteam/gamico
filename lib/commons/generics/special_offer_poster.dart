@@ -15,6 +15,9 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:gamico/languages/languages.dart';
 
 class GamicoSpecialOfferPoster extends StatelessWidget {
+  static double dashOffset = 0;
+  static Color dashColor = Colors.black;
+
   const GamicoSpecialOfferPoster({super.key});
 
   @override
@@ -88,49 +91,63 @@ class GamicoSpecialOfferPoster extends StatelessWidget {
 
                 if (loading == false && gratificationState.offerEnabled) {
                   final now = DateTime.now();
-                  final todayAtMidnight =
-                      DateTime(now.year, now.month, now.day);
+                  final todayAtMidnight = DateTime(
+                    now.year,
+                    now.month,
+                    now.day,
+                  );
                   final daysSinceReference =
                       todayAtMidnight.difference(DateTime(2022, 11, 1)).inDays;
-                  final offerIndex = (daysSinceReference ~/ 3) %
+                  final offerIndex =
+                      (daysSinceReference ~/ 3) %
                       Gamico.instance.purchasesSettings!.specialPacks.length;
 
-                  specialPackId = Gamico
-                      .instance.purchasesSettings!.specialPacksIds[offerIndex];
+                  specialPackId =
+                      Gamico
+                          .instance
+                          .purchasesSettings!
+                          .specialPacksIds[offerIndex];
 
                   specialPack = state.products.firstWhere(
                     (element) => element.id == specialPackId,
                   );
 
                   packTitle = GamicoGlobalService.simplifyProductName(
-                      specialPack.title);
+                    specialPack.title,
+                  );
 
                   packPrice = specialPack.rawPrice;
                   packCurrency = specialPack.currencySymbol;
                 }
 
                 return GamicoDialogPoster(
-                  title: transactionError
-                      ? l.homeSpecialOfferPopupErrorTitle
-                      : (gratificationState.offerEnabled
-                          ? (loading
-                              ? l.homeSpecialOfferPopupOfferLoadingTitle
-                              : l.homeSpecialOfferPopupOffsetLoadedTitle(
-                                  packTitle))
-                          : TimestampService.getCountdownString(
-                              gratificationState.offerRemainingDuration)),
-                  description: transactionError
-                      ? l.homeSpecialOfferPopupErrorDescription
-                      : (gratificationState.offerEnabled
-                          ? (loading
-                              ? l.homeSpecialOfferPopupOfferLoadingDescription
-                              : l.homeSpecialOfferPopupOfferLoadedDescription)
-                          : l.homeSpecialOfferPopupOfferDisabledDescription),
+                  title:
+                      transactionError
+                          ? l.homeSpecialOfferPopupErrorTitle
+                          : (gratificationState.offerEnabled
+                              ? (loading
+                                  ? l.homeSpecialOfferPopupOfferLoadingTitle
+                                  : l.homeSpecialOfferPopupOffsetLoadedTitle(
+                                    packTitle,
+                                  ))
+                              : TimestampService.getCountdownString(
+                                gratificationState.offerRemainingDuration,
+                              )),
+                  description:
+                      transactionError
+                          ? l.homeSpecialOfferPopupErrorDescription
+                          : (gratificationState.offerEnabled
+                              ? (loading
+                                  ? l.homeSpecialOfferPopupOfferLoadingDescription
+                                  : l.homeSpecialOfferPopupOfferLoadedDescription)
+                              : l.homeSpecialOfferPopupOfferDisabledDescription),
                   icon: transactionError ? Icons.error : null,
-                  iconWidget: transactionError
-                      ? null
-                      : CoinsWidget(size: 60, color: Colors.brown.shade700),
-                  loading: (loading || transactionLoading) &&
+                  iconWidget:
+                      transactionError
+                          ? null
+                          : CoinsWidget(size: 60, color: Colors.brown.shade700),
+                  loading:
+                      (loading || transactionLoading) &&
                       gratificationState.offerEnabled,
                   simple: !gratificationState.offerEnabled || transactionError,
                   acceptationIcon: transactionError ? Icons.check : Icons.close,
@@ -141,65 +158,69 @@ class GamicoSpecialOfferPoster extends StatelessWidget {
                     context.read<PurchasesCubit>().resetStatus();
                   },
                   expandContent: true,
-                  content: gratificationState.offerEnabled && !transactionError
-                      ? Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            //
-                            GamicoDisabler(
-                              disabled: true,
-                              child: SizedBox(
-                                height: 100 * 450 / 400,
-                                width: 100 * 450 / 400,
-                                child: Stack(
-                                  children: [
-                                    GamicoIconTextButton(
-                                      onPressed: () {},
-                                      iconWidget: const CoinsWidget(
-                                        size: 50,
-                                        color: Colors.black,
-                                      ),
-                                      color: Colors.grey,
-                                      contentColor: Colors.black,
-                                      text:
-                                          "${((packPrice ?? 0) + 1).toStringAsFixed(2)} $packCurrency",
-                                    ),
-                                    Positioned(
-                                      bottom: 24 * 450 / 400,
-                                      left: 0,
-                                      right: 0,
-                                      child: Center(
-                                        child: Container(
-                                          width: 100 * 450 / 400 - 32,
-                                          height: 2,
+                  content:
+                      gratificationState.offerEnabled && !transactionError
+                          ? Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              //
+                              GamicoDisabler(
+                                disabled: true,
+                                child: SizedBox(
+                                  // height: 100 * 450 / 400,
+                                  // width: 100 * 450 / 400,
+                                  child: Stack(
+                                    children: [
+                                      GamicoIconTextButton(
+                                        onPressed: () {},
+                                        iconWidget: const CoinsWidget(
+                                          size: 50,
                                           color: Colors.black,
-                                          // color: Colors.black.withAlpha(150),
+                                        ),
+                                        color: Colors.grey,
+                                        contentColor: Colors.black,
+                                        text:
+                                            "${((packPrice ?? 0) + 1).toStringAsFixed(2)} $packCurrency",
+                                      ),
+                                      Positioned(
+                                        bottom:
+                                            80 -
+                                            1, //24 * 450 / 400 - dashOffset,
+                                        left: 0,
+                                        right: 0,
+                                        child: Center(
+                                          child: Container(
+                                            width: 100 * 450 / 400 - 32,
+                                            height: 2,
+                                            color: dashColor,
+                                            // color: Colors.black.withAlpha(150),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
 
-                            //
-                            GamicoIconTextButton(
-                              onPressed: () async {
-                                if (specialPack != null) {
-                                  context
-                                      .read<PurchasesCubit>()
-                                      .purchase(specialPack);
-                                }
-                              },
-                              iconWidget: const CoinsWidget(
-                                color: Colors.white,
-                                size: 50,
+                              //
+                              GamicoIconTextButton(
+                                onPressed: () async {
+                                  if (specialPack != null) {
+                                    context.read<PurchasesCubit>().purchase(
+                                      specialPack,
+                                    );
+                                  }
+                                },
+                                iconWidget: const CoinsWidget(
+                                  color: Colors.white,
+                                  size: 50,
+                                ),
+                                text:
+                                    "${packPrice?.toStringAsFixed(2)} $packCurrency",
                               ),
-                              text: "$packPrice $packCurrency",
-                            ),
-                          ],
-                        )
-                      : null,
+                            ],
+                          )
+                          : null,
                 );
               },
             );

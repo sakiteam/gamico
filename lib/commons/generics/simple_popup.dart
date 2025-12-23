@@ -27,9 +27,11 @@ class GamicoSimplePopup extends StatefulWidget {
   final PageController? pageController;
   final int? pageControllerLength;
 
-  static const double watchButtonDefaultHeight = 60 * 450 / 400;
-  static const double watchButtonMargin = 20 * 450 / 400;
-  static const double watchButtonFinalHeight =
+  static double topIconMargin = 0;
+
+  static double watchButtonDefaultHeight = 60 * 450 / 400;
+  static double watchButtonMargin = 20 * 450 / 400;
+  static double get watchButtonFinalHeight =>
       watchButtonDefaultHeight + watchButtonMargin;
   static Widget background = Container(color: Colors.white);
 
@@ -79,7 +81,8 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
     const topPadding = 24.0;
     final bottomPadding = max(36.0, MediaQuery.of(context).padding.bottom);
 
-    final widgetCharacterPositions = widget.characterPositions ??
+    final widgetCharacterPositions =
+        widget.characterPositions ??
         [
           if (widget.topLeftWidget == null) GamicoCharacterPosition.centerLeft,
           if (widget.topRightWidget == null)
@@ -96,7 +99,8 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
     }
 
     final blocked = context.select(
-        (GamicoUserCubit userCubit) => userCubit.state.user?.blocked ?? false);
+      (GamicoUserCubit userCubit) => userCubit.state.user?.blocked ?? false,
+    );
 
     return PopScope(
       canPop: widget.dismissible,
@@ -120,11 +124,12 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
                         child: DeferPointer(
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onTap: widget.dismissible
-                                ? () {
-                                    NavigationService.pop(context);
-                                  }
-                                : null,
+                            onTap:
+                                widget.dismissible
+                                    ? () {
+                                      NavigationService.pop(context);
+                                    }
+                                    : null,
                           ),
                         ),
                       ),
@@ -138,25 +143,31 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
                               children: [
                                 Positioned.fill(
                                   child: GestureDetector(
-                                    onTap: widget.dismissible
-                                        ? () {
-                                            NavigationService.pop(context);
-                                          }
-                                        : null,
+                                    onTap:
+                                        widget.dismissible
+                                            ? () {
+                                              NavigationService.pop(context);
+                                            }
+                                            : null,
                                   ),
                                 ),
                                 Center(
                                   child: Transform.translate(
-                                    offset: const Offset(0, 25),
-                                    child: SizedBox(
-                                      height: GamicoSimplePopup
-                                          .watchButtonFinalHeight,
-                                      child: widget.additionalChild,
-                                    )
-                                        .animate()
-                                        .slideY(begin: 1, end: 0)
-                                        .then()
-                                        .shake(),
+                                    offset: Offset(
+                                      0,
+                                      GamicoSimplePopup.watchButtonMargin,
+                                    ),
+                                    child:
+                                        SizedBox(
+                                              height:
+                                                  GamicoSimplePopup
+                                                      .watchButtonFinalHeight,
+                                              child: widget.additionalChild,
+                                            )
+                                            .animate()
+                                            .slideY(begin: 1, end: 0)
+                                            .then()
+                                            .shake(),
                                   ),
                                 ),
                               ],
@@ -168,7 +179,8 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
                       DeferPointer(
                         child: SizedBox(
                           width: double.infinity,
-                          height: LayoutService.referenceWidth +
+                          height:
+                              LayoutService.referenceWidth +
                               topPadding +
                               bottomPadding,
                           child: Stack(
@@ -187,34 +199,41 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
                                           children: [
                                             blocked
                                                 ? GamicoPoster(
-                                                    icon: Icons.error,
-                                                    title:
-                                                        l.blockedAccountTitle,
-                                                    description: l
-                                                        .blockedAccountDescription,
-                                                    expandContent: true,
-                                                    content: Center(
-                                                      child:
-                                                          GamicoIconTextButton(
-                                                        text: l
-                                                            .blockedAccountContactSakiHub,
-                                                        color: ColorService
-                                                            .accentColor,
-                                                        iconData: Icons.mail,
-                                                        onPressed: () {
-                                                          launchUrl(Uri.parse(
-                                                              "mailto:sakihub@gmail.com"));
-                                                        },
-                                                      ),
+                                                  icon: Icons.error,
+                                                  title: l.blockedAccountTitle,
+                                                  description:
+                                                      l.blockedAccountDescription,
+                                                  expandContent: true,
+                                                  content: Center(
+                                                    child: GamicoIconTextButton(
+                                                      text:
+                                                          l.blockedAccountContactSakiHub,
+                                                      color:
+                                                          ColorService
+                                                              .accentColor,
+                                                      iconData: Icons.mail,
+                                                      onPressed: () {
+                                                        launchUrl(
+                                                          Uri.parse(
+                                                            "mailto:sakihub@gmail.com",
+                                                          ),
+                                                        );
+                                                      },
                                                     ),
-                                                  )
+                                                  ),
+                                                )
                                                 : widget.child,
                                             Align(
                                               alignment: Alignment.topLeft,
                                               child: Padding(
                                                 padding: EdgeInsets.only(
-                                                    left: LayoutService
-                                                        .optionButtonMargin),
+                                                  left:
+                                                      LayoutService
+                                                          .optionButtonMargin,
+                                                  top:
+                                                      GamicoSimplePopup
+                                                          .topIconMargin,
+                                                ),
                                                 child: widget.topLeftWidget,
                                               ),
                                             ),
@@ -222,8 +241,13 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
                                               alignment: Alignment.topRight,
                                               child: Padding(
                                                 padding: EdgeInsets.only(
-                                                    right: LayoutService
-                                                        .optionButtonMargin),
+                                                  right:
+                                                      LayoutService
+                                                          .optionButtonMargin,
+                                                  top:
+                                                      GamicoSimplePopup
+                                                          .topIconMargin,
+                                                ),
                                                 child: widget.topRightWidget,
                                               ),
                                             ),
@@ -232,16 +256,18 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
                                       ),
                                       SizedBox(
                                         height: bottomPadding,
-                                        child: widget.pageController != null &&
-                                                widget.pageControllerLength !=
-                                                    null
-                                            ? GamicoPageIndicator(
-                                                controller:
-                                                    widget.pageController!,
-                                                count: widget
-                                                    .pageControllerLength!,
-                                              )
-                                            : null,
+                                        child:
+                                            widget.pageController != null &&
+                                                    widget.pageControllerLength !=
+                                                        null
+                                                ? GamicoPageIndicator(
+                                                  controller:
+                                                      widget.pageController!,
+                                                  count:
+                                                      widget
+                                                          .pageControllerLength!,
+                                                )
+                                                : null,
                                       ),
                                     ],
                                   ),

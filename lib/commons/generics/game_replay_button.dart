@@ -6,14 +6,13 @@ import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:gamico/commons/generics/icon_text_button.dart';
 
 class GamicoGameReplayButton extends StatelessWidget {
-  final bool enabled;
-  final Color color;
+  static Color defaultColor = Colors.blue;
+  static Color defaultBackgroundColor = ColorService.backgroundBlue;
 
-  const GamicoGameReplayButton({
-    super.key,
-    this.enabled = true,
-    this.color = Colors.blue,
-  });
+  final bool enabled;
+  final Color? color;
+
+  const GamicoGameReplayButton({super.key, this.enabled = true, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -28,8 +27,8 @@ class GamicoGameReplayButton extends StatelessWidget {
             },
       iconData: Icons.refresh,
       text: l.gamePopupReplay,
-      color: color,
-      backgroundColor: ColorService.backgroundBlue,
+      color: color ?? defaultColor,
+      backgroundColor: defaultBackgroundColor,
     );
   }
 }
