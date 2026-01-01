@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/navigation.dart';
+import 'package:gamico/features/adventure/cubits/adventure_cubit.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
 import 'package:gamico/features/game/cubits/adventure/adventure_game_cubit.dart';
@@ -25,9 +26,9 @@ class AdventureGamePage extends StatelessWidget {
       listeners: [
         BlocListener<GamicoAdventureGameCubit, GamicoAdventureGameState>(
           listener: (context, state) {
-            context
-                .read<GamicoAdventureGameCubit>()
-                .setExplanationDialog(false);
+            context.read<GamicoAdventureGameCubit>().setExplanationDialog(
+              false,
+            );
 
             NavigationService.showPopup(
               draggable: false,

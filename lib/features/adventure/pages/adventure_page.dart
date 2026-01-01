@@ -122,7 +122,7 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
 
             final user = context.read<GamicoUserCubit>().state.user;
             final userLevel = adventureUtility.getUserLevel(user);
-            final nextLevel = userLevel;
+            final nextLevel = state.nextLevelToPlay ?? userLevel;
 
             adventureCubit.setNextLevelActive(false);
 
@@ -136,24 +136,30 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
             adventureCubit.setAnimated(true);
 
             if (remoteUtility != null) {
-              await NavigationService.pushPageWithAnimation(
-                context,
-                Gamico.instance.pagesSettings.remotePage(
-                  context,
-                  remoteUtility,
-                  adventureUtility,
-                  state.nextLevelToPlay ?? nextLevel,
-                ),
-              );
+              final playNextLevel =
+                  await NavigationService.pushPageWithAnimation<bool>(
+                    context,
+                    Gamico.instance.pagesSettings.remotePage(
+                      context,
+                      remoteUtility,
+                      adventureUtility,
+                      nextLevel,
+                    ),
+                  );
 
               onBackButtonPressed();
+
+              if (playNextLevel == true) {
+                adventureCubit.setNextLevelToPlay(nextLevel + 1);
+                adventureCubit.setNextLevelActive(true);
+              }
             } else {
               NavigationService.pushPageWithAnimation(
                 context,
                 Gamico.instance.pagesSettings.gamePage(
                   context,
                   AdventureGameUtility(
-                    level: state.nextLevelToPlay ?? nextLevel,
+                    level: nextLevel,
                     onBackButtonPressed: onBackButtonPressed,
                     adventureUtility: adventureUtility,
                     remoteUtility: null,

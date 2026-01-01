@@ -61,6 +61,16 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     _clockPlayer,
   ];
 
+  double _currentVolume = 1;
+
+  void setGlobalVolume(double volume) {
+    _currentVolume = volume;
+
+    for (final player in _allPlayers) {
+      player.setVolume(volume);
+    }
+  }
+
   // Init music
   Future<void> _initMusic() async {
     if (GameService.tutorialPassed) {
@@ -160,7 +170,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   Future<void> _playMusic() async {
     await GamicoGlobalService.waitWhile(() => !musicInitialized);
 
-    await _mainPlayer.setVolume(1);
+    await _mainPlayer.setVolume(_currentVolume);
 
     if (_mainPlayer.playerState.playing) {
       await _mainPlayer.stop();
@@ -216,7 +226,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
       Future.wait([
         _playMusic(),
         ..._bruitagePlayers.map((bruitagePlayer) {
-          return bruitagePlayer.setVolume(1);
+          return bruitagePlayer.setVolume(_currentVolume);
         }),
       ]);
     }
@@ -361,7 +371,11 @@ extension on AudioPlayer {
     await GamicoGlobalService.waitWhile(() => MusicService.pausedByAd);
 
     if (!MusicService.mute) {
-      await play();
+      try {
+        await play();
+      } catch (e) {
+        debugPrint(e.toString());
+      }
     }
   }
 }

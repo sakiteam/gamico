@@ -10,6 +10,7 @@ import 'package:gamico/features/adventure/cubits/adventure_cubit.dart';
 /// Adventure level button.
 class AdventureLevelButton extends StatelessWidget {
   final int level;
+  final PageController pageController;
 
   final Widget Function(
     BuildContext context,
@@ -25,6 +26,7 @@ class AdventureLevelButton extends StatelessWidget {
     super.key,
     required this.level,
     required this.builder,
+    required this.pageController,
   });
 
   @override
@@ -81,6 +83,17 @@ class AdventureLevelButton extends StatelessWidget {
 
     // Current user level
     final userLevel = adventureUtility.getUserLevel(user);
+
+    final currentChapter = ((level - 1) / adventureUtility.levelsPerChapter)
+        .floor();
+
+    if (pageController.page != currentChapter) {
+      await pageController.animateToPage(
+        currentChapter,
+        duration: AnimationService.animationDuration,
+        curve: Curves.linear,
+      );
+    }
 
     // Check whether the user has enough coins to play or not
     if (adventureUtility.isUserBroke(user) && level == userLevel) {

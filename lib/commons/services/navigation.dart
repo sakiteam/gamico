@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/generics/coins_popup.dart';
 import 'package:gamico/commons/cubits/music/music_cubit.dart';
+import 'package:gamico/commons/services/animation.dart';
 
 class NavigationService {
   static final GlobalKey<NavigatorState> globalNavigatorKey =
@@ -49,7 +50,7 @@ class NavigationService {
     BuildContext context,
     Widget page,
   ) async {
-    // await Future.delayed(AnimationService.animationDuration);
+    await Future.delayed(AnimationService.animationDuration);
 
     return await Navigator.push<T>(
       context,

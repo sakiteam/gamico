@@ -14,13 +14,15 @@ class GamicoGameInitialTutorialPopup extends StatelessWidget {
     final l = GamicoLanguages.of(context);
 
     final currentLesson = context.select(
-        (GamicoTutorialGameCubit gameCubit) => gameCubit.state.tutorialLesson);
+      (GamicoTutorialGameCubit gameCubit) => gameCubit.state.tutorialLesson,
+    );
 
     return GamicoPopup(
       dismissible: false,
       child: GamicoDialogPoster(
         simple: true,
-        icon: Icons.school,
+        // icon: Icons.school,
+        icon: Icons.help,
         title: currentLesson?.title,
         acceptationText: l.gameInitialTutorialPopupPlay,
         acceptationIcon: Icons.sports_esports,
