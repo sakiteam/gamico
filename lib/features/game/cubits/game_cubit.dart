@@ -49,45 +49,31 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
   /* USUAL */
 
   void setAnimInit(bool animInit) {
-    emit(state.copyWith(
-      animInit: animInit,
-    ));
+    emit(state.copyWith(animInit: animInit));
   }
 
   void setAnimGame(bool animGame) {
-    emit(state.copyWith(
-      animGame: animGame,
-    ));
+    emit(state.copyWith(animGame: animGame));
   }
 
   void setAnimHome(bool animHome) {
-    emit(state.copyWith(
-      animHome: animHome,
-    ));
+    emit(state.copyWith(animHome: animHome));
   }
 
   void setAnimated(bool animated) {
-    emit(state.copyWith(
-      animated: animated,
-    ));
+    emit(state.copyWith(animated: animated));
   }
 
   void setDisplayGamePopup(bool displayGamePopup) {
-    emit(state.copyWith(
-      displayGamePopup: displayGamePopup,
-    ));
+    emit(state.copyWith(displayGamePopup: displayGamePopup));
   }
 
   void setBackActive(bool backActive) {
-    emit(state.copyWith(
-      backActive: backActive,
-    ));
+    emit(state.copyWith(backActive: backActive));
   }
 
   void setActive(bool active) {
-    emit(state.copyWith(
-      active: active,
-    ));
+    emit(state.copyWith(active: active));
   }
 
   /* BEFORE GAME */
@@ -104,9 +90,7 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
 
   void startGame() {
     // Declare game as ready
-    emit(state.copyWith(
-      ready: true,
-    ));
+    emit(state.copyWith(ready: true));
 
     settings?.startGame();
   }
@@ -122,9 +106,7 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
   }
 
   void setStars(int stars) {
-    emit(state.copyWith(
-      stars: stars,
-    ));
+    emit(state.copyWith(stars: stars));
   }
 
   void giveUp() {
@@ -139,17 +121,17 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
   /* AFTER GAME */
 
   void enabledTripleAd() {
-    emit(state.copyWith(
-      tripleAdWatched: true,
-    ));
+    emit(state.copyWith(tripleAdWatched: true));
   }
 
   void endGame(bool? victory, bool secondVictory, String overReason) {
-    emit(state.copyWith(
-      victory: () => victory,
-      secondVictory: secondVictory,
-      overReason: overReason,
-    ));
+    emit(
+      state.copyWith(
+        victory: () => victory,
+        secondVictory: secondVictory,
+        overReason: overReason,
+      ),
+    );
 
     onGameEnd?.call();
   }

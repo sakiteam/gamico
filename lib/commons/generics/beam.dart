@@ -33,13 +33,11 @@ class GamicoBeam extends StatelessWidget {
     final finalBeamMinRadius = beamMinRadius ?? containerRadius;
     final finalBeamMaxRadius = beamMaxRadius ?? containerRadius;
 
-    return Animate(
-      onPlay: (controller) => controller.repeat(),
-    ).custom(
+    return Animate(onPlay: (controller) => controller.repeat()).custom(
       begin: finalBeamMinRadius,
       end: beamMaxRadius,
       duration: 1.seconds,
-      builder: (_, value, __) {
+      builder: (_, value, _) {
         return SizedBox(
           width: containerRadius,
           height: containerRadius,

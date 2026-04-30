@@ -51,7 +51,7 @@ abstract class GamicoLanguagePt extends GamicoLanguages {
   @override
   String adventureChapterChapter(int chapter) => "Capítulo $chapter";
 
-/* COLLECTION */
+  /* COLLECTION */
 
   @override
   String collectionCardPopupFamily(String family) => "Família: $family";
@@ -719,58 +719,58 @@ abstract class GamicoLanguagePt extends GamicoLanguages {
 
   @override
   List<String> get names => [
-        "Alex",
-        "Sonia",
-        "Basile",
-        "Yoann",
-        "Isaac",
-        "Roberto",
-        "Tanguy",
-        "Jessé",
-        "Alice",
-        "Christian",
-        "Fabienne",
-        "Mimi",
-        "Maurice",
-        "Lucie",
-        "Josiane",
-        "Vianney",
-        "Anicette",
-        "Adeline",
-        "Bénédicte",
-        "Rosa",
-        "Déborah",
-        "Ange",
-        "Clémence",
-        "Aude",
-        "Mireille",
-        "Cécile",
-        "Laurence",
-        "Marius",
-        "Nadège",
-        "Sylvie",
-        "Clarisse",
-        "Claude",
-        "Clotilde",
-        "André",
-        "Christine",
-        "Léopold",
-        "Geneviève",
-        "Esther",
-        "Flore",
-        "Angèle",
-        "Jennifer",
-        "Hugues",
-        "Huguette",
-        "Olivier",
-        "Judith",
-        "Martine",
-        "Rachel",
-        "Antoine",
-        "Alfred",
-        "Marthe",
-        "Bob",
-      ];
+    "Alex",
+    "Sonia",
+    "Basile",
+    "Yoann",
+    "Isaac",
+    "Roberto",
+    "Tanguy",
+    "Jessé",
+    "Alice",
+    "Christian",
+    "Fabienne",
+    "Mimi",
+    "Maurice",
+    "Lucie",
+    "Josiane",
+    "Vianney",
+    "Anicette",
+    "Adeline",
+    "Bénédicte",
+    "Rosa",
+    "Déborah",
+    "Ange",
+    "Clémence",
+    "Aude",
+    "Mireille",
+    "Cécile",
+    "Laurence",
+    "Marius",
+    "Nadège",
+    "Sylvie",
+    "Clarisse",
+    "Claude",
+    "Clotilde",
+    "André",
+    "Christine",
+    "Léopold",
+    "Geneviève",
+    "Esther",
+    "Flore",
+    "Angèle",
+    "Jennifer",
+    "Hugues",
+    "Huguette",
+    "Olivier",
+    "Judith",
+    "Martine",
+    "Rachel",
+    "Antoine",
+    "Alfred",
+    "Marthe",
+    "Bob",
+  ];
 
   @override
   String gameTileNameLevel(int level) => "Nível $level";
@@ -1283,4 +1283,7 @@ abstract class GamicoLanguagePt extends GamicoLanguages {
       "Você não ganhou nem perdeu! Por que não começar outra partida com o outro jogador para desempatar?";
   @override
   String get newPlayer => "Novo jogador";
+
+  @override
+  String get premiumButtonRemoveAds => "Remover anúncios";
 }

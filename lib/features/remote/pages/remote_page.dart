@@ -72,23 +72,27 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
         listeners: [
           BlocListener<RemoteCubit, RemoteState>(
             listener: (context, state) {
-              NavigationService.showPopup(
-                context: context,
-                builder: (_) {
-                  return GamicoPopup(
-                    child: GamicoDialogPoster(
-                      icon: Icons.wifi_off,
-                      title: l.remoteConnexionProblemTitle,
-                      description: l.remoteConnexionProblemDescription,
-                      simple: true,
-                      onAccepted: () {
-                        context.read<RemoteCubit>().setInternetError(false);
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                  );
-                },
-              );
+              if (Gamico.instance.playSettings?.exitUserWhenDisconnected ==
+                      true ||
+                  !state.fakeOpponent) {
+                NavigationService.showPopup(
+                  context: context,
+                  builder: (_) {
+                    return GamicoPopup(
+                      child: GamicoDialogPoster(
+                        icon: Icons.wifi_off,
+                        title: l.remoteConnexionProblemTitle,
+                        description: l.remoteConnexionProblemDescription,
+                        simple: true,
+                        onAccepted: () {
+                          context.read<RemoteCubit>().setInternetError(false);
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    );
+                  },
+                );
+              }
             },
             listenWhen: (previous, current) {
               return !previous.internetError && current.internetError;

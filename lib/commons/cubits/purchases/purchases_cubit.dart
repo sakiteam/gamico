@@ -14,10 +14,8 @@ import 'package:gamico/commons/services/user.dart';
 part 'purchases_state.dart';
 
 class PurchasesCubit extends Cubit<PurchasesState> {
-  PurchasesCubit({
-    required this.userCubit,
-    required this.purchasesRepository,
-  }) : super(const PurchasesState()) {
+  PurchasesCubit({required this.userCubit, required this.purchasesRepository})
+    : super(const PurchasesState()) {
     _initialize();
   }
 
@@ -29,16 +27,12 @@ class PurchasesCubit extends Cubit<PurchasesState> {
   final GamicoPurchasesRepository purchasesRepository;
 
   void _initialize() async {
-    emit(state.copyWith(
-      status: PurchasesStatus.loading,
-    ));
+    emit(state.copyWith(status: PurchasesStatus.loading));
 
     if (await _iap.isAvailable()) {
       await _getProducts();
 
-      emit(state.copyWith(
-        status: PurchasesStatus.success,
-      ));
+      emit(state.copyWith(status: PurchasesStatus.success));
 
       _subscription = _iap.purchaseStream.listen((purchases) async {
         for (final purchase in purchases) {
@@ -52,9 +46,7 @@ class PurchasesCubit extends Cubit<PurchasesState> {
             case PurchaseStatus.purchased:
               logEvent(
                 name: "iap_completed",
-                parameters: {
-                  "product": product.title,
-                },
+                parameters: {"product": product.title},
               );
 
               _confirmPurchase(purchase);
@@ -66,29 +58,27 @@ class PurchasesCubit extends Cubit<PurchasesState> {
             case PurchaseStatus.canceled:
               logEvent(
                 name: "iap_canceled",
-                parameters: {
-                  "product": product.title,
-                },
+                parameters: {"product": product.title},
               );
 
               resetStatus();
               break;
             case PurchaseStatus.error:
-              emit(state.copyWith(
-                status: PurchasesStatus.transactionFailure,
-              ));
+              emit(state.copyWith(status: PurchasesStatus.transactionFailure));
               break;
             case PurchaseStatus.restored:
+              if (purchase.productID ==
+                  Gamico.instance.purchasesSettings?.premiumProductId) {
+                _confirmPurchase(purchase);
+              }
               break;
           }
         }
       });
 
-      _iap.restorePurchases();
+      // _iap.restorePurchases();
     } else {
-      emit(state.copyWith(
-        status: PurchasesStatus.failure,
-      ));
+      emit(state.copyWith(status: PurchasesStatus.failure));
     }
   }
 
@@ -129,43 +119,56 @@ class PurchasesCubit extends Cubit<PurchasesState> {
         ),
       ]);
 
-      if (Gamico.instance.purchasesSettings?.specialPacksIds
-              .contains(purchase.productID) ==
+      if (Gamico.instance.purchasesSettings?.specialPacksIds.contains(
+            purchase.productID,
+          ) ==
           true) {
         GratificationService.lastOneTimeOfferPurchaseDate = DateTime.now();
       }
 
-      // Reward user whether the pack is class ic or special
-      Gamico.instance.purchasesSettings?.classicPacks[purchase.productID]
-          ?.call(userCubit);
-      Gamico.instance.purchasesSettings?.specialPacks[purchase.productID]
-          ?.call(userCubit);
+      if (purchase.productID ==
+          Gamico.instance.purchasesSettings?.premiumProductId) {
+        userCubit.setPremium();
+      }
 
-      emit(state.copyWith(
-        status: PurchasesStatus.transactionSuccess,
-      ));
+      // Reward user whether the pack is classic or special
+      Gamico.instance.purchasesSettings?.classicPacks[purchase.productID]?.call(
+        userCubit,
+      );
+      Gamico.instance.purchasesSettings?.specialPacks[purchase.productID]?.call(
+        userCubit,
+      );
+
+      emit(state.copyWith(status: PurchasesStatus.transactionSuccess));
     } catch (e) {
       debugPrint(e.toString());
     }
   }
 
   Future<void> _getProducts() async {
-    Set<String> ids = Gamico.instance.purchasesSettings?.packsIds.toSet() ?? {};
+    final premiumId = Gamico.instance.purchasesSettings?.premiumProductId;
+    Set<String> ids = {
+      ...Gamico.instance.purchasesSettings?.packsIds.toSet() ?? {},
+      if (premiumId != null) premiumId,
+    };
     ProductDetailsResponse response = await _iap.queryProductDetails(ids);
 
-    emit(state.copyWith(
-      products: response.productDetails,
-    ));
+    emit(state.copyWith(products: response.productDetails));
   }
 
   ProductDetails _getProductById(String id) {
     return state.products.firstWhere((element) => element.id == id);
   }
 
+  ProductDetails? getPremiumProduct() {
+    final id = Gamico.instance.purchasesSettings?.premiumProductId;
+    if (id == null) return null;
+    final matching = state.products.where((p) => p.id == id);
+    return matching.isEmpty ? null : matching.first;
+  }
+
   Future<void> purchase(ProductDetails product) async {
-    emit(state.copyWith(
-      status: PurchasesStatus.transactionLoading,
-    ));
+    emit(state.copyWith(status: PurchasesStatus.transactionLoading));
 
     try {
       await _iap.buyConsumable(
@@ -174,16 +177,32 @@ class PurchasesCubit extends Cubit<PurchasesState> {
     } catch (e) {
       debugPrint(e.toString());
 
-      emit(state.copyWith(
-        status: PurchasesStatus.transactionFailure,
-      ));
+      emit(state.copyWith(status: PurchasesStatus.transactionFailure));
     }
   }
 
+  Future<void> buyPremium() async {
+    final product = getPremiumProduct();
+    if (product == null) return;
+
+    emit(state.copyWith(status: PurchasesStatus.transactionLoading));
+
+    try {
+      await _iap.buyNonConsumable(
+        purchaseParam: PurchaseParam(productDetails: product),
+      );
+    } catch (e) {
+      debugPrint(e.toString());
+      emit(state.copyWith(status: PurchasesStatus.transactionFailure));
+    }
+  }
+
+  Future<void> restorePremiumPurchases() async {
+    await _iap.restorePurchases();
+  }
+
   void resetStatus() {
-    emit(state.copyWith(
-      status: PurchasesStatus.success,
-    ));
+    emit(state.copyWith(status: PurchasesStatus.success));
   }
 
   @override

@@ -25,6 +25,7 @@ class _GamicoSimplePageViewState extends State<GamicoSimplePageView> {
   @override
   Widget build(BuildContext context) {
     return PageView(
+      clipBehavior: Clip.none,
       controller: pageController,
       children: widget.children,
     );

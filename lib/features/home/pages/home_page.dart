@@ -145,10 +145,9 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
             child: GamicoDialogPoster(
               icon: Icons.download,
               title: l.homeUpdateTitle,
-              description:
-                  forceUpdate
-                      ? l.homeUpdateForceDescription
-                      : l.homeUpdateSimpleDescription,
+              description: forceUpdate
+                  ? l.homeUpdateForceDescription
+                  : l.homeUpdateSimpleDescription,
               simple: forceUpdate,
               automaticClose: !forceUpdate,
               acceptationText: l.homeUpdateInstall,

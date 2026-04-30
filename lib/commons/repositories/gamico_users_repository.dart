@@ -32,43 +32,31 @@ class GamicoUsersRepository {
   // Info
 
   Future<void> updateUserToken(String id, String token) async {
-    await usersProvider.updateUser(id, {
-      "token": token,
-    });
+    await usersProvider.updateUser(id, {"token": token});
   }
 
   Future<void> updateUserPhoto(String id, String photo) async {
-    await usersProvider.updateUser(id, {
-      "photo": photo,
-    });
+    await usersProvider.updateUser(id, {"photo": photo});
   }
 
   Future<void> updateUserName(String id, String name) async {
-    await usersProvider.updateUser(id, {
-      "name": name,
-    });
+    await usersProvider.updateUser(id, {"name": name});
   }
 
   // Level
 
   Future<void> updateUserLevel(String id, int level) async {
-    await usersProvider.updateUser(id, {
-      "level": level,
-    });
+    await usersProvider.updateUser(id, {"level": level});
   }
 
   Future<void> incrementUserLevel(String id) async {
-    await usersProvider.updateUser(id, {
-      "level": ServerValue.increment(1),
-    });
+    await usersProvider.updateUser(id, {"level": ServerValue.increment(1)});
   }
 
   // Stars
 
   Future<void> updateUserStars(String id, List<int> stars) async {
-    await usersProvider.updateUser(id, {
-      "stars": stars,
-    });
+    await usersProvider.updateUser(id, {"stars": stars});
   }
 
   // Trophies
@@ -90,9 +78,7 @@ class GamicoUsersRepository {
   // Coins
 
   Future<void> incrementUserCoins(String id, int coins) async {
-    await usersProvider.updateUser(id, {
-      "coins": ServerValue.increment(coins),
-    });
+    await usersProvider.updateUser(id, {"coins": ServerValue.increment(coins)});
   }
 
   Future<void> decrementUserCoins(String id, int coins) async {
@@ -107,5 +93,22 @@ class GamicoUsersRepository {
       "next_gratification": next,
       "gratified_at": DateTime.now().toString(),
     });
+  }
+
+  Future<void> updateUserProgression(
+    String id,
+    Map<String, dynamic> progression,
+  ) async {
+    await usersProvider.updateUser(id, {"progression": progression});
+  }
+
+  // Skins
+
+  Future<void> updateUserSkins(String id, Map<String, dynamic> skins) async {
+    await usersProvider.updateUser(id, {"skins": skins});
+  }
+
+  Future<void> updateUserPremium(String id, bool premium) async {
+    await usersProvider.updateUser(id, {"premium": premium});
   }
 }

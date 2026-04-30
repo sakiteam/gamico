@@ -427,6 +427,7 @@ abstract class GamicoLanguages {
   String get watchAdButtonWatchAd;
   String get watchAdButtonRefreshAd;
   String get globalConnect;
+  String get premiumButtonRemoveAds;
 
   /* FAMILIES */
 

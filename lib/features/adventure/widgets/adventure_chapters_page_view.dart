@@ -39,20 +39,31 @@ class _AdventureChaptersPageViewState extends State<AdventureChaptersPageView> {
     );
 
     return PageView(
+      clipBehavior: Clip.none,
       onPageChanged: (value) {
         setState(() {
-          _currentIndex = value;
+          _currentIndex = adventureUtility.reversed
+              ? adventureUtility.endChapter - 1 - value
+              : value + adventureUtility.startChapter;
         });
       },
       controller: widget.controller,
       children: [
-        for (int i = 0; i < adventureUtility.chapters; i++)
-          widget.itemBuilder(
-            context,
-            i,
-            userLevel < (i * adventureUtility.levelsPerChapter + 1),
-            _currentIndex,
-          ),
+        for (int i = 0;
+            i < (adventureUtility.endChapter - adventureUtility.startChapter);
+            i++)
+          () {
+            final globalIndex = adventureUtility.reversed
+                ? (adventureUtility.endChapter - 1 - i)
+                : (adventureUtility.startChapter + i);
+
+            return widget.itemBuilder(
+              context,
+              globalIndex,
+              userLevel < (globalIndex * adventureUtility.levelsPerChapter + 1),
+              _currentIndex,
+            );
+          }(),
       ],
     );
   }

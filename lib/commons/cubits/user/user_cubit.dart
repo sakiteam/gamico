@@ -14,17 +14,6 @@ import 'package:gamico/commons/repositories/gamico_users_repository.dart';
 
 part 'user_state.dart';
 
-enum AchievementType {
-  beginner(id: "CgkIuoiIu5YHEAIQBA"),
-  modest(id: "CgkIuoiIu5YHEAIQBQ"),
-  extrovert(id: "CgkIuoiIu5YHEAIQBg"),
-  tactician(id: "CgkIuoiIu5YHEAIQBw");
-
-  final String id;
-
-  const AchievementType({required this.id});
-}
-
 class GamicoUserCubit extends Cubit<GamicoUserState> {
   // UserCubit({
   //   required super.usersRepository,
@@ -168,33 +157,48 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   }
 
   Future<void> decrementCowries([int cowries = 1]) async {
+    final userDiamonds = (state.user?.coins ?? 0);
+    final cowriesToDecrement = min(cowries, userDiamonds);
+
+    if (cowriesToDecrement == 0) return;
+
     // Show that diamonds are decreasing
     emit(
       state.copyWith(
         cowriesUpdate: state.cowriesUpdate + 1,
-        cowriesUpdateDifference: -cowries,
+        cowriesUpdateDifference: -cowriesToDecrement,
       ),
     );
-
-    // Get user diamonds
-    final userDiamonds = (state.user?.coins ?? 0);
 
     // Decrement user diamonds really
     await usersRepository.decrementUserCoins(
       UserService.uid,
-      min(cowries, userDiamonds),
+      cowriesToDecrement,
     );
 
     // Submit score to leaderboards
     await _submitCollectorsScore(max(userDiamonds - cowries, 0));
   }
 
+  void updateUserProgression(Map<String, dynamic> progression) {
+    usersRepository.updateUserProgression(UserService.uid, progression);
+  }
+
+  void updateUserSkins(Map<String, dynamic> skins) {
+    usersRepository.updateUserSkins(UserService.uid, skins);
+  }
+
+  void setPremium() {
+    usersRepository.updateUserPremium(UserService.uid, true);
+  }
+
   Future<void> _submitCollectorsScore(int score) async {
     await GamicoGlobalService.waitWhile(() => !PlayService.gameServicesEnabled);
 
     if ((Gamico.instance.playSettings?.inactivePlayersLeaderboardId ?? "")
-        .isEmpty)
+        .isEmpty) {
       return;
+    }
 
     await Leaderboards.submitScore(
       score: Score(
@@ -211,8 +215,9 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     await GamicoGlobalService.waitWhile(() => !PlayService.gameServicesEnabled);
 
     if ((Gamico.instance.playSettings?.activePlayersLeaderboardId ?? "")
-        .isEmpty)
+        .isEmpty) {
       return;
+    }
 
     await Leaderboards.submitScore(
       score: Score(
@@ -323,21 +328,6 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   /// Pass the tutorial
   // unlockBeginnerAchievement() {
   //   unlockAchievement(AchievementType.beginner.id);
-  // }
-
-  /// Play a multiplayer game
-  // unlockExtrovertAchievement() {
-  //   unlockAchievement(AchievementType.extrovert.id);
-  // }
-
-  /// Complete the singleplayer mode
-  // unlockTacticianAchievement() {
-  //   unlockAchievement(AchievementType.tactician.id);
-  // }
-
-  /// Give up in a game
-  // unlockModestAchievement() {
-  //   unlockAchievement(AchievementType.modest.id);
   // }
 
   ///////////////////////

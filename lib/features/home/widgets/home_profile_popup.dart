@@ -25,7 +25,7 @@ class HomeProfilePopup extends StatelessWidget {
     final l = GamicoLanguages.of(context);
 
     return BlocBuilder<GamicoUserCubit, GamicoUserState>(
-      builder: (__, state) {
+      builder: (_, state) {
         return GamicoPopup(
           topLeftWidget: BlocBuilder<ReferralCubit, ReferralState>(
             builder: (innerContext, state) {

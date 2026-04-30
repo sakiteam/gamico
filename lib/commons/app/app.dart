@@ -51,7 +51,12 @@ class GamicoApp extends StatefulWidget {
   final Widget Function(BuildContext context, Widget child)? builder;
   final Iterable<LocalizationsDelegate<dynamic>>? localizationsDelegates;
 
+  final ThemeData? theme;
+  final ThemeData? darkTheme;
+  final ThemeMode? themeMode;
+
   final double? dividerThickness;
+  final bool showPerformanceOverlay;
 
   const GamicoApp({
     super.key,
@@ -62,6 +67,10 @@ class GamicoApp extends StatefulWidget {
     this.textColor,
     this.fontFamily,
     this.dividerThickness,
+    this.theme,
+    this.darkTheme,
+    this.themeMode,
+    this.showPerformanceOverlay = false,
   });
 
   @override
@@ -76,24 +85,28 @@ class _GamicoAppState extends State<GamicoApp> {
     loadingNotifier.value = true;
 
     // Initilize plugins for the proper functioning of the app
-    try {
-      // Handle message processings
-      // FirebaseMessaging.onMessage.listen(foregroundNotificationHandler);
-      // FirebaseMessaging.onBackgroundMessage(backgroundNotificationHandler);
+    // try {
+    //   // Handle message processings
+    //   // FirebaseMessaging.onMessage.listen(foregroundNotificationHandler);
+    //   // FirebaseMessaging.onBackgroundMessage(backgroundNotificationHandler);
 
-      // await
-      // Future.wait([
+    //   // await
+    //   // Future.wait([
 
-      // ]);
+    //   // ]);
 
-      await VersionService.init();
-      TimeZoneService.initTimeZone();
+    //   print("aaa ${DateTime.now()}");
 
-      // GlobalService.dynamicLink =
-      //     await FirebaseDynamicLinks.instance.getInitialLink();
-    } catch (e) {
-      debugPrint(e.toString());
-    }
+    //   print("bbb ${DateTime.now()}");
+
+    //   // GlobalService.dynamicLink =
+    //   //     await FirebaseDynamicLinks.instance.getInitialLink();
+    // } catch (e) {
+    //   debugPrint(e.toString());
+    // }
+
+    await VersionService.init();
+    TimeZoneService.initTimeZone();
 
     try {
       await AwesomeNotifications().initialize(
@@ -259,6 +272,7 @@ class _GamicoAppState extends State<GamicoApp> {
             return GamicoMaterialAppWrapper(
               child: MaterialApp(
                 navigatorKey: NavigationService.globalNavigatorKey,
+                showPerformanceOverlay: widget.showPerformanceOverlay,
                 home: ValueListenableBuilder(
                   valueListenable: loadingNotifier,
                   builder: (context, loading, child) {
@@ -293,6 +307,29 @@ class _GamicoAppState extends State<GamicoApp> {
                   return widget.builder?.call(context, finalContent) ??
                       finalContent;
                 },
+                theme:
+                    widget.theme ??
+                    ThemeData(
+                      colorScheme: ColorScheme.fromSeed(
+                        seedColor: ColorService.primaryColor,
+                      ),
+                      fontFamily: widget.fontFamily,
+                      textTheme: TextTheme(
+                        bodyMedium: TextStyle(
+                          fontSize: 14 * 450 / 400,
+                          height: 1,
+                          color: widget.textColor,
+                        ),
+                      ),
+                      dividerTheme: DividerThemeData(
+                        space: 0,
+                        thickness: widget.dividerThickness ?? 1,
+                        color: Colors.black,
+                      ),
+                      dividerColor: Colors.black,
+                    ),
+                darkTheme: widget.darkTheme,
+                themeMode: widget.themeMode,
                 locale: localeState.locale,
                 localizationsDelegates: [
                   const GamicoLocalizationsDelegate(),
@@ -308,25 +345,6 @@ class _GamicoAppState extends State<GamicoApp> {
 
                   return GamicoLanguages.fallbackLocale;
                 },
-                theme: ThemeData(
-                  colorScheme: ColorScheme.fromSeed(
-                    seedColor: ColorService.primaryColor,
-                  ),
-                  fontFamily: widget.fontFamily,
-                  textTheme: TextTheme(
-                    bodyMedium: TextStyle(
-                      fontSize: 14 * 450 / 400,
-                      height: 1,
-                      color: widget.textColor,
-                    ),
-                  ),
-                  dividerTheme: DividerThemeData(
-                    space: 0,
-                    thickness: widget.dividerThickness ?? 1,
-                    color: Colors.black,
-                  ),
-                  dividerColor: Colors.black,
-                ),
                 debugShowCheckedModeBanner: false,
               ),
             );

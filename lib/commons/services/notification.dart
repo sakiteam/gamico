@@ -137,6 +137,7 @@ class NotificationService {
             level: null,
             gameId: invitationId, // remoteState.gameId,
             fakeOpponent: false,
+            friend: true,
             remoteUtility: RemoteUtility(
               adventure: false,
               developerAndroidId: "",
@@ -214,6 +215,23 @@ class NotificationService {
         ),
       ],
     );
+  }
+
+  static Future<void> updateUserToken(String userId) async {
+    if (!(await allowed())) return;
+
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        final ref = FirebaseDatabase.instance
+            .ref()
+            .child('users')
+            .child(userId);
+        await ref.update({'token': token});
+      }
+    } catch (e) {
+      debugPrint("Error updating user token: $e");
+    }
   }
 }
 

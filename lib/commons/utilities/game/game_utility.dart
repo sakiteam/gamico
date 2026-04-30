@@ -6,10 +6,7 @@ class GameUtility {
   final GameType type;
   final void Function()? onBackButtonPressed;
 
-  const GameUtility({
-    required this.type,
-    required this.onBackButtonPressed,
-  });
+  const GameUtility({required this.type, required this.onBackButtonPressed});
 }
 
 class AdventureGameUtility extends GameUtility {
@@ -26,9 +23,8 @@ class AdventureGameUtility extends GameUtility {
 }
 
 class PassAndPlayGameUtility extends GameUtility {
-  const PassAndPlayGameUtility({
-    required super.onBackButtonPressed,
-  }) : super(type: GameType.passAndPlay);
+  const PassAndPlayGameUtility({required super.onBackButtonPressed})
+    : super(type: GameType.passAndPlay);
 }
 
 class RemoteGameUtility extends GameUtility {
@@ -38,6 +34,7 @@ class RemoteGameUtility extends GameUtility {
   final bool creatorOfCurrentGame;
   final RemoteUtility remoteUtility;
   final AdventureUtility? adventureUtility;
+  final bool friend;
 
   const RemoteGameUtility({
     required super.onBackButtonPressed,
@@ -47,6 +44,7 @@ class RemoteGameUtility extends GameUtility {
     required this.gameId,
     required this.remoteUtility,
     required this.adventureUtility,
+    this.friend = false,
   }) : super(type: GameType.remote);
 }
 

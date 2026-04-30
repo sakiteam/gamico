@@ -99,7 +99,9 @@ class GamicoGamePopup extends StatelessWidget {
                 GamicoGameReplayButton(
                   enabled:
                       gameMode.isPossibleToPlayAgain(context) &&
-                      gameMode.isOpponentAvailable(context),
+                      (gameMode.isOpponentAvailable(context) ||
+                          Gamico.instance.playSettings?.singlePlayerWhenFake ==
+                              true),
                 ),
               ),
             ),

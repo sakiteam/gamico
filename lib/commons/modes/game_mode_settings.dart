@@ -26,7 +26,7 @@ bool shouldShowAdsInAdventureGame(
   // final gameState = gameCubit.state;
   // final adventureGameState = adventureGameCubit.state;
 
-  return GameService.plays >= 5 &&
+  return GameService.plays >= 3 &&
       !(victory == true && currentLevel == maxLevel);
 }
 

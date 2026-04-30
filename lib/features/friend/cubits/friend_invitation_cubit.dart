@@ -4,6 +4,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/features/friend/models/invitation_model.dart';
+import 'package:gamico/commons/services/notification.dart';
 
 class FriendInvitationState {
   final List<InvitationModel> pendingInvitations;
@@ -55,6 +56,16 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
         });
         _invitations[event.snapshot.key!] = invitation;
         _updatePendingState();
+
+        // Show notification if it's a new pending invitation (less than 5 minutes old)
+        if (invitation.status == InvitationStatus.pending &&
+            DateTime.now().difference(invitation.createdAt).inMinutes < 5) {
+          NotificationService.showGameInvitationNotification(
+            title: 'Jeu avec un ami',
+            body: 'Vous avez reçu une invitation !',
+            invitationId: invitation.id,
+          );
+        }
       }
     });
 
@@ -85,17 +96,22 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
         .where((invitation) => invitation.status == InvitationStatus.pending)
         .toList();
 
-    emit(FriendInvitationState(
-      pendingInvitations: pendingInvitations,
-      hasPendingInvitation: pendingInvitations.isNotEmpty,
-    ));
+    emit(
+      FriendInvitationState(
+        pendingInvitations: pendingInvitations,
+        hasPendingInvitation: pendingInvitations.isNotEmpty,
+      ),
+    );
   }
 
   Future<void> updateInvitationStatus(
     String invitationId,
     InvitationStatus status,
   ) async {
-    final ref = FirebaseDatabase.instance.ref().child('invitations').child(invitationId);
+    final ref = FirebaseDatabase.instance
+        .ref()
+        .child('invitations')
+        .child(invitationId);
 
     await ref.update({
       'status': status.name.toUpperCase(),

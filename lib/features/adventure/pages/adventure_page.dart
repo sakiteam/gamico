@@ -41,15 +41,21 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
   void initState() {
     super.initState();
 
+    final user = context.read<GamicoUserCubit>().state.user;
+    final userLevel = widget.adventureUtility.getUserLevel(user);
+    final currentChapter = getChapterByLevel(userLevel);
+
+    final relativeChapter = widget.adventureUtility.reversed
+        ? (widget.adventureUtility.endChapter - 1) - currentChapter
+        : currentChapter - widget.adventureUtility.startChapter;
+
     pageController = PageController(
       viewportFraction: widget.viewportFraction ?? 1.0,
-      initialPage: min(
-        getChapterByLevel(
-          widget.adventureUtility.getUserLevel(
-            context.read<GamicoUserCubit>().state.user,
-          ),
-        ),
-        getChapterByLevel(widget.adventureUtility.maxLevel),
+      initialPage: relativeChapter.clamp(
+        0,
+        widget.adventureUtility.endChapter -
+            widget.adventureUtility.startChapter -
+            1,
       ),
     );
   }
@@ -81,6 +87,63 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
     return false;
   }
 
+  late final adventureCubit = GamicoAdventureCubit(
+    adventureUtility: widget.adventureUtility,
+    remoteUtility: widget.remoteUtility,
+  )..init();
+
+  @override
+  void didUpdateWidget(covariant GamicoAdventurePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.remoteUtility != widget.remoteUtility) {
+      adventureCubit.setRemoteUtility(widget.remoteUtility);
+    }
+
+    if (oldWidget.adventureUtility != widget.adventureUtility) {
+      adventureCubit.setAdventureUtility(widget.adventureUtility);
+
+      if (pageController.hasClients) {
+        final isNormalToReverse =
+            oldWidget.adventureUtility.startChapter == 0 &&
+            widget.adventureUtility.startChapter == 20;
+        final isReverseToNormal =
+            oldWidget.adventureUtility.startChapter == 20 &&
+            widget.adventureUtility.startChapter == 0;
+
+        if (isNormalToReverse || isReverseToNormal) {
+          final oldPage = pageController.page?.round() ?? 0;
+          final chaptersCount =
+              widget.adventureUtility.endChapter -
+              widget.adventureUtility.startChapter;
+          final newPage = (chaptersCount - 1) - oldPage;
+
+          pageController.jumpToPage(newPage.clamp(0, chaptersCount - 1));
+          return;
+        }
+
+        final user = context.read<GamicoUserCubit>().state.user;
+        final userLevel = widget.adventureUtility.getUserLevel(user);
+        final currentChapter = getChapterByLevel(userLevel);
+        final relativeChapter =
+            widget.adventureUtility.reversed
+                ? (widget.adventureUtility.endChapter - 1) - currentChapter
+                : currentChapter - widget.adventureUtility.startChapter;
+
+        pageController.animateToPage(
+          relativeChapter.clamp(
+            0,
+            widget.adventureUtility.endChapter -
+                widget.adventureUtility.startChapter -
+                1,
+          ),
+          duration: AnimationService.animationDuration,
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocListener<GamicoUserCubit, GamicoUserState>(
@@ -90,10 +153,14 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
         if (currentLevel > widget.adventureUtility.maxLevel) return;
 
         final currentChapter = getChapterByLevel(currentLevel);
+        final relativeChapter = widget.adventureUtility.reversed
+            ? (widget.adventureUtility.endChapter - 1) - currentChapter
+            : currentChapter - widget.adventureUtility.startChapter;
 
-        if (pageController.page != currentChapter) {
+        if (pageController.hasClients &&
+            pageController.page?.round() != relativeChapter) {
           pageController.animateToPage(
-            currentChapter,
+            relativeChapter,
             duration: AnimationService.animationDuration,
             curve: Curves.linear,
           );
@@ -108,17 +175,14 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
 
         return previousLevel != currentLevel;
       },
-      child: BlocProvider(
-        lazy: false,
-        create: (context) => GamicoAdventureCubit(
-          adventureUtility: widget.adventureUtility,
-          remoteUtility: widget.remoteUtility,
-        )..init(),
+      child: BlocProvider.value(
+        // lazy: false,
+        value: adventureCubit,
         child: BlocListener<GamicoAdventureCubit, GamicoAdventureState>(
           listener: (context, state) async {
             final adventureCubit = context.read<GamicoAdventureCubit>();
             final adventureUtility = adventureCubit.state.adventureUtility;
-            final remoteUtility = adventureCubit.state.remoteUtility;
+            // final remoteUtility = adventureCubit.state.remoteUtility;
 
             final user = context.read<GamicoUserCubit>().state.user;
             final userLevel = adventureUtility.getUserLevel(user);
@@ -135,13 +199,13 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
             adventureCubit.setAnimGame(true);
             adventureCubit.setAnimated(true);
 
-            if (remoteUtility != null) {
+            if (widget.remoteUtility != null) {
               final playNextLevel =
-                  await NavigationService.pushPageWithAnimation<bool>(
+                  await NavigationService.pushPageWithAnimation<String>(
                     context,
                     Gamico.instance.pagesSettings.remotePage(
                       context,
-                      remoteUtility,
+                      widget.remoteUtility!,
                       adventureUtility,
                       nextLevel,
                     ),
@@ -149,8 +213,11 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
 
               onBackButtonPressed();
 
-              if (playNextLevel == true) {
+              if (playNextLevel == "NEXT_LEVEL") {
                 adventureCubit.setNextLevelToPlay(nextLevel + 1);
+                adventureCubit.setNextLevelActive(true);
+              } else if (playNextLevel == "SAME_LEVEL") {
+                adventureCubit.setNextLevelToPlay(nextLevel);
                 adventureCubit.setNextLevelActive(true);
               }
             } else {
@@ -193,6 +260,7 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
   @override
   void dispose() {
     pageController.dispose();
+    adventureCubit.close();
     super.dispose();
   }
 }

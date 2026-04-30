@@ -28,9 +28,9 @@ class GamicoRemoteGamePage extends StatelessWidget {
             final gameCubit = context.read<GamicoGameCubit>();
 
             if (!gameCubit.state.over) {
-              context
-                  .read<GamicoRemoteGameCubit>()
-                  .setRemoteGameInternetError(true);
+              context.read<GamicoRemoteGameCubit>().setRemoteGameInternetError(
+                true,
+              );
               NavigationService.maybePop(context);
             }
           },
@@ -57,8 +57,6 @@ class GamicoRemoteGamePage extends StatelessWidget {
             gameCubit.setActive(false);
             gameCubit.setAnimGame(true);
 
-            // final remoteCubit = ;
-
             await NavigationService.replace(
               context,
               BlocProvider.value(
@@ -81,7 +79,7 @@ class GamicoRemoteGamePage extends StatelessWidget {
           listenWhen: (oldState, newState) {
             return !oldState.replay && newState.replay;
           },
-        )
+        ),
       ],
       child: child,
     );

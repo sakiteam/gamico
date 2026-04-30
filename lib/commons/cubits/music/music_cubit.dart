@@ -74,7 +74,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   // Init music
   Future<void> _initMusic() async {
     if (GameService.tutorialPassed) {
-      await _mainPlayer.setAsset("assets/musics/main.aac");
+      await _mainPlayer.safelySetAsset("assets/musics/main.aac");
     }
 
     // else {
@@ -96,19 +96,19 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   }
 
   Future<void> setMainMusicAsset() async {
-    await _mainPlayer.setAsset("assets/musics/main.aac");
+    await _mainPlayer.safelySetAsset("assets/musics/main.aac");
   }
 
   Future<void> setVictoryMusicAsset() async {
-    await _mainPlayer.setAsset("assets/musics/victory.aac");
+    await _mainPlayer.safelySetAsset("assets/musics/victory.aac");
   }
 
   Future<void> setDefeatMusicAsset() async {
-    await _mainPlayer.setAsset("assets/musics/defeat.aac");
+    await _mainPlayer.safelySetAsset("assets/musics/defeat.aac");
   }
 
   Future<void> setDrawMusicAsset() async {
-    await _mainPlayer.setAsset("assets/musics/draw.aac");
+    await _mainPlayer.safelySetAsset("assets/musics/draw.aac");
   }
 
   //
@@ -119,35 +119,35 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   Future<void> playMainMusic() async {
     if (!state.mute) {
-      await _mainPlayer.setAsset("assets/musics/main.aac");
+      await _mainPlayer.safelySetAsset("assets/musics/main.aac");
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playVictoryMusic() async {
     if (!state.mute) {
-      await _mainPlayer.setAsset("assets/musics/victory.aac");
+      await _mainPlayer.safelySetAsset("assets/musics/victory.aac");
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playDrawMusic() async {
     if (!state.mute) {
-      await _mainPlayer.setAsset("assets/musics/draw.aac");
+      await _mainPlayer.safelySetAsset("assets/musics/draw.aac");
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playDefeatMusic() async {
     if (!state.mute) {
-      await _mainPlayer.setAsset("assets/musics/defeat.aac");
+      await _mainPlayer.safelySetAsset("assets/musics/defeat.aac");
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playGameMusic() async {
     if (!state.mute) {
-      await _mainPlayer.setAsset("assets/musics/game.aac");
+      await _mainPlayer.safelySetAsset("assets/musics/game.aac");
       await _mainPlayer.safelyPlay();
     }
   }
@@ -155,10 +155,10 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   // Init bruitages
   Future<void> _initBruitages() async {
     await Future.wait([
-      _winPlayer.setAsset("assets/bruitages/win.wav"),
-      _drawPlayer.setAsset("assets/bruitages/draw.wav"),
-      _losePlayer.setAsset("assets/bruitages/lose.wav"),
-      _clockPlayer.setAsset("assets/bruitages/clock.wav"),
+      _winPlayer.safelySetAsset("assets/bruitages/win.wav"),
+      _drawPlayer.safelySetAsset("assets/bruitages/draw.wav"),
+      _losePlayer.safelySetAsset("assets/bruitages/lose.wav"),
+      _clockPlayer.safelySetAsset("assets/bruitages/clock.wav"),
     ]);
 
     await _clockPlayer.setLoopMode(LoopMode.all);
@@ -189,9 +189,24 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   Future<void> playBruitage(String source, [bool force = false]) async {
     if (!state.mute || force) {
       final tmpPlayer = AudioPlayer();
-      await tmpPlayer.setAsset(source);
-      await tmpPlayer.safelyPlay();
-      tmpPlayer.dispose();
+      try {
+        await tmpPlayer.safelySetAsset(source);
+        await tmpPlayer.safelyPlay();
+
+        // Avoid disposing immediately to prevent native crashes (e.g., _setPlatformActive)
+        // We wait for the audio to finish or for a reasonable timeout before disposing
+        tmpPlayer.processingStateStream
+            .firstWhere((s) => s == ProcessingState.completed)
+            .timeout(
+              const Duration(seconds: 10),
+              onTimeout: () => ProcessingState.completed,
+            )
+            .then((_) => tmpPlayer.dispose())
+            .catchError((_) => tmpPlayer.dispose());
+      } catch (e) {
+        debugPrint("Error playing bruitage ($source): $e");
+        tmpPlayer.dispose();
+      }
     }
   }
 
@@ -367,6 +382,14 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 }
 
 extension on AudioPlayer {
+  Future<void> safelySetAsset(String asset) async {
+    try {
+      await setAsset(asset);
+    } catch (e) {
+      debugPrint("Error setting asset ($asset): $e");
+    }
+  }
+
   Future<void> safelyPlay() async {
     await GamicoGlobalService.waitWhile(() => MusicService.pausedByAd);
 

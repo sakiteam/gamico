@@ -9,7 +9,9 @@ class GamicoAdventureGameState {
   final int userInitialLevel;
   final AdventureUtility adventureUtility;
 
-  bool get initialLevel => level <= adventureUtility.initialLevelsLimit;
+  bool get initialLevel =>
+      adventureUtility.initialLevelsLimit != 0 &&
+      level <= adventureUtility.initialLevelsLimit;
 
   const GamicoAdventureGameState({
     this.explanationDialog = false,

@@ -120,7 +120,7 @@ class AdventureLevelButton extends StatelessWidget {
         if (remoteUtility != null) {
           // Push remote page
           final playNextLevel =
-              await NavigationService.pushPageWithAnimation<bool>(
+              await NavigationService.pushPageWithAnimation<String>(
                 context,
                 Gamico.instance.pagesSettings.remotePage(
                   context,
@@ -132,8 +132,11 @@ class AdventureLevelButton extends StatelessWidget {
 
           onBackButtonPressed();
 
-          if (playNextLevel == true) {
+          if (playNextLevel == "NEXT_LEVEL") {
             adventureCubit.setNextLevelToPlay(level + 1);
+            adventureCubit.setNextLevelActive(true);
+          } else if (playNextLevel == "SAME_LEVEL") {
+            adventureCubit.setNextLevelToPlay(level);
             adventureCubit.setNextLevelActive(true);
           }
         } else {

@@ -32,10 +32,11 @@ class AdventureModeSettings implements GameModeSettings {
   @override
   GamicoUserModel otherPlayerProfile(BuildContext context) {
     final l = GamicoLanguages.of(context);
-    final level = context
-        .select((GamicoAdventureGameCubit gameCubit) => gameCubit.state.level);
+    final level = context.select(
+      (GamicoAdventureGameCubit gameCubit) => gameCubit.state.level,
+    );
 
-    return GamicoUserModel(name: l.names[level]);
+    return GamicoUserModel(name: l.names[level % l.names.length]);
   }
 
   @override
@@ -46,8 +47,9 @@ class AdventureModeSettings implements GameModeSettings {
   @override
   String? otherPlayerDescription(BuildContext context) {
     final l = GamicoLanguages.of(context);
-    final level = context
-        .select((GamicoAdventureGameCubit gameCubit) => gameCubit.state.level);
+    final level = context.select(
+      (GamicoAdventureGameCubit gameCubit) => gameCubit.state.level,
+    );
 
     return l.gameScoresIndicatorNormalGameDescription(level);
   }
@@ -56,14 +58,18 @@ class AdventureModeSettings implements GameModeSettings {
   String? gamePopupDescription(BuildContext context) {
     final l = GamicoLanguages.of(context);
     final adventureUtility = context.select(
-        (GamicoAdventureGameCubit userCubit) =>
-            userCubit.state.adventureUtility);
-    final userLevel = context.select((GamicoUserCubit userCubit) =>
-        adventureUtility.getUserLevel(userCubit.state.user));
-    final level = context
-        .select((GamicoAdventureGameCubit userCubit) => userCubit.state.level);
-    final victory =
-        context.select((GamicoGameCubit userCubit) => userCubit.state.victory);
+      (GamicoAdventureGameCubit userCubit) => userCubit.state.adventureUtility,
+    );
+    final userLevel = context.select(
+      (GamicoUserCubit userCubit) =>
+          adventureUtility.getUserLevel(userCubit.state.user),
+    );
+    final level = context.select(
+      (GamicoAdventureGameCubit userCubit) => userCubit.state.level,
+    );
+    final victory = context.select(
+      (GamicoGameCubit userCubit) => userCubit.state.victory,
+    );
 
     final possibleToPlayNextLevel = isPossibleToPlayNextLevel(context);
     final possibleToPlayAgain = isPossibleToPlayAgain(context);
@@ -120,36 +126,46 @@ class AdventureModeSettings implements GameModeSettings {
 
   @override
   bool isPossibleToPlayAgain(BuildContext context) {
-    final level = context
-        .select((GamicoAdventureGameCubit userCubit) => userCubit.state.level);
+    final level = context.select(
+      (GamicoAdventureGameCubit userCubit) => userCubit.state.level,
+    );
     final adventureUtility = context.select(
-        (GamicoAdventureGameCubit userCubit) =>
-            userCubit.state.adventureUtility);
+      (GamicoAdventureGameCubit userCubit) => userCubit.state.adventureUtility,
+    );
     final coins = context.select(
-        (GamicoUserCubit userCubit) => userCubit.state.user?.coins ?? 0);
-    final userLevel = context.select((GamicoUserCubit userCubit) =>
-        adventureUtility.getUserLevel(userCubit.state.user));
+      (GamicoUserCubit userCubit) => userCubit.state.user?.coins ?? 0,
+    );
+    final userLevel = context.select(
+      (GamicoUserCubit userCubit) =>
+          adventureUtility.getUserLevel(userCubit.state.user),
+    );
 
     return coins >= Gamico.instance.gameSettings.playMinimumCoins ||
-        userLevel > level;
+        userLevel > level ||
+        Gamico.instance.gameSettings.ignoreMinimumCoinsToPlay;
   }
 
   @override
   bool isPossibleToPlayNextLevel(BuildContext context) {
     final adventureUtility = context.select(
-        (GamicoAdventureGameCubit userCubit) =>
-            userCubit.state.adventureUtility);
+      (GamicoAdventureGameCubit cubit) => cubit.state.adventureUtility,
+    );
 
     final coins = context.select(
-        (GamicoUserCubit userCubit) => userCubit.state.user?.coins ?? 0);
-    final userLevel = context.select((GamicoUserCubit userCubit) =>
-        adventureUtility.getUserLevel(userCubit.state.user));
+      (GamicoUserCubit cubit) => cubit.state.user?.coins ?? 0,
+    );
+    final userLevel = context.select(
+      (GamicoUserCubit cubit) =>
+          adventureUtility.getUserLevel(cubit.state.user),
+    );
 
-    final level = context
-        .select((GamicoAdventureGameCubit userCubit) => userCubit.state.level);
+    final level = context.select(
+      (GamicoAdventureGameCubit cubit) => cubit.state.level,
+    );
 
     return (userLevel == level + 1
-            ? coins >= Gamico.instance.gameSettings.playMinimumCoins
+            ? (coins >= Gamico.instance.gameSettings.playMinimumCoins ||
+                  Gamico.instance.gameSettings.ignoreMinimumCoinsToPlay)
             : userLevel > level) &&
         level != adventureUtility.maxLevel;
   }
@@ -163,15 +179,19 @@ class AdventureModeSettings implements GameModeSettings {
     final l = GamicoLanguages.of(context);
 
     final adventureUtility = context.select(
-        (GamicoAdventureGameCubit userCubit) =>
-            userCubit.state.adventureUtility);
+      (GamicoAdventureGameCubit userCubit) => userCubit.state.adventureUtility,
+    );
 
-    final userLevel = context.select((GamicoUserCubit userCubit) =>
-        adventureUtility.getUserLevel(userCubit.state.user));
-    final level = context
-        .select((GamicoAdventureGameCubit userCubit) => userCubit.state.level);
-    final victory =
-        context.select((GamicoGameCubit userCubit) => userCubit.state.victory);
+    final userLevel = context.select(
+      (GamicoUserCubit userCubit) =>
+          adventureUtility.getUserLevel(userCubit.state.user),
+    );
+    final level = context.select(
+      (GamicoAdventureGameCubit userCubit) => userCubit.state.level,
+    );
+    final victory = context.select(
+      (GamicoGameCubit userCubit) => userCubit.state.victory,
+    );
 
     final nextLevelButton = GamicoIconTextButton(
       color: ColorService.accentColor,
@@ -185,28 +205,28 @@ class AdventureModeSettings implements GameModeSettings {
       iconData: Icons.keyboard_double_arrow_right,
     );
 
-    final nextLevelVisible = (victory == true || userLevel > level) &&
+    final nextLevelVisible =
+        (victory == true || userLevel > level) &&
         level != adventureUtility.maxLevel;
 
-    return [
-      exitButton,
-      if (nextLevelVisible) nextLevelButton,
-      replayButton,
-    ];
+    return [exitButton, if (nextLevelVisible) nextLevelButton, replayButton];
   }
 
   @override
   bool hasTripleAdAfterVictory(BuildContext context) {
-    final level = context
-        .select((GamicoAdventureGameCubit userCubit) => userCubit.state.level);
+    final level = context.select(
+      (GamicoAdventureGameCubit userCubit) => userCubit.state.level,
+    );
     final adventureUtility = context.select(
-        (GamicoAdventureGameCubit userCubit) =>
-            userCubit.state.adventureUtility);
+      (GamicoAdventureGameCubit userCubit) => userCubit.state.adventureUtility,
+    );
     final userInitialLevel = context.select(
-        (GamicoAdventureGameCubit userCubit) =>
-            userCubit.state.userInitialLevel);
-    final userLevel = context.select((GamicoUserCubit userCubit) =>
-        adventureUtility.getUserLevel(userCubit.state.user));
+      (GamicoAdventureGameCubit userCubit) => userCubit.state.userInitialLevel,
+    );
+    final userLevel = context.select(
+      (GamicoUserCubit userCubit) =>
+          adventureUtility.getUserLevel(userCubit.state.user),
+    );
 
     return userLevel == level + 1 && userInitialLevel == level;
   }
@@ -233,7 +253,8 @@ class AdventureModeSettings implements GameModeSettings {
     if (adventureGameCubit.state.level ==
         adventureUtility.getUserLevel(userCubit.state.user)) {
       return l.adventureComplexCloseDescription(
-          Gamico.instance.gameSettings.playMinimumCoins);
+        Gamico.instance.gameSettings.playMinimumCoins,
+      );
     } else {
       return l.adventureSimpleCloseDescription;
     }

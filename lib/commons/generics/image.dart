@@ -21,8 +21,10 @@ class GamicoImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double circleSize =
-        min(40, (min(width ?? 40, height ?? 40) * 24 / 40).toDouble());
+    final double circleSize = min(
+      40,
+      (min(width ?? 40, height ?? 40) * 24 / 40).toDouble(),
+    );
 
     return (path.contains("http")
         ? CachedNetworkImage(
@@ -30,7 +32,7 @@ class GamicoImage extends StatelessWidget {
             width: width,
             height: height,
             fit: fit,
-            progressIndicatorBuilder: (_, __, ___) {
+            progressIndicatorBuilder: (_, _, _) {
               return Center(
                 child: SizedBox(
                   width: circleSize <= 40 ? 24.0 : circleSize,
@@ -41,29 +43,24 @@ class GamicoImage extends StatelessWidget {
                 ),
               );
             },
-            errorWidget: (_, __, ___) {
+            errorWidget: (_, _, _) {
               return const Icon(Icons.image_not_supported);
             },
           )
         : (path.contains("assets/images/")
-            ? (path.endsWith("svg")
-                ? SvgPicture.asset(
-                    path,
-                    width: width,
-                    height: height,
-                    fit: fit ?? BoxFit.contain,
-                  )
-                : Image.asset(
-                    path,
-                    width: width,
-                    height: height,
-                    fit: fit,
-                  ))
-            : Image.file(
-                File(path),
-                width: width,
-                height: height,
-                fit: fit,
-              )));
+              ? (path.endsWith("svg")
+                    ? SvgPicture.asset(
+                        path,
+                        width: width,
+                        height: height,
+                        fit: fit ?? BoxFit.contain,
+                      )
+                    : Image.asset(path, width: width, height: height, fit: fit))
+              : Image.file(
+                  File(path),
+                  width: width,
+                  height: height,
+                  fit: fit,
+                )));
   }
 }

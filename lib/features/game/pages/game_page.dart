@@ -3,6 +3,7 @@ import 'package:gamico/commons/enums/game_type.dart';
 import 'package:gamico/commons/cubits/music/music_cubit.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/generics/pop_scope.dart';
+import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/animation.dart';
 import 'package:gamico/commons/services/game.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
@@ -93,6 +94,7 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
               creator: finalGameUtility.creatorOfCurrentGame,
               gameCubit: context.read<GamicoGameCubit>(),
               gamesRepository: context.read<GamicoGamesRepository>(),
+              friend: finalGameUtility.friend,
             )..init(),
           ),
         if (finalGameUtility is PassAndPlayGameUtility)
@@ -122,21 +124,21 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
 
                         return switch (gameType) {
                           GameType.adventure => BlocProvider.value(
-                              value: context.read<GamicoAdventureGameCubit>(),
-                              child: finalPopup,
-                            ),
+                            value: context.read<GamicoAdventureGameCubit>(),
+                            child: finalPopup,
+                          ),
                           GameType.remote => BlocProvider.value(
-                              value: context.read<GamicoRemoteGameCubit>(),
-                              child: finalPopup,
-                            ),
+                            value: context.read<GamicoRemoteGameCubit>(),
+                            child: finalPopup,
+                          ),
                           GameType.passAndPlay => BlocProvider.value(
-                              value: context.read<GamicoPassAndPlayGameCubit>(),
-                              child: finalPopup,
-                            ),
+                            value: context.read<GamicoPassAndPlayGameCubit>(),
+                            child: finalPopup,
+                          ),
                           GameType.tutorial => BlocProvider.value(
-                              value: context.read<GamicoTutorialGameCubit>(),
-                              child: finalPopup,
-                            ),
+                            value: context.read<GamicoTutorialGameCubit>(),
+                            child: finalPopup,
+                          ),
                         };
                       },
                     );
@@ -164,19 +166,20 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
 
                   final admobCubit = context.read<AdmobCubit>();
                   final gameCubit = context.read<GamicoGameCubit>();
+                  final userCubit = context.read<GamicoUserCubit>();
 
                   final victory = state.victory;
                   final gameMode = state.gameMode;
 
                   // Display message and character feeling
                   if (victory == null) {
-                    context
-                        .read<CharacterCubit>()
-                        .setFeeling(FeelingType.normal);
+                    context.read<CharacterCubit>().setFeeling(
+                      FeelingType.normal,
+                    );
                   } else if (victory) {
-                    context
-                        .read<CharacterCubit>()
-                        .setFeeling(FeelingType.happy);
+                    context.read<CharacterCubit>().setFeeling(
+                      FeelingType.happy,
+                    );
 
                     if (state.overReason != "PASS") {
                       gameCubit.displayMessage(CongratulationsMessageUtility());
@@ -226,7 +229,8 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
                   gameMode.gamePageManageGamePopup(context);
 
                   if (GameService.tutorialPassed &&
-                      gameMode.shouldShowAds(context)) {
+                      gameMode.shouldShowAds(context) &&
+                      userCubit.state.user?.premium != true) {
                     try {
                       if (admobCubit.state.rewardedAdStatus ==
                           AdmobRewardedAdStatus.success) {
@@ -254,11 +258,13 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
                   // Concrete game
                   widget.child,
 
-                  /// Widget that displays confettis to the user
+                  // Widget that displays confettis to the user
                   const GamicoGameConfetti(),
 
                   // Content visible when displaying congratulation message
-                  const GamicoGameCongratulationsText(),
+                  if (Gamico.instance.playSettings?.displayCongratulations ==
+                      true)
+                    const GamicoGameCongratulationsText(),
                 ],
               ),
             ),
@@ -318,8 +324,9 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
             title: l.closeTitle,
             acceptationText: l.closeClose,
             acceptationIcon: Icons.arrow_back,
-            description:
-                gameState.gameMode.gamePageClosingPopupDescription(context),
+            description: gameState.gameMode.gamePageClosingPopupDescription(
+              context,
+            ),
             automaticClose: false,
             onAccepted: () async {
               back = true;

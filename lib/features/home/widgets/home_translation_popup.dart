@@ -2,8 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/cubits/locale/locale_cubit.dart';
+import 'package:gamico/commons/generics/button.dart';
 // import 'package:gamico/commons/generics/grey_tinter.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
+import 'package:gamico/commons/services/color.dart';
 // import 'package:gamico/commons/generics/simple_popup.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:gamico/commons/services/navigation.dart';
@@ -16,6 +18,8 @@ import 'package:gamico/commons/generics/popup_button.dart';
 import 'package:gamico/features/home/widgets/home_translation_flag.dart';
 
 class HomeTranslationPopup extends StatefulWidget {
+  static bool simple = false;
+
   const HomeTranslationPopup({super.key});
 
   @override
@@ -102,26 +106,48 @@ class _HomeTranslationPopupState extends State<HomeTranslationPopup> {
                 children: GamicoLanguages.locales.map((e) {
                   final currentLanguageCode = e.languageCode;
 
+                  final child = HomeTranslationFlag(
+                    path: "assets/flags/$currentLanguageCode.png",
+                    active: currentLocaleCode == currentLanguageCode,
+                  );
+
+                  void onPressed() {
+                    final localeCubit = context.read<LocaleCubit>();
+
+                    NavigationService.pop(context);
+
+                    if (currentLocaleCode != currentLanguageCode) {
+                      localeCubit.setLocale(e);
+                    }
+                  }
+
                   return Center(
-                    child: GamicoElevatedButton(
-                      width: w,
-                      height: h,
-                      foregroundColor: Colors.brown,
-                      backgroundColor: Colors.brown.shade700,
-                      onPressed: () {
-                        final localeCubit = context.read<LocaleCubit>();
-
-                        NavigationService.pop(context);
-
-                        if (currentLocaleCode != currentLanguageCode) {
-                          localeCubit.setLocale(e);
-                        }
-                      },
-                      child: HomeTranslationFlag(
-                        path: "assets/flags/$currentLanguageCode.png",
-                        active: currentLocaleCode == currentLanguageCode,
-                      ),
-                    ),
+                    child: HomeTranslationPopup.simple
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(
+                              GamicoButton.defaultBorderRadius,
+                            ),
+                            child: Container(
+                              width: w,
+                              height: h,
+                              color: ColorService.translationForegroundColor,
+                              child: GamicoButton(
+                                // bruitage: enabled ? null : "",
+                                onPressed: onPressed,
+                                child: child,
+                              ),
+                            ),
+                          )
+                        : GamicoElevatedButton(
+                            width: w,
+                            height: h,
+                            foregroundColor:
+                                ColorService.translationForegroundColor,
+                            backgroundColor:
+                                ColorService.translationBackgroundColor,
+                            onPressed: onPressed,
+                            child: child,
+                          ),
                   );
                 }).toList(),
               );

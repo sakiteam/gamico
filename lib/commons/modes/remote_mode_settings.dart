@@ -12,7 +12,6 @@ import 'package:gamico/commons/modes/game_mode_settings.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/services/user.dart';
-import 'package:gamico/features/game/cubits/adventure/adventure_game_cubit.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:gamico/features/game/cubits/remote/remote_game_cubit.dart';
 import 'package:gamico/features/remote/cubits/remote_cubit.dart';
@@ -21,7 +20,16 @@ import 'package:gamico/languages/languages.dart';
 class RemoteModeSettings implements GameModeSettings {
   @override
   void manageReplay(BuildContext context, [int? level]) {
-    context.read<GamicoRemoteGameCubit>().replay(level);
+    final remoteGameCubit = context.read<GamicoRemoteGameCubit>();
+
+    if (Gamico.instance.playSettings?.singlePlayerWhenFake == true &&
+        remoteGameCubit.state.fakeOpponent) {
+      NavigationService.pop(context);
+      NavigationService.pop(context);
+      NavigationService.pop(context, "SAME_LEVEL");
+    } else {
+      remoteGameCubit.replay(level);
+    }
   }
 
   @override
@@ -89,12 +97,42 @@ class RemoteModeSettings implements GameModeSettings {
       return l.remotePossibleToPlayAgainDescription;
     }
 
-    if (!isOpponentAvailable(context)) {
-      if (opponent != null && opponent!.broke == true) {
-        return l.externalNeedinessDescription;
+    final adventureUtility = context.select(
+      (GamicoRemoteGameCubit remoteGameCubit) =>
+          remoteGameCubit.state.adventureUtility,
+    );
+
+    final level = context.select(
+      (GamicoRemoteGameCubit remoteGameCubit) =>
+          remoteGameCubit.state.level ?? 0,
+    );
+
+    final opponentAvailable = isOpponentAvailable(context);
+
+    if (Gamico.instance.playSettings?.singlePlayerWhenFake != true ||
+        opponentAvailable) {
+      if (!opponentAvailable) {
+        if (opponent != null && opponent!.broke == true) {
+          return l.externalNeedinessDescription;
+        }
+
+        return l.remoteOpponentUnavailableDescription;
+      }
+    } else {
+      // final possibleToPlayNextLevel = isPossibleToPlayNextLevel(context);
+
+      if (adventureUtility?.maxLevel != null &&
+          level == adventureUtility!.maxLevel) {
+        return l.adventureVictoryGameFinishedDescription;
       }
 
-      return l.remoteOpponentUnavailableDescription;
+      // return l.remoteVictoryDescription;
+
+      // if (possibleToPlayNextLevel) {
+      //   return l.adventureVictoryPossibleToPlayNextLevelDescription;
+      // }
+
+      // return "Désolé ! Vous devez passer ce niveau";
     }
 
     if (victory == null) {
@@ -169,16 +207,44 @@ class RemoteModeSettings implements GameModeSettings {
 
   @override
   bool isPossibleToPlayAgain(BuildContext context) {
+    if (Gamico.instance.playSettings?.singlePlayerWhenFake == true) {
+      return true;
+    }
+
     final coins = context.select(
       (GamicoUserCubit userCubit) => userCubit.state.user?.coins ?? 0,
     );
 
-    return coins >= Gamico.instance.gameSettings.playMinimumCoins;
+    return coins >= Gamico.instance.gameSettings.playMinimumCoins ||
+        Gamico.instance.gameSettings.ignoreMinimumCoinsToPlay;
   }
 
   @override
   bool isPossibleToPlayNextLevel(BuildContext context) {
-    return true;
+    final adventureUtility = context.select(
+      (GamicoRemoteGameCubit remoteGameCubit) =>
+          remoteGameCubit.state.adventureUtility,
+    );
+
+    final coins = context.select(
+      (GamicoUserCubit cubit) => cubit.state.user?.coins ?? 0,
+    );
+
+    final userLevel = context.select(
+      (GamicoUserCubit userCubit) =>
+          adventureUtility?.getUserLevel(userCubit.state.user) ?? 1,
+    );
+
+    final level = context.select(
+      (GamicoRemoteGameCubit remoteGameCubit) =>
+          remoteGameCubit.state.level ?? 0,
+    );
+
+    return (userLevel == level + 1
+            ? (coins >= Gamico.instance.gameSettings.playMinimumCoins ||
+                  Gamico.instance.gameSettings.ignoreMinimumCoinsToPlay)
+            : userLevel > level) &&
+        level != adventureUtility?.maxLevel;
   }
 
   @override
@@ -300,7 +366,7 @@ class RemoteModeSettings implements GameModeSettings {
               ? () async {
                   NavigationService.pop(context);
                   NavigationService.pop(context);
-                  NavigationService.pop(context, true);
+                  NavigationService.pop(context, "NEXT_LEVEL");
                 }
               : null,
           text: l.gamePopupNextLevel,
@@ -313,10 +379,16 @@ class RemoteModeSettings implements GameModeSettings {
             userLevel > level) &&
             level != adventureUtility?.maxLevel;
 
+        final isFriendGame = context.select(
+          (GamicoRemoteGameCubit remoteGameCubit) =>
+              remoteGameCubit.state.friend,
+        );
+
         return [
           exitButton,
-          if (adventureUtility == null) newGameButton,
-          if (nextLevelVisible) nextLevelButton,
+          if (adventureUtility == null && !isFriendGame) newGameButton,
+          if (adventureUtility != null && nextLevelVisible && !isFriendGame)
+            nextLevelButton,
           replayButton,
         ];
     }
@@ -396,6 +468,7 @@ class RemoteModeSettings implements GameModeSettings {
         userCubit.incrementCowries(
           Gamico.instance.gameSettings.playMinimumCoins * gameState.stars,
         );
+
         userCubit.incrementVictories();
       } else {
         userCubit.decrementCowries(

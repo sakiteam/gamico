@@ -123,13 +123,22 @@ class Gamico {
     // Initialize Admob as soon as possible
     MobileAds.instance.initialize();
 
-    // Enable data persistence
-    FirebaseDatabase.instance.setPersistenceEnabled(true);
+    try {
+      // Enable data persistence
+      FirebaseDatabase.instance.setPersistenceEnabled(true);
+    } catch (e) {
+      debugPrint(e.toString());
+    }
 
-    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    try {
+      final initialMessage = await FirebaseMessaging.instance
+          .getInitialMessage();
 
-    if (initialMessage != null) {
-      handleInitialMessage(initialMessage);
+      if (initialMessage != null) {
+        handleInitialMessage(initialMessage);
+      }
+    } catch (e) {
+      debugPrint(e.toString());
     }
 
     try {

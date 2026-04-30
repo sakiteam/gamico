@@ -19,6 +19,9 @@ import 'package:gamico/commons/repositories/gamico_users_repository.dart';
 import 'package:gamico/commons/providers/gamico_users_provider.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:remove_diacritic/remove_diacritic.dart';
+import 'package:gamico/commons/services/invitation_service.dart';
+import 'package:gamico/commons/services/firebase_messaging_service.dart';
+import 'package:gamico/commons/services/notification.dart';
 
 class GamicoFriendPage extends StatefulWidget {
   const GamicoFriendPage({super.key});
@@ -43,7 +46,7 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
       context.read<InvitationCubit>().startListening(currentUser.uid);
 
       // Mettre à jour le token de notification
-      // NotificationService.updateUserToken(currentUser.uid);
+      NotificationService.updateUserToken(currentUser.uid);
     }
   }
 
@@ -63,27 +66,25 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
 
       final simplifiedQuery = removeDiacritics(query.toLowerCase());
 
-      final snapshot =
-          await usersRef
-              .orderByChild('formatted_name')
-              .startAt(simplifiedQuery)
-              .endAt('$simplifiedQuery\uf8ff')
-              .get();
+      final snapshot = await usersRef
+          .orderByChild('formatted_name')
+          .startAt(simplifiedQuery)
+          .endAt('$simplifiedQuery\uf8ff')
+          .get();
 
       if (snapshot.exists) {
         final data = snapshot.value as Map<dynamic, dynamic>;
         final currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
-        final results =
-            data.entries
-                .where((e) => e.key != currentUserId)
-                .map(
-                  (e) => {
-                    'id': e.key,
-                    ...Map<String, dynamic>.from(e.value as Map),
-                  },
-                )
-                .toList();
+        final results = data.entries
+            .where((e) => e.key != currentUserId)
+            .map(
+              (e) => {
+                'id': e.key,
+                ...Map<String, dynamic>.from(e.value as Map),
+              },
+            )
+            .toList();
 
         setState(() {
           _searchResults = results;
@@ -111,20 +112,20 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
 
     try {
       // Créer l'invitation dans Firebase
-      await context.read<InvitationCubit>().sendInvitation(
+      final invitation = await context.read<InvitationCubit>().sendInvitation(
         receiverId,
         UserService.uid,
       );
 
       // Envoyer la notification Firebase
-      // final receiverToken = await InvitationService.getUserToken(receiverId);
-      // if (receiverToken != null) {
-      //   await FirebaseMessagingService.sendGameInvitation(
-      //     token: receiverToken,
-      //     invitationId: invitation.id,
-      //     senderName: currentUser.displayName ?? 'Someone',
-      //   );
-      // }
+      final receiverToken = await InvitationService.getUserToken(receiverId);
+      if (receiverToken != null) {
+        await FirebaseMessagingService.sendGameInvitation(
+          token: receiverToken,
+          invitationId: invitation.id,
+          senderName: currentUser.displayName ?? 'Someone',
+        );
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l.friendPageInvitationSent)));
@@ -145,11 +146,13 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
           level: null,
           gameId: gameId,
           fakeOpponent: false,
+          friend: true,
           remoteUtility: RemoteUtility(
             adventure: false,
             developerAndroidId: "",
             developerAppleId: "",
             levelsBuilder: null,
+
             matchmakingSettings: MatchmakingSettings(
               minLevel: 0,
               maxLevel: 0,
@@ -206,8 +209,9 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
                     controller: _searchController,
                     textCapitalization: TextCapitalization.words,
                     decoration: InputDecoration(
-                      hintText:
-                          GamicoLanguages.of(context).friendPageSearchHint,
+                      hintText: GamicoLanguages.of(
+                        context,
+                      ).friendPageSearchHint,
                       prefixIcon: const Icon(Icons.search),
                       border: const OutlineInputBorder(
                         borderRadius: BorderRadius.all(
@@ -246,45 +250,42 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
                                 child: Icon(Icons.person),
                               ),
                               title: Text(user['name'] ?? l.friendPageUnknown),
-                              trailing:
-                                  isCurrentInvitee
-                                      ? Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const CircularProgressIndicator(),
-                                          const SizedBox(width: 16),
-                                          BlocBuilder<
-                                            InvitationCubit,
-                                            InvitationState
-                                          >(
-                                            builder: (context, state) {
-                                              if (state.currentInvitation !=
-                                                  null) {
-                                                return ElevatedButton(
-                                                  child: Text(l.globalCancel),
-                                                  onPressed: () {
-                                                    context
-                                                        .read<InvitationCubit>()
-                                                        .cancelCurrentInvitation();
-                                                  },
-                                                );
-                                              }
-                                              return const SizedBox();
-                                            },
-                                          ),
-                                        ],
-                                      )
-                                      : Icon(
-                                        Icons.sports_esports,
-                                        color:
-                                            isInvitationPending
-                                                ? Colors.grey
-                                                : null,
-                                      ),
-                              onTap:
-                                  isInvitationPending && !isCurrentInvitee
-                                      ? null
-                                      : () => _sendInvitation(user['id']),
+                              trailing: isCurrentInvitee
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const CircularProgressIndicator(),
+                                        const SizedBox(width: 16),
+                                        BlocBuilder<
+                                          InvitationCubit,
+                                          InvitationState
+                                        >(
+                                          builder: (context, state) {
+                                            if (state.currentInvitation !=
+                                                null) {
+                                              return ElevatedButton(
+                                                child: Text(l.globalCancel),
+                                                onPressed: () {
+                                                  context
+                                                      .read<InvitationCubit>()
+                                                      .cancelCurrentInvitation();
+                                                },
+                                              );
+                                            }
+                                            return const SizedBox();
+                                          },
+                                        ),
+                                      ],
+                                    )
+                                  : Icon(
+                                      Icons.sports_esports,
+                                      color: isInvitationPending
+                                          ? Colors.grey
+                                          : null,
+                                    ),
+                              onTap: isInvitationPending && !isCurrentInvitee
+                                  ? null
+                                  : () => _sendInvitation(user['id']),
                               enabled: !isInvitationPending || isCurrentInvitee,
                             );
                           },
@@ -326,8 +327,8 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
                                 future: GamicoUsersRepository(
                                   usersProvider: GamicoUsersProvider(),
                                   fromJson: (json) => json,
-                                  toJson:
-                                      (user) => user as Map<String, dynamic>,
+                                  toJson: (user) =>
+                                      user as Map<String, dynamic>,
                                 ).readUser(invitation.senderId),
                                 builder: (context, snapshot) {
                                   return ListTile(
@@ -361,13 +362,12 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
                                         IconButton(
                                           icon: const Icon(Icons.close),
                                           color: Colors.red,
-                                          onPressed:
-                                              () => context
-                                                  .read<FriendInvitationCubit>()
-                                                  .updateInvitationStatus(
-                                                    invitation.id,
-                                                    InvitationStatus.rejected,
-                                                  ),
+                                          onPressed: () => context
+                                              .read<FriendInvitationCubit>()
+                                              .updateInvitationStatus(
+                                                invitation.id,
+                                                InvitationStatus.rejected,
+                                              ),
                                         ),
                                       ],
                                     ),

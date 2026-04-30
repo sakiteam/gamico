@@ -26,12 +26,14 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     required this.remoteUtility,
     required int? level,
     required this.adventureUtility,
+    bool friend = false,
   }) : super(
          GamicoRemoteGameState(
            creator: creator,
            fakeOpponent: fakeOpponent,
            remoteUtility: remoteUtility,
            adventureUtility: adventureUtility,
+           friend: friend,
            level: level,
            userInitialLevel: adventureUtility?.getUserLevel(
              gameCubit.userCubit.state.user,
@@ -153,7 +155,9 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   }
 
   Future<void> _launchNewGame() async {
-    emit(state.copyWith(gameEndStatus: "INVITATION_ACCEPTATION"));
+    if (Gamico.instance.playSettings?.singlePlayerWhenFake != true) {
+      emit(state.copyWith(gameEndStatus: "INVITATION_ACCEPTATION"));
+    }
 
     if (!state.creator) {
       newGameId = await gamesRepository.createGame(
@@ -212,13 +216,12 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
       final developerId = remoteUtility.developerId;
 
-      final opponentId =
-          state.fakeOpponent
-              ? developerId
-              : (playersIds
-                      .where((element) => element != UserService.uid)
-                      .firstOrNull ??
-                  developerId);
+      final opponentId = state.fakeOpponent
+          ? developerId
+          : (playersIds
+                    .where((element) => element != UserService.uid)
+                    .firstOrNull ??
+                developerId);
 
       // Listen to opponent connectivity
       opponentStreamSubscription = FirebaseDatabase.instance
@@ -391,20 +394,22 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       }
 
       // Disconnection management
-      userDisconnectionReference =
-          FirebaseDatabase.instance
-              .ref("users")
-              .child(UserService.uid)
-              .onDisconnect();
+      userDisconnectionReference = FirebaseDatabase.instance
+          .ref("users")
+          .child(UserService.uid)
+          .onDisconnect();
 
-      await userDisconnectionReference?.update({
-        "coins": ServerValue.increment(
-          -Gamico.instance.gameSettings.playMinimumCoins,
-        ),
-        "defeats": ServerValue.increment(1),
-        "trophies": ServerValue.increment(-1),
-        "updated_at": DateTime.now().toString(),
-      });
+      if (Gamico.instance.playSettings?.exitUserWhenDisconnected == true ||
+          !state.fakeOpponent) {
+        await userDisconnectionReference?.update({
+          "coins": ServerValue.increment(
+            -Gamico.instance.gameSettings.playMinimumCoins,
+          ),
+          "defeats": ServerValue.increment(1),
+          "trophies": ServerValue.increment(-1),
+          "updated_at": DateTime.now().toString(),
+        });
+      }
 
       // Declare game as ready when really ready
       await GamicoGlobalService.waitWhile(() => state.opponent == null);
@@ -423,9 +428,13 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
     gameCubit.onExitGame = () {
       if (!gameCubit.state.over) {
-        gameCubit.userCubit.decrementCowries(
-          Gamico.instance.gameSettings.playMinimumCoins,
-        );
+        if (adventureUtility == null ||
+            (state.userInitialLevel == state.level)) {
+          gameCubit.userCubit.decrementCowries(
+            Gamico.instance.gameSettings.playMinimumCoins,
+          );
+        }
+
         gameCubit.userCubit.incrementDefeats();
       }
 

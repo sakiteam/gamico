@@ -10,9 +10,11 @@ class PurchasesSettings {
 
   final Map<String, Function(GamicoUserCubit userCubit)> classicPacks;
   final Map<String, Function(GamicoUserCubit userCubit)> specialPacks;
+  final String? premiumProductId;
 
   const PurchasesSettings({
     this.classicPacks = const {},
     this.specialPacks = const {},
+    this.premiumProductId,
   });
 }

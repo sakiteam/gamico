@@ -5,6 +5,12 @@ class ColorService {
   static Color accentBackgroundColor = Colors.brown;
   static Color blue = Colors.blue;
 
+  static Color aboutButtonColor = Colors.brown.shade300;
+  static Color aboutIconColor = Colors.white.withAlpha(75);
+
+  static Color translationForegroundColor = Colors.brown;
+  static Color translationBackgroundColor = Colors.brown.shade700;
+
   // const Color(0xFFD2B58D);
   // static const Color primaryColor = Color(0xFFFB6D1A);
   // static Color get steelblue => const Color(0xFF4682B4);

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/version.dart';
 import 'package:gamico/commons/utilities/couple/couple_utility.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
@@ -26,7 +27,9 @@ class HomeAboutPopup extends StatelessWidget {
       GamicoCoupleUtility(l.homeAboutPopupImplementation, "Irié Bi Irié Alex"),
       GamicoCoupleUtility(l.homeAboutPopupMusic, "RGP Music Pack — SVL"),
       GamicoCoupleUtility(
-          l.homeAboutPopupVersion, VersionService.versionString),
+        l.homeAboutPopupVersion,
+        VersionService.versionString,
+      ),
     ];
 
     return GamicoPopup(
@@ -61,43 +64,50 @@ class HomeAboutPopup extends StatelessWidget {
         icon: Icons.info,
         title: l.homeAbout,
         descriptionWidget: Column(
-          children:
-              couples.map((e) => GamicoInfoLine(coupleUtility: e)).toList(),
+          children: couples
+              .map((e) => GamicoInfoLine(coupleUtility: e))
+              .toList(),
         ),
         expandContent: true,
         content: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             GamicoIconTextButton(
-              color: Colors.brown.shade300,
+              color: ColorService.aboutButtonColor,
               iconData: Icons.star,
-              iconColor: Colors.white.withAlpha(75),
+              iconColor: ColorService.aboutIconColor,
               text: l.homeAboutPopupRateGame,
               onPressed: () {
                 StoreRedirect.redirect();
               },
             ),
             GamicoIconTextButton(
-              color: Colors.brown.shade300,
+              color: ColorService.aboutButtonColor,
               iconData: Icons.public,
-              iconColor: Colors.white.withAlpha(75),
+              iconColor: ColorService.aboutIconColor,
               text: l.homeAboutPopupVisitWebstie,
               onPressed: () {
                 launchUrl(Uri.parse("https://www.sakihub.com"));
               },
             ),
             GamicoIconTextButton(
-              color: Colors.brown.shade300,
+              color: ColorService.aboutButtonColor,
               iconData: Icons.apps,
               text: l.homeAboutPopupDiscoverApps,
-              iconColor: Colors.white.withAlpha(75),
+              iconColor: ColorService.aboutIconColor,
               onPressed: () {
                 if (Platform.isAndroid) {
-                  launchUrl(Uri.parse(
-                      "https://play.google.com/store/apps/dev?id=8434106479316779165"));
+                  launchUrl(
+                    Uri.parse(
+                      "https://play.google.com/store/apps/dev?id=8434106479316779165",
+                    ),
+                  );
                 } else {
-                  launchUrl(Uri.parse(
-                      "itms-apps://itunes.apple.com/developer/id1628421324"));
+                  launchUrl(
+                    Uri.parse(
+                      "itms-apps://itunes.apple.com/developer/id1628421324",
+                    ),
+                  );
                 }
               },
             ),

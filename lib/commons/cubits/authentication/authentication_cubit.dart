@@ -37,6 +37,19 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
        ) {
     subscription = GameAuth.player.listen((p) {
       player = p;
+
+      UserService.displayName = player?.displayName ?? "";
+
+      if (UserService.authenticated) {
+        final name = userCubit.state.user?.name;
+
+        if (name != null && name != UserService.displayName) {
+          usersRepository.updateUserName(
+            UserService.uid,
+            UserService.displayName,
+          );
+        }
+      }
     });
 
     if (UserService.authenticated) {
@@ -56,28 +69,33 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
   StreamSubscription<PlayerData?>? subscription;
 
   Future<void> _saveToken() async {
-    if (Platform.isIOS) {
-      String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+    try {
+      if (Platform.isIOS) {
+        String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
 
-      if (apnsToken == null) {
-        await Future.delayed(const Duration(minutes: 1));
-        _saveToken();
-        return;
+        if (apnsToken == null) {
+          await Future.delayed(const Duration(minutes: 1));
+          _saveToken();
+          return;
+        }
       }
+
+      String? token = await FirebaseMessaging.instance.getToken();
+
+      if (token != null) await _updateUser(token);
+
+      FirebaseMessaging.instance.onTokenRefresh.listen(_updateUser);
+    } catch (e) {
+      debugPrint("$e");
     }
-
-    String? token = await FirebaseMessaging.instance.getToken();
-
-    if (token != null) await _updateUser(token);
-
-    FirebaseMessaging.instance.onTokenRefresh.listen(_updateUser);
   }
 
   Future<void> _updateUser(String token) async {
-    if (UserService.authenticated) {
-      usersRepository.updateUserToken(UserService.uid, token);
-      LocalStorageService.token = token;
-    }
+    if (!UserService.authenticated) return;
+    if (FirebaseAuth.instance.currentUser == null) return;
+
+    await usersRepository.updateUserToken(UserService.uid, token);
+    LocalStorageService.token = token;
   }
 
   Future<void> signIn() async {
@@ -104,14 +122,13 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
           UserService.displayName,
         );
 
-        final snapshot =
-            await FirebaseDatabase.instance
-                .ref()
-                .child("users")
-                .orderByChild("social_id")
-                .equalTo(socialId)
-                .limitToFirst(1)
-                .get();
+        final snapshot = await FirebaseDatabase.instance
+            .ref()
+            .child("users")
+            .orderByChild("social_id")
+            .equalTo(socialId)
+            .limitToFirst(1)
+            .get();
 
         if (snapshot.exists) {
           final data = jsonDecode(jsonEncode(snapshot.value));

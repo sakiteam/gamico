@@ -76,9 +76,7 @@ class AdmobCubit extends Cubit<AdmobState> {
   }
 
   Future<void> loadRewardedAd() async {
-    emit(state.copyWith(
-      rewardedAdStatus: AdmobRewardedAdStatus.loading,
-    ));
+    emit(state.copyWith(rewardedAdStatus: AdmobRewardedAdStatus.loading));
 
     await RewardedAd.load(
       adUnitId: kDebugMode ? testRewardedAdUnitId : adRewardedUnitId,
@@ -98,25 +96,21 @@ class AdmobCubit extends Cubit<AdmobState> {
             },
           );
 
-          emit(state.copyWith(
-            rewardedAdStatus: AdmobRewardedAdStatus.success,
-          ));
+          emit(state.copyWith(rewardedAdStatus: AdmobRewardedAdStatus.success));
         },
         onAdFailedToLoad: (error) {
           debugPrint(error.toString());
 
-          emit(state.copyWith(
-            rewardedAdStatus: AdmobRewardedAdStatus.failure,
-          ));
+          emit(state.copyWith(rewardedAdStatus: AdmobRewardedAdStatus.failure));
         },
       ),
     );
   }
 
   Future<void> loadInterstitialAd() async {
-    emit(state.copyWith(
-      interstitialAdStatus: AdmobInterstitialAdStatus.loading,
-    ));
+    emit(
+      state.copyWith(interstitialAdStatus: AdmobInterstitialAdStatus.loading),
+    );
 
     await InterstitialAd.load(
       adUnitId: kDebugMode ? testInterstitialAdUnitId : adInterstitialUnitId,
@@ -136,16 +130,20 @@ class AdmobCubit extends Cubit<AdmobState> {
             },
           );
 
-          emit(state.copyWith(
-            interstitialAdStatus: AdmobInterstitialAdStatus.success,
-          ));
+          emit(
+            state.copyWith(
+              interstitialAdStatus: AdmobInterstitialAdStatus.success,
+            ),
+          );
         },
         onAdFailedToLoad: (error) {
           debugPrint(error.toString());
 
-          emit(state.copyWith(
-            interstitialAdStatus: AdmobInterstitialAdStatus.failure,
-          ));
+          emit(
+            state.copyWith(
+              interstitialAdStatus: AdmobInterstitialAdStatus.failure,
+            ),
+          );
         },
       ),
     );
@@ -153,19 +151,21 @@ class AdmobCubit extends Cubit<AdmobState> {
 
   Future<void> ensureRewardedAdLoaded() async {
     await GamicoGlobalService.waitWhile(
-        () => state.rewardedAdStatus != AdmobRewardedAdStatus.success);
+      () => state.rewardedAdStatus != AdmobRewardedAdStatus.success,
+    );
   }
 
   Future<void> ensureInterstitialAdLoaded() async {
     await GamicoGlobalService.waitWhile(
-        () => state.interstitialAdStatus != AdmobInterstitialAdStatus.success);
+      () => state.interstitialAdStatus != AdmobInterstitialAdStatus.success,
+    );
   }
 
   Future<void> showRewardedAd(Function onShown) async {
     MusicService.pausedByAd = true;
 
     await _rewardedAd?.show(
-      onUserEarnedReward: (_, __) {
+      onUserEarnedReward: (_, _) {
         onShown();
       },
     );

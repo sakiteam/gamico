@@ -31,7 +31,8 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
   String get friendPageInvitationSent => "Приглашение отправлено!";
 
   @override
-  String get friendPageFailedToSendInvitation => "Не удалось отправить приглашение";
+  String get friendPageFailedToSendInvitation =>
+      "Не удалось отправить приглашение";
 
   @override
   String get friendPageUnknown => "Неизвестно";
@@ -51,7 +52,7 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
   @override
   String adventureChapterChapter(int chapter) => "Глава $chapter";
 
-/* COLLECTION */
+  /* COLLECTION */
 
   @override
   String collectionCardPopupFamily(String family) => "Семья: $family";
@@ -719,58 +720,58 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
 
   @override
   List<String> get names => [
-        "Алекс",
-        "Соня",
-        "Базиль",
-        "Йоанн",
-        "Айзек",
-        "Роберто",
-        "Танги",
-        "Джессе",
-        "Алиса",
-        "Христиан",
-        "Фабьен",
-        "Мими",
-        "Морис",
-        "Люси",
-        "Жозиан",
-        "Вьян",
-        "Аничетт",
-        "Аделин",
-        "Бенедикт",
-        "Роза",
-        "Дебора",
-        "Анж",
-        "Клеманс",
-        "Од",
-        "Мирей",
-        "Сесиль",
-        "Лоранс",
-        "Мариус",
-        "Надеж",
-        "Сильви",
-        "Кларисс",
-        "Клод",
-        "Клотильд",
-        "Андре",
-        "Кристина",
-        "Леопольд",
-        "Женевьев",
-        "Эсфер",
-        "Флор",
-        "Анжелика",
-        "Дженнифер",
-        "Юг",
-        "Югет",
-        "Оливье",
-        "Жюдит",
-        "Мартин",
-        "Рашель",
-        "Антуан",
-        "Альфред",
-        "Марта",
-        "Боб",
-      ];
+    "Алекс",
+    "Соня",
+    "Базиль",
+    "Йоанн",
+    "Айзек",
+    "Роберто",
+    "Танги",
+    "Джессе",
+    "Алиса",
+    "Христиан",
+    "Фабьен",
+    "Мими",
+    "Морис",
+    "Люси",
+    "Жозиан",
+    "Вьян",
+    "Аничетт",
+    "Аделин",
+    "Бенедикт",
+    "Роза",
+    "Дебора",
+    "Анж",
+    "Клеманс",
+    "Од",
+    "Мирей",
+    "Сесиль",
+    "Лоранс",
+    "Мариус",
+    "Надеж",
+    "Сильви",
+    "Кларисс",
+    "Клод",
+    "Клотильд",
+    "Андре",
+    "Кристина",
+    "Леопольд",
+    "Женевьев",
+    "Эсфер",
+    "Флор",
+    "Анжелика",
+    "Дженнифер",
+    "Юг",
+    "Югет",
+    "Оливье",
+    "Жюдит",
+    "Мартин",
+    "Рашель",
+    "Антуан",
+    "Альфред",
+    "Марта",
+    "Боб",
+  ];
 
   @override
   String gameTileNameLevel(int level) => "Уровень $level";
@@ -1155,7 +1156,7 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
   String get specialConnectKingDescription =>
       "Вашего короля атакуют. Оставьте его в покое и завершите ход!";
 
-/* SKILLS */
+  /* SKILLS */
 
   @override
   String get attackSkillNull => "Нулевое";
@@ -1283,4 +1284,7 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
       "Вы не выиграли и не проиграли! Почему бы не начать новую игру с другим игроком, чтобы определить победителя?";
   @override
   String get newPlayer => "Новый игрок";
+
+  @override
+  String get premiumButtonRemoveAds => "Убрать рекламу";
 }

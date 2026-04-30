@@ -10,7 +10,7 @@ homepage:
 
 # Environment
 environment:
-  sdk: ^3.10.1
+  sdk: ^3.10.7
 
 # Release dependencies
 dependencies:
@@ -58,10 +58,10 @@ dependencies:
   flutter_timezone: ^5.0.1
   flutter_animate:
   google_mobile_ads:
-  new_version_plus:
+  new_version_plus: ^1.0.1
   shared_preferences:
   cached_network_image:
-  awesome_notifications: ^0.10.1
+  awesome_notifications: ^0.11.0
   simple_connection_checker:
   loading_animation_widget:
   remove_diacritic: ^0.9.0

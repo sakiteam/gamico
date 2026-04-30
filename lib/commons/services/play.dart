@@ -6,6 +6,7 @@ import 'package:games_services/games_services.dart';
 import 'package:gamico/commons/cubits/authentication/authentication_cubit.dart';
 import 'package:gamico/commons/services/user.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:simple_connection_checker/simple_connection_checker.dart';
 
 class PlayService {
   static String authCode = "";
@@ -32,6 +33,11 @@ class PlayService {
 
   static Future<bool> enableGameServices() async {
     try {
+      if (!UserService.authenticated &&
+          !(await SimpleConnectionChecker.isConnectedToInternet())) {
+        return false;
+      }
+
       await GameAuth.signIn();
 
       if (UserService.authenticated) {

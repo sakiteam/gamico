@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gamico/commons/services/local_storage.dart';
+import 'package:new_version_plus/model/version_status.dart';
 import 'package:new_version_plus/new_version_plus.dart';
+import 'package:simple_connection_checker/simple_connection_checker.dart';
 
 class VersionService {
   static late String versionString;
@@ -12,11 +14,13 @@ class VersionService {
   }
 
   static final NewVersionPlus version = NewVersionPlus();
-  static late VersionStatus? status;
+  static VersionStatus? status;
 
   static Future<void> init() async {
     try {
-      status = await VersionService.version.getVersionStatus();
+      if (await SimpleConnectionChecker.isConnectedToInternet()) {
+        status = await VersionService.version.getVersionStatus();
+      }
     } catch (e) {
       debugPrint(e.toString());
       status = null;
@@ -43,14 +47,12 @@ class VersionService {
 
   static bool localVersionDeprecated() {
     if (storeVersion.isNotEmpty) {
-      final localParts = formatVersion(versionString)
-          .split(".")
-          .map((e) => int.tryParse(e) ?? 0)
-          .toList();
-      final storeParts = formatVersion(storeVersion)
-          .split(".")
-          .map((e) => int.tryParse(e) ?? 0)
-          .toList();
+      final localParts = formatVersion(
+        versionString,
+      ).split(".").map((e) => int.tryParse(e) ?? 0).toList();
+      final storeParts = formatVersion(
+        storeVersion,
+      ).split(".").map((e) => int.tryParse(e) ?? 0).toList();
 
       if (storeParts[0] > localParts[0]) {
         return true;

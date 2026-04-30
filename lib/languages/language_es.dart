@@ -31,7 +31,8 @@ abstract class GamicoLanguageEs extends GamicoLanguages {
   String get friendPageInvitationSent => "¡Invitación enviada!";
 
   @override
-  String get friendPageFailedToSendInvitation => "Error al enviar la invitación";
+  String get friendPageFailedToSendInvitation =>
+      "Error al enviar la invitación";
 
   @override
   String get friendPageUnknown => "Desconocido";
@@ -719,58 +720,58 @@ abstract class GamicoLanguageEs extends GamicoLanguages {
 
   @override
   List<String> get names => [
-        "Alex",
-        "Sonia",
-        "Basile",
-        "Yoann",
-        "Isaac",
-        "Roberto",
-        "Tanguy",
-        "Jessé",
-        "Alice",
-        "Christian",
-        "Fabienne",
-        "Mimi",
-        "Maurice",
-        "Lucie",
-        "Josiane",
-        "Vianney",
-        "Anicette",
-        "Adeline",
-        "Bénédicte",
-        "Rosa",
-        "Déborah",
-        "Ange",
-        "Clémence",
-        "Aude",
-        "Mireille",
-        "Cécile",
-        "Laurence",
-        "Marius",
-        "Nadège",
-        "Sylvie",
-        "Clarisse",
-        "Claude",
-        "Clotilde",
-        "André",
-        "Christine",
-        "Léopold",
-        "Geneviève",
-        "Esther",
-        "Flore",
-        "Angèle",
-        "Jennifer",
-        "Hugues",
-        "Huguette",
-        "Olivier",
-        "Judith",
-        "Martine",
-        "Rachel",
-        "Antoine",
-        "Alfred",
-        "Marthe",
-        "Bob",
-      ];
+    "Alex",
+    "Sonia",
+    "Basile",
+    "Yoann",
+    "Isaac",
+    "Roberto",
+    "Tanguy",
+    "Jessé",
+    "Alice",
+    "Christian",
+    "Fabienne",
+    "Mimi",
+    "Maurice",
+    "Lucie",
+    "Josiane",
+    "Vianney",
+    "Anicette",
+    "Adeline",
+    "Bénédicte",
+    "Rosa",
+    "Déborah",
+    "Ange",
+    "Clémence",
+    "Aude",
+    "Mireille",
+    "Cécile",
+    "Laurence",
+    "Marius",
+    "Nadège",
+    "Sylvie",
+    "Clarisse",
+    "Claude",
+    "Clotilde",
+    "André",
+    "Christine",
+    "Léopold",
+    "Geneviève",
+    "Esther",
+    "Flore",
+    "Angèle",
+    "Jennifer",
+    "Hugues",
+    "Huguette",
+    "Olivier",
+    "Judith",
+    "Martine",
+    "Rachel",
+    "Antoine",
+    "Alfred",
+    "Marthe",
+    "Bob",
+  ];
 
   @override
   String gameTileNameLevel(int level) => "Nivel $level";
@@ -1283,4 +1284,7 @@ abstract class GamicoLanguageEs extends GamicoLanguages {
       "¡No has ganado ni perdido! ¿Por qué no empezar otra partida con el otro jugador para desempatar?";
   @override
   String get newPlayer => "Nuevo jugador";
+
+  @override
+  String get premiumButtonRemoveAds => "Eliminar anuncios";
 }

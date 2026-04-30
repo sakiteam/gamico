@@ -40,20 +40,22 @@ class GamicoAdButton extends StatelessWidget {
         final failure = state.rewardedAdStatus == AdmobRewardedAdStatus.failure;
 
         final gamicoPopupButton = GamicoPopupButton(
-          iconText: l.globalAd.length > 3 ? "AD" : l.globalAd,
+          iconText: failure
+              ? null
+              : l.globalAd.length > 3
+              ? "AD"
+              : l.globalAd,
           foregroundColor: failure ? Colors.brown : color,
           icon: failure ? Icons.refresh : Icons.movie,
-          text:
-              failure
-                  ? l.watchAdButtonRefreshAd
-                  : (text ?? l.watchAdButtonWatchAd),
+          text: failure
+              ? l.watchAdButtonRefreshAd
+              : (text ?? l.watchAdButtonWatchAd),
           loading: state.rewardedAdStatus == AdmobRewardedAdStatus.loading,
-          onPressed:
-              failure
-                  ? () {
-                    context.read<AdmobCubit>().loadRewardedAd();
-                  }
-                  : onPressed,
+          onPressed: failure
+              ? () {
+                  context.read<AdmobCubit>().loadRewardedAd();
+                }
+              : onPressed,
         );
 
         return builder?.call(gamicoPopupButton, failure) ?? gamicoPopupButton;

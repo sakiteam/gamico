@@ -55,7 +55,7 @@ class NavigationService {
     return await Navigator.push<T>(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => page,
+        pageBuilder: (_, _, _) => page,
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
       ),
@@ -66,12 +66,12 @@ class NavigationService {
     BuildContext context,
     Widget page,
   ) async {
-    // await Future.delayed(AnimationService.animationDuration);
+    await Future.delayed(AnimationService.animationDuration);
 
     await Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => page,
+        pageBuilder: (_, _, _) => page,
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
       ),

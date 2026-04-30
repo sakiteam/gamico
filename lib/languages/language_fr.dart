@@ -31,7 +31,8 @@ abstract class GamicoLanguageFr extends GamicoLanguages {
   String get friendPageInvitationSent => "Invitation envoyée !";
 
   @override
-  String get friendPageFailedToSendInvitation => "Échec de l'envoi de l'invitation";
+  String get friendPageFailedToSendInvitation =>
+      "Échec de l'envoi de l'invitation";
 
   @override
   String get friendPageUnknown => "Inconnu";
@@ -1243,4 +1244,7 @@ abstract class GamicoLanguageFr extends GamicoLanguages {
       "Vous n'avez ni gagné ni perdu ! Pourquoi ne pas démarrer une autre partie avec l'autre joueur pour vous départager ?";
   @override
   String get newPlayer => "Nouveau joueur";
+
+  @override
+  String get premiumButtonRemoveAds => "Supprimer les publicités";
 }

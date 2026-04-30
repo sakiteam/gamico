@@ -26,13 +26,15 @@ class GamicoUserModel {
   final int? trophies;
   final int? lastGratification;
   final int? nextGratification;
-  final List<String>? skins;
-  final String? activeSkin;
+  final Map<String, dynamic>? progression;
+  final Map<String, dynamic>? skins;
+  final bool? premium;
 
   bool? get broke {
     return coins == null
         ? null
-        : coins! < Gamico.instance.gameSettings.playMinimumCoins;
+        : (coins! < Gamico.instance.gameSettings.playMinimumCoins) &&
+              !Gamico.instance.gameSettings.ignoreMinimumCoinsToPlay;
   }
 
   const GamicoUserModel({
@@ -60,7 +62,8 @@ class GamicoUserModel {
     this.lastGratification,
     this.nextGratification,
     this.skins,
-    this.activeSkin,
+    this.progression,
+    this.premium,
   });
 
   Map<String, dynamic> toJson() {
@@ -89,7 +92,8 @@ class GamicoUserModel {
       "online": online,
       "stars": stars,
       "skins": skins,
-      "active_skin": activeSkin,
+      "progression": progression,
+      "premium": premium,
     };
   }
 
@@ -122,15 +126,12 @@ class GamicoUserModel {
       gratifiedAt: DateTime.tryParse(json["gratified_at"] ?? ""),
       referrerId: json["referrer_id"],
       online: json["online"],
-      stars:
-          (json["stars"] as List?)?.map<int>((e) {
-            return e.toInt();
-          }).toList(),
-      skins:
-          (json["skins"] as List?)?.map<String>((e) {
-            return e.toString();
-          }).toList(),
-      activeSkin: json["active_skin"]?.toString(),
+      stars: (json["stars"] as List?)?.map<int>((e) {
+        return e.toInt();
+      }).toList(),
+      skins: json["skins"],
+      progression: json["progression"],
+      premium: json["premium"],
     );
   }
 }

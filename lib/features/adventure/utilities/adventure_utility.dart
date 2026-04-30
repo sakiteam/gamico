@@ -13,6 +13,10 @@ class AdventureUtility<T extends GamicoUserModel> {
   final int Function(T user) getUserLevel;
   final List<int> Function(T user) getUserStars;
 
+  final int startChapter;
+  final int endChapter;
+  final bool reversed;
+
   const AdventureUtility({
     required this.maxLevel,
     required this.levelsPerChapter,
@@ -20,8 +24,11 @@ class AdventureUtility<T extends GamicoUserModel> {
     required this.getUserStars,
     required this.chapters,
     required this.isUserBroke,
+    this.startChapter = 0,
+    this.endChapter = 20,
+    this.reversed = false,
     this.gameEndReward = 50,
-    this.initialLevelsLimit = 5,
+    this.initialLevelsLimit = 0,
     this.explanationPopup = const SizedBox(),
   });
 }

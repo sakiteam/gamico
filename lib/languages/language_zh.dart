@@ -656,58 +656,58 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
 
   @override
   List<String> get names => [
-        "亚历克斯",
-        "索尼娅",
-        "巴西尔",
-        "约翰",
-        "艾萨克",
-        "罗伯特",
-        "坦吉",
-        "杰西",
-        "爱丽丝",
-        "克里斯蒂安",
-        "法比安",
-        "米米",
-        "莫里斯",
-        "露西",
-        "若西安",
-        "维安尼",
-        "阿尼塞特",
-        "阿德琳",
-        "本尼迪克特",
-        "罗莎",
-        "德博拉",
-        "安吉",
-        "克莱曼斯",
-        "奥德",
-        "米莱尔",
-        "塞西尔",
-        "劳伦斯",
-        "马里奥",
-        "纳代吉",
-        "西尔维",
-        "克拉丽丝",
-        "克洛德",
-        "克罗蒂尔德",
-        "安德烈",
-        "克里斯汀",
-        "利奥波德",
-        "吉纳维芙",
-        "埃斯特尔",
-        "弗洛尔",
-        "安吉莉卡",
-        "珍妮弗",
-        "休伊",
-        "休格特",
-        "奥利弗",
-        "朱迪思",
-        "马丁",
-        "拉海尔",
-        "安托万",
-        "阿尔弗雷德",
-        "玛莎",
-        "鲍勃",
-      ];
+    "亚历克斯",
+    "索尼娅",
+    "巴西尔",
+    "约翰",
+    "艾萨克",
+    "罗伯特",
+    "坦吉",
+    "杰西",
+    "爱丽丝",
+    "克里斯蒂安",
+    "法比安",
+    "米米",
+    "莫里斯",
+    "露西",
+    "若西安",
+    "维安尼",
+    "阿尼塞特",
+    "阿德琳",
+    "本尼迪克特",
+    "罗莎",
+    "德博拉",
+    "安吉",
+    "克莱曼斯",
+    "奥德",
+    "米莱尔",
+    "塞西尔",
+    "劳伦斯",
+    "马里奥",
+    "纳代吉",
+    "西尔维",
+    "克拉丽丝",
+    "克洛德",
+    "克罗蒂尔德",
+    "安德烈",
+    "克里斯汀",
+    "利奥波德",
+    "吉纳维芙",
+    "埃斯特尔",
+    "弗洛尔",
+    "安吉莉卡",
+    "珍妮弗",
+    "休伊",
+    "休格特",
+    "奥利弗",
+    "朱迪思",
+    "马丁",
+    "拉海尔",
+    "安托万",
+    "阿尔弗雷德",
+    "玛莎",
+    "鲍勃",
+  ];
 
   @override
   String gameTileNameLevel(int level) => "级别 $level";
@@ -1050,7 +1050,7 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
   @override
   String get specialConnectKingDescription => "你的国王正在受到攻击。请不要干扰他，结束你的回合！";
 
-/* SKILLS */
+  /* SKILLS */
 
   @override
   String get attackSkillNull => "无";
@@ -1172,4 +1172,7 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
   String get remoteDrawDescription => "您既没有赢也没有输！为什么不与另一位玩家开始另一局游戏来分出胜负？";
   @override
   String get newPlayer => "新玩家";
+
+  @override
+  String get premiumButtonRemoveAds => "去除广告";
 }

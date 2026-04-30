@@ -11,14 +11,13 @@
 
 // FONCTIONNEL
 
-// Sur l'écran de loading, le chargement ne doit pas être bloqué même si on manque d'internet
+//  _iap.restorePurchases() a été commenté (vérifier que ça ne pose pas de problème)
 // Régler les noms des IAs jusqu'au dernier niveau
 // Permettre le chat pendant la partie
 // OptionButtonSlider doit afficher le contenu si option est enabled
 // Si Admob n'a pas été bien chargé à l'initialisation, insiter jusqu'à ce que ça prenne
 // Si user a déjà ouvert GamePopup à la fin du jeu, ne pas ouvrir encore grâce au code qui le fait automatiquement
 // Créer un Draggable et un DragTarget adaptés à Gamico
-// Introduire le bouton d'aide
 // Gérer plus correctement le prix de l'offre à côté de l'offre spéciale
 // Améliorer la gestion des images/icônes (selon ce que le user veut) des packs et les CoinsWidget
 // Ajouter les voices pour toutes les langues

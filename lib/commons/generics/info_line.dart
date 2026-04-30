@@ -30,6 +30,7 @@ class GamicoInfoLine extends StatelessWidget {
               height: 0.5,
               color:
                   Gamico.instance.aboutSettings?.infoLineSeparatorColor ??
+                  Gamico.instance.aboutSettings?.infoLineSeparatorColor ??
                   Colors.brown,
               margin: const EdgeInsets.symmetric(horizontal: 2),
             ),

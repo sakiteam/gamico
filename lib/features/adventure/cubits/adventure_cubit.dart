@@ -39,4 +39,12 @@ class GamicoAdventureCubit extends Cubit<GamicoAdventureState> {
   void setNextLevelToPlay(int? nextLevelToPlay) {
     emit(state.copyWith(nextLevelToPlay: () => nextLevelToPlay));
   }
+
+  void setRemoteUtility(RemoteUtility? remoteUtility) {
+    emit(state.copyWith(remoteUtility: () => remoteUtility));
+  }
+
+  void setAdventureUtility(AdventureUtility adventureUtility) {
+    emit(state.copyWith(adventureUtility: adventureUtility));
+  }
 }

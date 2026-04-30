@@ -43,10 +43,12 @@ class PassAndPlayModeSettings implements GameModeSettings {
   @override
   String? gamePopupDescription(BuildContext context) {
     final l = GamicoLanguages.of(context);
-    final victory =
-        context.select((GamicoGameCubit userCubit) => userCubit.state.victory);
-    final secondVictory = context
-        .select((GamicoGameCubit userCubit) => userCubit.state.secondVictory);
+    final victory = context.select(
+      (GamicoGameCubit userCubit) => userCubit.state.victory,
+    );
+    final secondVictory = context.select(
+      (GamicoGameCubit userCubit) => userCubit.state.secondVictory,
+    );
 
     if (victory == null) {
       return l.passAndPlayDrawDescription;
@@ -63,10 +65,12 @@ class PassAndPlayModeSettings implements GameModeSettings {
   String? gamePopupTitle(BuildContext context) {
     final l = GamicoLanguages.of(context);
 
-    final victory =
-        context.select((GamicoGameCubit gameCubit) => gameCubit.state.victory);
-    final secondVictory = context
-        .select((GamicoGameCubit gameCubit) => gameCubit.state.secondVictory);
+    final victory = context.select(
+      (GamicoGameCubit gameCubit) => gameCubit.state.victory,
+    );
+    final secondVictory = context.select(
+      (GamicoGameCubit gameCubit) => gameCubit.state.secondVictory,
+    );
 
     if (victory == null) {
       return l.passAndPlayDrawTitle;
@@ -95,10 +99,7 @@ class PassAndPlayModeSettings implements GameModeSettings {
     GamicoGameExitButton exitButton,
     GamicoGameReplayButton replayButton,
   ) {
-    return [
-      exitButton,
-      replayButton,
-    ];
+    return [exitButton, replayButton];
   }
 
   @override
@@ -128,7 +129,7 @@ class PassAndPlayModeSettings implements GameModeSettings {
 
   @override
   bool shouldShowAds(BuildContext context) {
-    return GameService.plays >= 5;
+    return GameService.plays >= 3;
   }
 
   @override

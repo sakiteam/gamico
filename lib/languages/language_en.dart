@@ -1275,4 +1275,7 @@ abstract class GamicoLanguageEn extends GamicoLanguages {
       "You neither won nor lost! Why not start another game with the other player to break the tie?";
   @override
   String get newPlayer => "New Player";
+
+  @override
+  String get premiumButtonRemoveAds => "Remove Ads";
 }
