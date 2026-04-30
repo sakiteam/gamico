@@ -84,14 +84,21 @@ class AdventureLevelButton extends StatelessWidget {
     // Current user level
     final userLevel = adventureUtility.getUserLevel(user);
 
-    final currentChapter = ((level - 1) / adventureUtility.levelsPerChapter)
+    final globalChapter = ((level - 1) / adventureUtility.levelsPerChapter)
         .floor();
 
-    if (pageController.page != currentChapter) {
+    final currentRelativeChapter = adventureUtility.reversed
+        ? (adventureUtility.endChapter - 1) - globalChapter
+        : globalChapter - adventureUtility.startChapter;
+
+    if (pageController.page?.round() != currentRelativeChapter) {
       await pageController.animateToPage(
-        currentChapter,
+        currentRelativeChapter.clamp(
+          0,
+          adventureUtility.endChapter - adventureUtility.startChapter - 1,
+        ),
         duration: AnimationService.animationDuration,
-        curve: Curves.linear,
+        curve: Curves.easeOutCubic,
       );
     }
 

@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/generics/pop_scope.dart';
@@ -125,10 +124,9 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
         final user = context.read<GamicoUserCubit>().state.user;
         final userLevel = widget.adventureUtility.getUserLevel(user);
         final currentChapter = getChapterByLevel(userLevel);
-        final relativeChapter =
-            widget.adventureUtility.reversed
-                ? (widget.adventureUtility.endChapter - 1) - currentChapter
-                : currentChapter - widget.adventureUtility.startChapter;
+        final relativeChapter = widget.adventureUtility.reversed
+            ? (widget.adventureUtility.endChapter - 1) - currentChapter
+            : currentChapter - widget.adventureUtility.startChapter;
 
         pageController.animateToPage(
           relativeChapter.clamp(
