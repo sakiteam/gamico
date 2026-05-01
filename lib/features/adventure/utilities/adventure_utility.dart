@@ -1,7 +1,8 @@
+import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:gamico/commons/models/gamico_user_model.dart';
 
-class AdventureUtility<T extends GamicoUserModel> {
+class AdventureUtility<T extends GamicoUserModel> extends Equatable {
   final int chapters;
   final int maxLevel;
   final int gameEndReward;
@@ -31,4 +32,17 @@ class AdventureUtility<T extends GamicoUserModel> {
     this.initialLevelsLimit = 0,
     this.explanationPopup = const SizedBox(),
   });
+
+  @override
+  List<Object?> get props => [
+    chapters,
+    maxLevel,
+    gameEndReward,
+    levelsPerChapter,
+    initialLevelsLimit,
+    // explanationPopup,
+    startChapter,
+    endChapter,
+    reversed,
+  ];
 }

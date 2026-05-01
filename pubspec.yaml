@@ -65,6 +65,7 @@ dependencies:
   simple_connection_checker:
   loading_animation_widget:
   remove_diacritic: ^0.9.0
+  equatable: ^2.0.8
 
 dependency_overrides:
   intl: ^0.20.2

@@ -13,10 +13,16 @@ class AdventureChaptersPageView extends StatefulWidget {
   )
   itemBuilder;
 
+  final void Function(double page)? onScroll;
+
+  final void Function(int page)? onPageChanged;
+
   const AdventureChaptersPageView({
     super.key,
     required this.controller,
     required this.itemBuilder,
+    this.onScroll,
+    this.onPageChanged,
   });
 
   @override
@@ -38,33 +44,47 @@ class _AdventureChaptersPageViewState extends State<AdventureChaptersPageView> {
           adventureUtility.getUserLevel(userCubit.state.user),
     );
 
-    return PageView(
-      clipBehavior: Clip.none,
-      onPageChanged: (value) {
-        setState(() {
-          _currentIndex = adventureUtility.reversed
-              ? adventureUtility.endChapter - 1 - value
-              : value + adventureUtility.startChapter;
-        });
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is ScrollUpdateNotification) {
+          if (widget.controller.hasClients) {
+            widget.onScroll?.call(widget.controller.page ?? 0);
+          }
+        }
+        return false;
       },
-      controller: widget.controller,
-      children: [
-        for (int i = 0;
-            i < (adventureUtility.endChapter - adventureUtility.startChapter);
-            i++)
-          () {
-            final globalIndex = adventureUtility.reversed
-                ? (adventureUtility.endChapter - 1 - i)
-                : (adventureUtility.startChapter + i);
+      child: PageView(
+        clipBehavior: Clip.none,
+        onPageChanged: (value) {
+          setState(() {
+            _currentIndex =
+                adventureUtility.reversed
+                    ? adventureUtility.endChapter - 1 - value
+                    : value + adventureUtility.startChapter;
+          });
+          widget.onPageChanged?.call(value);
+        },
+        controller: widget.controller,
+        children: [
+          for (int i = 0;
+              i < (adventureUtility.endChapter - adventureUtility.startChapter);
+              i++)
+            () {
+              final globalIndex =
+                  adventureUtility.reversed
+                      ? (adventureUtility.endChapter - 1 - i)
+                      : (adventureUtility.startChapter + i);
 
-            return widget.itemBuilder(
-              context,
-              globalIndex,
-              userLevel < (globalIndex * adventureUtility.levelsPerChapter + 1),
-              _currentIndex,
-            );
-          }(),
-      ],
+              return widget.itemBuilder(
+                context,
+                globalIndex,
+                userLevel <
+                    (globalIndex * adventureUtility.levelsPerChapter + 1),
+                _currentIndex,
+              );
+            }(),
+        ],
+      ),
     );
   }
 }
