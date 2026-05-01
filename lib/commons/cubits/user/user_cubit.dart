@@ -114,6 +114,10 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     usersRepository.incrementUserLevel(UserService.uid);
   }
 
+  void updateUserLevel(int level) {
+    usersRepository.updateUserLevel(UserService.uid, level);
+  }
+
   void updateStars(List<int> stars) {
     usersRepository.updateUserStars(UserService.uid, stars);
   }

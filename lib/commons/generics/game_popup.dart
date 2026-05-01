@@ -102,6 +102,9 @@ class GamicoGamePopup extends StatelessWidget {
                       (gameMode.isOpponentAvailable(context) ||
                           Gamico.instance.playSettings?.singlePlayerWhenFake ==
                               true),
+                  color: gameMode.isPossibleToPlayNextLevel(context)
+                      ? null
+                      : ColorService.accentColor,
                 ),
               ),
             ),

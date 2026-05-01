@@ -15,12 +15,15 @@ class GamicoAdventureGameCubit extends Cubit<GamicoAdventureGameState> {
     required int level,
     required this.gameCubit,
     required this.adventureUtility,
-  }) : super(GamicoAdventureGameState(
-          adventureUtility: adventureUtility,
-          level: level,
-          userInitialLevel:
-              adventureUtility.getUserLevel(gameCubit.userCubit.state.user),
-        ));
+  }) : super(
+         GamicoAdventureGameState(
+           adventureUtility: adventureUtility,
+           level: level,
+           userInitialLevel: adventureUtility.getUserLevel(
+             gameCubit.userCubit.state.user,
+           ),
+         ),
+       );
 
   void init() {
     gameCubit.onInit = () async {
@@ -40,28 +43,27 @@ class GamicoAdventureGameCubit extends Cubit<GamicoAdventureGameState> {
       if (!gameCubit.state.over) {
         if (state.level ==
             adventureUtility.getUserLevel(gameCubit.userCubit.state.user)) {
-          gameCubit.userCubit
-              .decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
+          gameCubit.userCubit.decrementCowries(
+            Gamico.instance.gameSettings.playMinimumCoins,
+          );
         }
       }
     };
   }
 
   void setExplanationDialog(bool explanationDialog) {
-    emit(state.copyWith(
-      explanationDialog: explanationDialog,
-    ));
+    emit(state.copyWith(explanationDialog: explanationDialog));
   }
 
   void setNextLevelActive(bool nextLevelActive) {
-    emit(state.copyWith(
-      nextLevelActive: nextLevelActive,
-    ));
+    emit(state.copyWith(nextLevelActive: nextLevelActive));
   }
 
   void setReplayActive(bool replayActive) {
-    emit(state.copyWith(
-      replayActive: replayActive,
-    ));
+    emit(state.copyWith(replayActive: replayActive));
+  }
+
+  void setLevel(int level) {
+    gameCubit.userCubit.updateUserLevel(level);
   }
 }

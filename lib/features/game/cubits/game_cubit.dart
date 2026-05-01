@@ -105,6 +105,12 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
     }
   }
 
+  /// Sets a narrative message to display in the end-of-game poster description.
+  /// Pass null to clear it (fall back to the default mode description).
+  void setEndMessage(String? message) {
+    emit(state.copyWith(endMessage: () => message));
+  }
+
   void setStars(int stars) {
     emit(state.copyWith(stars: stars));
   }

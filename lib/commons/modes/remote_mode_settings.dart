@@ -107,6 +107,10 @@ class RemoteModeSettings implements GameModeSettings {
           remoteGameCubit.state.level ?? 0,
     );
 
+    final endMessage = context.select(
+      (GamicoGameCubit gameCubit) => gameCubit.state.endMessage,
+    );
+
     final opponentAvailable = isOpponentAvailable(context);
 
     if (Gamico.instance.playSettings?.singlePlayerWhenFake != true ||
@@ -121,8 +125,9 @@ class RemoteModeSettings implements GameModeSettings {
     } else {
       // final possibleToPlayNextLevel = isPossibleToPlayNextLevel(context);
 
-      if (adventureUtility?.maxLevel != null &&
-          level == adventureUtility!.maxLevel) {
+      if ((adventureUtility?.maxLevel != null &&
+              level == adventureUtility!.maxLevel) ||
+          endMessage != null) {
         return l.adventureVictoryGameFinishedDescription;
       }
 
@@ -240,11 +245,16 @@ class RemoteModeSettings implements GameModeSettings {
           remoteGameCubit.state.level ?? 0,
     );
 
+    final endMessage = context.select(
+      (GamicoGameCubit gameCubit) => gameCubit.state.endMessage,
+    );
+
     return (userLevel == level + 1
             ? (coins >= Gamico.instance.gameSettings.playMinimumCoins ||
                   Gamico.instance.gameSettings.ignoreMinimumCoinsToPlay)
             : userLevel > level) &&
-        level != adventureUtility?.maxLevel;
+        level != adventureUtility?.maxLevel &&
+        endMessage == null;
   }
 
   @override
@@ -352,6 +362,10 @@ class RemoteModeSettings implements GameModeSettings {
               remoteGameCubit.state.level ?? 0,
         );
 
+        final endMessage = context.select(
+          (GamicoGameCubit gameCubit) => gameCubit.state.endMessage,
+        );
+
         // context.select(
         //   (GamicoAdventureGameCubit userCubit) => userCubit.state.level,
         // );
@@ -377,7 +391,8 @@ class RemoteModeSettings implements GameModeSettings {
             (
             //victory == true ||
             userLevel > level) &&
-            level != adventureUtility?.maxLevel;
+            level != adventureUtility?.maxLevel &&
+            endMessage == null;
 
         final isFriendGame = context.select(
           (GamicoRemoteGameCubit remoteGameCubit) =>
@@ -502,6 +517,7 @@ class RemoteModeSettings implements GameModeSettings {
         gameState.victory,
         remoteGameState.level,
         adventureUtility.maxLevel,
+        gameState.endMessage,
       );
     }
   }

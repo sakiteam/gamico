@@ -19,6 +19,7 @@ bool shouldShowAdsInAdventureGame(
   bool? victory,
   int? currentLevel,
   int maxLevel,
+  String? endMessage,
 ) {
   // final gameCubit = context.read<GamicoGameCubit>();
   // final adventureGameCubit = context.read<GamicoAdventureGameCubit>();
@@ -27,7 +28,7 @@ bool shouldShowAdsInAdventureGame(
   // final adventureGameState = adventureGameCubit.state;
 
   return GameService.plays >= 3 &&
-      !(victory == true && currentLevel == maxLevel);
+      !(victory == true && (currentLevel == maxLevel || endMessage != null));
 }
 
 void gamePageManageCoinsAndStarsInAdventureGame(

@@ -18,6 +18,10 @@ class GamicoGameState {
   final bool secondVictory;
   final bool active;
 
+  /// Optional narrative text shown in the end-of-game poster description.
+  /// When set, it takes priority over the default mode description.
+  final String? endMessage;
+
   bool get enabled => !animated;
   bool get tutorial => mode == GameType.tutorial;
   bool get abandonmentImpossible => over || tutorial;
@@ -40,6 +44,7 @@ class GamicoGameState {
     this.tripleAdWatched = false,
     this.ready = false,
     this.active = true,
+    this.endMessage,
   });
 
   GamicoGameState copyWith({
@@ -58,6 +63,7 @@ class GamicoGameState {
     bool? tripleAdWatched,
     bool? ready,
     bool? active,
+    String? Function()? endMessage,
   }) {
     return GamicoGameState(
       mode: mode ?? this.mode,
@@ -75,6 +81,7 @@ class GamicoGameState {
       animInit: animInit ?? this.animInit,
       animated: animated ?? this.animated,
       active: active ?? this.active,
+      endMessage: endMessage != null ? endMessage() : this.endMessage,
     );
   }
 }

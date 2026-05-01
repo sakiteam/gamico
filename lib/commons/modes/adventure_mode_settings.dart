@@ -56,6 +56,11 @@ class AdventureModeSettings implements GameModeSettings {
 
   @override
   String? gamePopupDescription(BuildContext context) {
+    final endMessage = context.select(
+      (GamicoGameCubit gameCubit) => gameCubit.state.endMessage,
+    );
+    if (endMessage != null) return endMessage;
+
     final l = GamicoLanguages.of(context);
     final adventureUtility = context.select(
       (GamicoAdventureGameCubit userCubit) => userCubit.state.adventureUtility,
@@ -163,11 +168,16 @@ class AdventureModeSettings implements GameModeSettings {
       (GamicoAdventureGameCubit cubit) => cubit.state.level,
     );
 
+    final endMessage = context.select(
+      (GamicoGameCubit gameCubit) => gameCubit.state.endMessage,
+    );
+
     return (userLevel == level + 1
             ? (coins >= Gamico.instance.gameSettings.playMinimumCoins ||
                   Gamico.instance.gameSettings.ignoreMinimumCoinsToPlay)
             : userLevel > level) &&
-        level != adventureUtility.maxLevel;
+        level != adventureUtility.maxLevel &&
+        endMessage == null;
   }
 
   @override
@@ -193,6 +203,10 @@ class AdventureModeSettings implements GameModeSettings {
       (GamicoGameCubit userCubit) => userCubit.state.victory,
     );
 
+    final endMessage = context.select(
+      (GamicoGameCubit gameCubit) => gameCubit.state.endMessage,
+    );
+
     final nextLevelButton = GamicoIconTextButton(
       color: ColorService.accentColor,
       onPressed: !isPossibleToPlayNextLevel(context)
@@ -207,7 +221,8 @@ class AdventureModeSettings implements GameModeSettings {
 
     final nextLevelVisible =
         (victory == true || userLevel > level) &&
-        level != adventureUtility.maxLevel;
+        level != adventureUtility.maxLevel &&
+        endMessage == null;
 
     return [exitButton, if (nextLevelVisible) nextLevelButton, replayButton];
   }
@@ -283,6 +298,7 @@ class AdventureModeSettings implements GameModeSettings {
       gameState.victory,
       adventureGameState.level,
       adventureGameState.adventureUtility.maxLevel,
+      gameState.endMessage,
     );
   }
 
