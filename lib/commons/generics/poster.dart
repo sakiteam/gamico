@@ -20,11 +20,15 @@ class GamicoPoster extends StatelessWidget {
 
   final bool expandIcon;
   final bool expandContent;
+  final bool expandDescription;
 
   final double animationTarget;
 
   static const double titleFontSize = 22 * 450 / 400;
   static const double descriptionFontSize = 17 * 450 / 400;
+
+  static const double descriptionHeight = 51 * 450 / 400;
+
   static Color titleColor = Colors.white;
   static Color iconColor = Colors.brown.shade700;
   static Color descriptionColor = Colors.brown.shade700;
@@ -52,6 +56,7 @@ class GamicoPoster extends StatelessWidget {
     this.loading = false,
     this.expandIcon = false,
     this.expandContent = false,
+    this.expandDescription = false,
     this.animationTarget = 1,
     this.padding,
     this.iconPadding,
@@ -82,11 +87,10 @@ class GamicoPoster extends StatelessWidget {
         : null;
 
     final finalDescriptionWidget =
-        descriptionWidget ??
+        (descriptionWidget ??
         (description != null
             ? SizedBox(
-                // color: Colors.red,
-                height: 51 * 450 / 400,
+                height: descriptionHeight,
                 child: AutoSizeText(
                   description!,
                   maxLines: 3,
@@ -97,7 +101,7 @@ class GamicoPoster extends StatelessWidget {
                   ),
                 ),
               )
-            : null);
+            : null));
 
     final finalTitleWidget =
         titleWidget ?? (title != null ? GamicoPosterTitle(title) : null);
@@ -158,15 +162,18 @@ class GamicoPoster extends StatelessWidget {
         if (finalTitleWidget != null && finalDescriptionWidget != null)
           const SizedBox(height: 16 * 450 / 400),
         if (finalDescriptionWidget != null)
-          Padding(
-            padding: descriptionPadding ?? finalDefaultPadding,
-            child: finalDescriptionWidget
-                .animate(target: animationTarget)
-                .fadeIn(
-                  delay: AnimationService.animationDurationQuarter * 2,
-                  duration: AnimationService.animationDurationQuarter,
-                )
-                .slideY(begin: 0.125),
+          Expanded(
+            flex: expandDescription ? 1 : 0,
+            child: Padding(
+              padding: descriptionPadding ?? finalDefaultPadding,
+              child: finalDescriptionWidget
+                  .animate(target: animationTarget)
+                  .fadeIn(
+                    delay: AnimationService.animationDurationQuarter * 2,
+                    duration: AnimationService.animationDurationQuarter,
+                  )
+                  .slideY(begin: 0.125),
+            ),
           ),
         if (finalDescriptionWidget != null &&
             finalContentWidget != null &&
