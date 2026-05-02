@@ -7,6 +7,8 @@ import 'package:gamico/features/game/cubits/tutorial/tutorial_game_cubit.dart';
 import 'package:gamico/languages/languages.dart';
 
 class GamicoGameInitialTutorialPopup extends StatelessWidget {
+  static Widget? iconWidget;
+
   const GamicoGameInitialTutorialPopup({super.key});
 
   @override
@@ -23,6 +25,7 @@ class GamicoGameInitialTutorialPopup extends StatelessWidget {
         simple: true,
         // icon: Icons.school,
         icon: Icons.help,
+        iconWidget: iconWidget,
         title: currentLesson?.title,
         acceptationText: l.gameInitialTutorialPopupPlay,
         acceptationIcon: Icons.sports_esports,
