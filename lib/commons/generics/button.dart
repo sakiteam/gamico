@@ -12,7 +12,7 @@ class GamicoButton extends StatelessWidget {
   final bool ink;
   final Curve? curve;
 
-  static const double defaultBorderRadius = 12;
+  static double defaultBorderRadius = 12;
 
   const GamicoButton({
     super.key,

@@ -98,6 +98,7 @@ class RemoteCubit extends Cubit<RemoteState> {
         animGame: false,
         finalized: false,
         fakeOpponent: false,
+        playersFound: 0,
         // animInit: false,
         level: level == null ? null : () => level,
       ),
@@ -132,7 +133,7 @@ class RemoteCubit extends Cubit<RemoteState> {
     // if (DateTime.now().year < 2025) {
 
     minOpponentLevel = matchmakingSettings.minLevel;
-    maxOpponentLevel = matchmakingSettings.maxLevel;
+    maxOpponentLevel = matchmakingSettings.maxLevel + 1;
 
     // } else {
     // minOpponentLevel = max(
@@ -254,14 +255,22 @@ class RemoteCubit extends Cubit<RemoteState> {
             final gameStatus = gameData.status ?? "";
             final gamePlayers = gameData.players?.values ?? [];
             final gamePlayersIds = gamePlayers.map((e) => e.userId).toSet();
+            final requiredPlayersCount = matchmakingSettings.maxPlayers ?? 2;
 
             createdGameStatus = gameStatus;
 
             if (gameStatus == "STARTED") {
-              emit(state.copyWith(fakeOpponent: gamePlayersIds.length < 2));
+              emit(
+                state.copyWith(
+                  fakeOpponent: gamePlayersIds.length < requiredPlayersCount,
+                  playersFound: gamePlayersIds.length,
+                ),
+              );
 
               launchGame();
               _streamSubscription?.cancel();
+            } else {
+              _emitPlayersFound(gamePlayersIds);
             }
           });
 
@@ -278,6 +287,9 @@ class RemoteCubit extends Cubit<RemoteState> {
       DatabaseReference gameRef = FirebaseDatabase.instance.ref().child(
         "games/$gameId",
       );
+
+      final playerRef = gameRef.child("players").push();
+      final playerKey = playerRef.key ?? "";
 
       bool firstRun = true;
       final result = await gameRef.runTransaction((Object? game) {
@@ -298,13 +310,16 @@ class RemoteCubit extends Cubit<RemoteState> {
           return Transaction.abort();
         }
 
-        // Generate a new child location
-        DatabaseReference playerRef = gameRef.push();
-
         DateTime now = DateTime.now();
 
-        currentGame["status"] = "STARTED";
-        currentGame["players"]?[playerRef.key] = <String, dynamic>{
+        final playersMap = currentGame["players"] as Map? ?? {};
+        final requiredPlayersCount = matchmakingSettings.maxPlayers ?? 2;
+
+        if (playersMap.length + 1 >= requiredPlayersCount) {
+          currentGame["status"] = "STARTED";
+        }
+        currentGame["players"] ??= <String, dynamic>{};
+        currentGame["players"][playerKey] = <String, dynamic>{
           "created_at": now.toString(),
           "updated_at": now.toString(),
           "status": "ACCEPTED",
@@ -317,12 +332,94 @@ class RemoteCubit extends Cubit<RemoteState> {
       if (result.committed == false) {
         _init();
       } else {
-        launchGame();
+        _userDisconnectionReference = FirebaseDatabase.instance
+            .ref("games/$gameId/players/$playerKey")
+            .onDisconnect();
+        await _userDisconnectionReference?.remove();
+
+        final rawData = result.snapshot.value;
+        final validData = jsonDecode(jsonEncode(rawData));
+        final gameData = GamicoGameModel.fromJson(
+          Map<String, dynamic>.from(validData ?? {}),
+        );
+        final gameStatus = gameData.status ?? "";
+        final gamePlayers = gameData.players?.values ?? [];
+        final gamePlayersIds = gamePlayers.map((e) => e.userId).toSet();
+        final requiredPlayersCount = matchmakingSettings.maxPlayers ?? 2;
+
+        if (gameStatus == "STARTED") {
+          emit(
+            state.copyWith(
+              fakeOpponent: gamePlayersIds.length < requiredPlayersCount,
+            ),
+          );
+          launchGame();
+        } else {
+          _streamSubscription?.cancel();
+          _streamSubscription = FirebaseDatabase.instance
+              .ref("games/$gameId")
+              .onValue
+              .listen((event) {
+                final rawData = event.snapshot.value;
+                final validData = jsonDecode(jsonEncode(rawData));
+                final gameData = GamicoGameModel.fromJson(
+                  Map<String, dynamic>.from(validData ?? {}),
+                );
+                final gameStatus = gameData.status ?? "";
+                final gamePlayers = gameData.players?.values ?? [];
+                final gamePlayersIds = gamePlayers.map((e) => e.userId).toSet();
+
+                if (gameStatus == "STARTED") {
+                  emit(
+                    state.copyWith(
+                      fakeOpponent:
+                          gamePlayersIds.length < requiredPlayersCount,
+                      playersFound: gamePlayersIds.length,
+                    ),
+                  );
+                  launchGame();
+                  _streamSubscription?.cancel();
+                } else {
+                  _emitPlayersFound(gamePlayersIds);
+                }
+              });
+        }
       }
     }
   }
 
+  Future<void> _emitPlayersFound(Set<String?> ids) async {
+    emit(state.copyWith(playersFound: ids.length));
+    final names = await _fetchPlayerNames(ids);
+    if (!isClosed) emit(state.copyWith(playerNames: names));
+  }
+
+  Future<List<String>> _fetchPlayerNames(Set<String?> ids) async {
+    final myUid = UserService.uid;
+    final ordered = [myUid, ...ids.where((id) => id != null && id != myUid)];
+    final names = <String>[];
+    for (final uid in ordered) {
+      if (uid == null) continue;
+      try {
+        final snap =
+            await FirebaseDatabase.instance.ref('users/$uid').get();
+        final data = snap.value;
+        if (data is Map) {
+          names.add(data['name']?.toString() ?? '...');
+        } else {
+          names.add('...');
+        }
+      } catch (_) {
+        names.add('...');
+      }
+    }
+    return names;
+  }
+
   void _manageFakeGame() async {
+    final requiredPlayersCount = remoteUtility.matchmakingSettings.maxPlayers ?? 2;
+    if (requiredPlayersCount > 2) return;
+
     await Future.delayed(5.seconds);
 
     if (state.status == RemoteGameStatus.success) return;
@@ -348,6 +445,9 @@ class RemoteCubit extends Cubit<RemoteState> {
 
   void launchGame() {
     if (isClosed) return;
+
+    _userDisconnectionReference?.cancel();
+    _userDisconnectionReference = null;
 
     emit(
       state.copyWith(

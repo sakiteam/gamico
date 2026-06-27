@@ -2,8 +2,8 @@ import 'package:gamico/commons/models/gamico_game_model.dart';
 
 class GamicoGameCubitSettings {
   // REMOTE
-  final void Function() onRemoteUserGaveUp;
-  final void Function() onRemoteUserDisconnectedDuringGame;
+  final void Function(String userId) onRemoteUserGaveUp;
+  final void Function(String userId) onRemoteUserDisconnectedDuringGame;
   final void Function(GamicoGameEventModel event) receiveMoveFromRemotePlayer;
 
   // TUTORIAL

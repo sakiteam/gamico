@@ -35,6 +35,10 @@ class GamicoDialogPoster extends StatelessWidget {
   final Widget? acceptationIconWidget;
   final Widget? rejectionIconWidget;
 
+  final Color? titleColor;
+  final Color? descriptionColor;
+  final Color? iconColor;
+
   const GamicoDialogPoster({
     super.key,
     this.icon,
@@ -61,6 +65,10 @@ class GamicoDialogPoster extends StatelessWidget {
     //
     this.acceptationButtonEnabled = true,
     this.rejectionButtonEnabled = true,
+    //
+    this.titleColor,
+    this.descriptionColor,
+    this.iconColor,
   });
 
   @override
@@ -68,6 +76,9 @@ class GamicoDialogPoster extends StatelessWidget {
     final l = GamicoLanguages.of(context);
 
     return GamicoPoster(
+      currentIconColor: iconColor,
+      currentTitleColor: titleColor,
+      currentDescriptionColor: descriptionColor,
       content:
           content ??
           Row(
@@ -75,16 +86,15 @@ class GamicoDialogPoster extends StatelessWidget {
             children: [
               if (!simple)
                 GamicoIconTextButton(
-                  onPressed:
-                      !rejectionButtonEnabled
-                          ? null
-                          : () {
-                            if (automaticClose) {
-                              NavigationService.pop(context);
-                            }
+                  onPressed: !rejectionButtonEnabled
+                      ? null
+                      : () {
+                          if (automaticClose) {
+                            NavigationService.pop(context);
+                          }
 
-                            onRejected?.call();
-                          },
+                          onRejected?.call();
+                        },
                   iconData: rejectionIcon ?? Icons.close,
                   text: rejectionText ?? l.globalCancel,
                   iconWidget: rejectionIconWidget,
@@ -92,16 +102,15 @@ class GamicoDialogPoster extends StatelessWidget {
               if (!simple)
                 GamicoIconTextButton(
                   color: ColorService.accentColor,
-                  onPressed:
-                      !acceptationButtonEnabled
-                          ? null
-                          : () {
-                            if (automaticClose) {
-                              NavigationService.pop(context);
-                            }
+                  onPressed: !acceptationButtonEnabled
+                      ? null
+                      : () {
+                          if (automaticClose) {
+                            NavigationService.pop(context);
+                          }
 
-                            onAccepted?.call();
-                          },
+                          onAccepted?.call();
+                        },
                   text: acceptationText ?? l.globalValidate,
                   iconData: acceptationIcon ?? Icons.check,
                   iconWidget: acceptationIconWidget,

@@ -35,6 +35,11 @@ class GamicoElevatedButton extends StatefulWidget {
 
   final bool raised;
 
+  // final Widget? foregroundChild;
+
+  final Gradient? foregroundGradient;
+  final Gradient? backgroundGradient;
+
   const GamicoElevatedButton({
     super.key,
     required this.child,
@@ -55,6 +60,8 @@ class GamicoElevatedButton extends StatefulWidget {
     this.whiteBorder = true,
     this.raised = false,
     this.foregroundChild,
+    this.foregroundGradient,
+    this.backgroundGradient,
   });
 
   @override
@@ -71,7 +78,8 @@ class _GamicoElevatedButtonState extends State<GamicoElevatedButton> {
     final yOffset = widget.elevation ?? 4.0;
     final shadowOffset = widget.shadowOffset ?? 3.0;
     final shadowElevation = widget.shadowElevation ?? 8.0;
-    final borderRadius = widget.borderRadius ??
+    final borderRadius =
+        widget.borderRadius ??
         BorderRadius.circular(GamicoButton.defaultBorderRadius);
     final borderWidth = widget.borderWidth ?? 1.5;
 
@@ -84,89 +92,90 @@ class _GamicoElevatedButtonState extends State<GamicoElevatedButton> {
 
     final raisingWidgetRadius = borderRadius / 3 * 2;
 
-    final raisingWidget = IgnorePointer(
-      child: Container(
-        width: widget.width,
-        height: widget.height,
-        // margin: const EdgeInsets.all(1),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.white.withAlpha(50),
-              Colors.black.withAlpha(25),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: borderRadius,
-          // border: Border.all(
-          //   color: Colors.white.withAlpha(75),
-          // ),
-        ),
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          margin: const EdgeInsets.all(inset),
-          decoration: BoxDecoration(
-            color: widget.foregroundColor,
-            borderRadius: raisingWidgetRadius,
-          ),
-          child: Container(
-            width: double.infinity,
-            height: double.infinity,
-            margin: const EdgeInsets.all(inset),
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: widget.backgroundColor ?? Colors.black,
-                width: 0.25,
-              ),
-              borderRadius: raisingWidgetRadius,
-            ),
-            alignment: Alignment.bottomCenter,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(
-                  left: -1,
-                  right: -1,
-                  // height: widget.height,
-                  bottom: -1,
-                  top: -1,
+    final raisingWidget =
+        IgnorePointer(
+              child: Container(
+                width: widget.width,
+                height: widget.height,
+                // margin: const EdgeInsets.all(1),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.white.withAlpha(50),
+                      Colors.black.withAlpha(25),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: borderRadius,
+                  // border: Border.all(
+                  //   color: Colors.white.withAlpha(75),
+                  // ),
+                ),
+                child: Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  margin: const EdgeInsets.all(inset),
+                  decoration: BoxDecoration(
+                    color: widget.foregroundColor,
+                    borderRadius: raisingWidgetRadius,
+                  ),
                   child: Container(
-                    transform: Matrix4.translationValues(0, 1, 0),
+                    width: double.infinity,
+                    height: double.infinity,
+                    margin: const EdgeInsets.all(inset),
                     decoration: BoxDecoration(
-                      borderRadius: raisingWidgetRadius,
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          (widget.foregroundColor ?? Colors.black)
-                              .withAlpha(50),
-                          // (widget.foregroundColor ?? Colors.black)
-                          //     .withAlpha(50),
-                          widget.foregroundColor ?? Colors.black,
-                        ],
+                      border: Border.all(
+                        color: widget.backgroundColor ?? Colors.black,
+                        width: 0.25,
                       ),
+                      borderRadius: raisingWidgetRadius,
+                    ),
+                    alignment: Alignment.bottomCenter,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned(
+                          left: -1,
+                          right: -1,
+                          // height: widget.height,
+                          bottom: -1,
+                          top: -1,
+                          child: Container(
+                            transform: Matrix4.translationValues(0, 1, 0),
+                            decoration: BoxDecoration(
+                              borderRadius: raisingWidgetRadius,
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  (widget.foregroundColor ?? Colors.black)
+                                      .withAlpha(50),
+                                  // (widget.foregroundColor ?? Colors.black)
+                                  //     .withAlpha(50),
+                                  widget.foregroundColor ?? Colors.black,
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    )
-        .animate(
-          // target: kDebugMode && Platform.isIOS ? 0 : 1,
-          onPlay: kDebugMode && Platform.isIOS
-              ? null
-              : (controller) => controller.repeat(),
-        )
-        .shimmer(
-          delay: 5.seconds,
-          duration: 1.seconds,
-          // color: Colors.grey.withAlpha(100),
-        );
+              ),
+            )
+            .animate(
+              // target: kDebugMode && Platform.isIOS ? 0 : 1,
+              onPlay: kDebugMode && Platform.isIOS
+                  ? null
+                  : (controller) => controller.repeat(),
+            )
+            .shimmer(
+              delay: 5.seconds,
+              duration: 1.seconds,
+              // color: Colors.grey.withAlpha(100),
+            );
 
     return AbsorbPointer(
       absorbing: !enabled,
@@ -205,8 +214,11 @@ class _GamicoElevatedButtonState extends State<GamicoElevatedButton> {
                 transform: Matrix4.translationValues(0, yOffset, 0),
                 decoration: BoxDecoration(
                   color: enabled
-                      ? (widget.backgroundColor ?? Colors.black)
+                      ? (widget.backgroundGradient == null
+                            ? (widget.backgroundColor ?? Colors.black)
+                            : null)
                       : finalDisabledBackgroundColor,
+                  gradient: enabled ? widget.backgroundGradient : null,
                   borderRadius: borderRadius,
                   border: Border.all(
                     color: Colors.black.withAlpha(100),
@@ -225,8 +237,11 @@ class _GamicoElevatedButtonState extends State<GamicoElevatedButton> {
                 height: widget.height,
                 decoration: BoxDecoration(
                   color: enabled
-                      ? widget.foregroundColor
+                      ? (widget.foregroundGradient == null
+                            ? widget.foregroundColor
+                            : null)
                       : finalDisabledForegroundColor,
+                  gradient: enabled ? widget.foregroundGradient : null,
                   borderRadius: borderRadius,
                   border: Border.all(
                     width: borderWidth,
@@ -344,9 +359,7 @@ class _GamicoElevatedButtonState extends State<GamicoElevatedButton> {
                     margin: const EdgeInsets.all(1),
                     decoration: BoxDecoration(
                       borderRadius: borderRadius,
-                      border: Border.all(
-                        color: Colors.white.withAlpha(75),
-                      ),
+                      border: Border.all(color: Colors.white.withAlpha(75)),
                     ),
                   ),
                 ),

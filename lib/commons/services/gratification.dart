@@ -6,12 +6,15 @@ class GratificationService {
 
   static DateTime get lastOneTimeOfferPurchaseDate =>
       DateTime.tryParse(
-          LocalStorageService.getString("last_one_time_offer_purchase_date") ??
-              "") ??
+        LocalStorageService.getString("last_one_time_offer_purchase_date") ??
+            "",
+      ) ??
       DateTime(2000);
   static set lastOneTimeOfferPurchaseDate(DateTime value) {
     LocalStorageService.setString(
-        "last_one_time_offer_purchase_date", value.toString());
+      "last_one_time_offer_purchase_date",
+      value.toString(),
+    );
   }
 
   static Duration getSpecialOfferRemainingDuration() {
@@ -19,8 +22,10 @@ class GratificationService {
     final now = DateTime.now();
     // bool enabled;
 
-    final differenceDuration =
-        TimestampService.getDatesMidnightDifference(initialDate, now);
+    final differenceDuration = TimestampService.getDatesMidnightDifference(
+      initialDate,
+      now,
+    );
 
     final daysDifference = differenceDuration.inDays % 3;
     final remainingDays = 3 - daysDifference;
@@ -38,8 +43,11 @@ class GratificationService {
             0) {
       remainingDuration = Duration.zero;
     } else {
-      remainingDuration = DateTime(now.year, now.month, now.day + remainingDays)
-          .difference(now);
+      remainingDuration = DateTime(
+        now.year,
+        now.month,
+        now.day + remainingDays,
+      ).difference(now);
     }
 
     return remainingDuration;

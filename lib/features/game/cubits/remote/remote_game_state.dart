@@ -18,6 +18,7 @@ class GamicoRemoteGameState {
 
   String get opponentId => opponent?.id ?? "";
   final dynamic opponent;
+  final List<dynamic> opponents;
   final bool friend;
   final bool fakeOpponent;
 
@@ -25,6 +26,7 @@ class GamicoRemoteGameState {
     required this.adventureUtility,
     required this.remoteUtility,
     this.opponent,
+    this.opponents = const [],
     required this.fakeOpponent,
     required this.creator,
     this.friend = false,
@@ -50,6 +52,7 @@ class GamicoRemoteGameState {
     bool? remoteGameInternetError,
     bool? replay,
     dynamic Function()? opponent,
+    List<dynamic>? opponents,
     bool? fakeOpponent,
     bool? friend,
     RemoteUtility? remoteUtility,
@@ -79,6 +82,7 @@ class GamicoRemoteGameState {
       fakeOpponent: fakeOpponent ?? this.fakeOpponent,
       friend: friend ?? this.friend,
       opponent: opponent != null ? opponent() : this.opponent,
+      opponents: opponents ?? this.opponents,
       nextLevel: nextLevel != null ? nextLevel() : this.nextLevel,
     );
   }

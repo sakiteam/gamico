@@ -59,6 +59,12 @@ class AdventureModeSettings implements GameModeSettings {
     final endMessage = context.select(
       (GamicoGameCubit gameCubit) => gameCubit.state.endMessage,
     );
+
+    final descriptionMessage = context.select(
+      (GamicoGameCubit gameCubit) => gameCubit.state.descriptionMessage,
+    );
+
+    if (descriptionMessage != null) return descriptionMessage;
     if (endMessage != null) return endMessage;
 
     final l = GamicoLanguages.of(context);
@@ -299,6 +305,7 @@ class AdventureModeSettings implements GameModeSettings {
       adventureGameState.level,
       adventureGameState.adventureUtility.maxLevel,
       gameState.endMessage,
+      gameState.descriptionMessage,
     );
   }
 

@@ -9,6 +9,7 @@ class MatchmakingSettings<T extends GamicoUserModel> {
   final int Function(T? user) getMatchmakingLevel;
 
   final String? mode;
+  final int? maxPlayers;
 
   const MatchmakingSettings({
     required this.minLevel,
@@ -16,5 +17,6 @@ class MatchmakingSettings<T extends GamicoUserModel> {
     required this.getMatchmakingLevel,
     required this.increment,
     this.mode,
+    this.maxPlayers,
   });
 }

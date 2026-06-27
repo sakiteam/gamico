@@ -34,7 +34,9 @@ class InvitationModel {
           json['updated_at'] != null
               ? DateTime.parse(json['updated_at'] as String)
               : null,
-      gameSettings: json['settings'] as Map<String, dynamic>?,
+      gameSettings: json['settings'] != null
+          ? Map<String, dynamic>.from(json['settings'] as Map)
+          : null,
     );
   }
 

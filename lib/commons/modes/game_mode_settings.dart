@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
@@ -20,6 +21,7 @@ bool shouldShowAdsInAdventureGame(
   int? currentLevel,
   int maxLevel,
   String? endMessage,
+  String? descriptionMessage,
 ) {
   // final gameCubit = context.read<GamicoGameCubit>();
   // final adventureGameCubit = context.read<GamicoAdventureGameCubit>();
@@ -28,7 +30,11 @@ bool shouldShowAdsInAdventureGame(
   // final adventureGameState = adventureGameCubit.state;
 
   return GameService.plays >= 3 &&
-      !(victory == true && (currentLevel == maxLevel || endMessage != null));
+      !(victory == true &&
+          (currentLevel == maxLevel ||
+              endMessage != null ||
+              descriptionMessage != null)) &&
+      !kDebugMode;
 }
 
 void gamePageManageCoinsAndStarsInAdventureGame(
@@ -46,7 +52,10 @@ void gamePageManageCoinsAndStarsInAdventureGame(
   final victory = gameState.victory;
   // final level = aventureGameState.level;
   final currentLevelStars = gameState.stars;
-  final userStars = (userCubit.state.user?.stars as List<int>?) ?? [];
+  final user = userCubit.state.user;
+  final userStars = user != null
+      ? adventureUtility.getUserStars(user)
+      : <int>[];
   final levelPreviousStars = userStars.elementAtOrNull(level) ?? 0;
   // final adventureUtility = aventureGameState.adventureUtility;
 
@@ -63,7 +72,13 @@ void gamePageManageCoinsAndStarsInAdventureGame(
 
       newStars[level] = currentLevelStars;
 
-      userCubit.updateStars(newStars);
+      // Mode-aware write: namespaced if the utility provides a writer, else the
+      // default top-level write (unchanged behavior for single-game apps).
+      if (adventureUtility.setUserStars != null) {
+        adventureUtility.setUserStars!(userCubit, newStars);
+      } else {
+        userCubit.updateStars(newStars);
+      }
 
       final int currentUserLevel = adventureUtility.getUserLevel(
         userCubit.state.user,
@@ -86,7 +101,16 @@ void gamePageManageCoinsAndStarsInAdventureGame(
     }
 
     if (isCurrentLevelLast) {
-      userCubit.incrementLevel();
+      // Mode-aware write: namespaced if the utility provides a writer, else the
+      // default top-level increment (unchanged behavior for single-game apps).
+      if (adventureUtility.setUserLevel != null) {
+        adventureUtility.setUserLevel!(
+          userCubit,
+          adventureUtility.getUserLevel(userCubit.state.user) + 1,
+        );
+      } else {
+        userCubit.incrementLevel();
+      }
     }
   } else {
     if (isCurrentLevelLast) {

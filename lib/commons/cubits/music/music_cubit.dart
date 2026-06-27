@@ -40,6 +40,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   final _drawPlayer = AudioPlayer();
   final _losePlayer = AudioPlayer();
   final _clockPlayer = AudioPlayer();
+  final _firePlayer = AudioPlayer();
   final _voicePlayer = AudioPlayer();
 
   // Bruitage players list
@@ -49,6 +50,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     _losePlayer,
     _voicePlayer,
     _clockPlayer,
+    _firePlayer,
   ];
 
   // All players list
@@ -59,6 +61,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     _losePlayer,
     _voicePlayer,
     _clockPlayer,
+    _firePlayer,
   ];
 
   double _currentVolume = 1;
@@ -159,9 +162,11 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
       _drawPlayer.safelySetAsset("assets/bruitages/draw.wav"),
       _losePlayer.safelySetAsset("assets/bruitages/lose.wav"),
       _clockPlayer.safelySetAsset("assets/bruitages/clock.wav"),
+      _firePlayer.safelySetAsset("assets/bruitages/fire.wav"),
     ]);
 
     await _clockPlayer.setLoopMode(LoopMode.all);
+    await _firePlayer.setLoopMode(LoopMode.all);
 
     bruitagesInitialized = true;
   }
@@ -189,9 +194,10 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   Future<void> playBruitage(String source, [bool force = false]) async {
     if (!state.mute || force) {
       final tmpPlayer = AudioPlayer();
+
       try {
         await tmpPlayer.safelySetAsset(source);
-        await tmpPlayer.safelyPlay();
+        await tmpPlayer.safelyPlay(force);
 
         // Avoid disposing immediately to prevent native crashes (e.g., _setPlatformActive)
         // We wait for the audio to finish or for a reasonable timeout before disposing
@@ -341,6 +347,17 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     await _clockPlayer.stop();
   }
 
+  Future<void> playFireBruitage() async {
+    if (!_firePlayer.playing) {
+      await _playBruitageDirectly(_firePlayer);
+    }
+  }
+
+  Future<void> stopFireBruitage() async {
+    await _firePlayer.stop();
+    await _firePlayer.seek(Duration.zero);
+  }
+
   // Close cubit
   @override
   Future<void> close() async {
@@ -351,6 +368,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
       _losePlayer.stop(),
       _voicePlayer.stop(),
       _clockPlayer.stop(),
+      _firePlayer.stop(),
     ]);
 
     await Future.wait([
@@ -360,6 +378,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
       _losePlayer.dispose(),
       _voicePlayer.dispose(),
       _clockPlayer.dispose(),
+      _firePlayer.dispose(),
     ]);
 
     return super.close();
@@ -390,10 +409,10 @@ extension on AudioPlayer {
     }
   }
 
-  Future<void> safelyPlay() async {
+  Future<void> safelyPlay([bool force = false]) async {
     await GamicoGlobalService.waitWhile(() => MusicService.pausedByAd);
 
-    if (!MusicService.mute) {
+    if (!MusicService.mute || force) {
       try {
         await play();
       } catch (e) {

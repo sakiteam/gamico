@@ -479,7 +479,20 @@ class RemoteModeSettings implements GameModeSettings {
 
       final gameState = gameCubit.state;
 
-      if (gameState.victory == true) {
+      final mode = remoteGameState.remoteUtility.matchmakingSettings.mode;
+      final onModedRemoteResult =
+          Gamico.instance.playSettings?.onModedRemoteResult;
+
+      if (mode != null && onModedRemoteResult != null) {
+        // The host app owns result handling for this matchmaking mode (e.g. an
+        // embedded game recording stats into its own progression namespace).
+        onModedRemoteResult(
+          userCubit,
+          mode,
+          gameState.victory == true,
+          gameState.stars,
+        );
+      } else if (gameState.victory == true) {
         userCubit.incrementCowries(
           Gamico.instance.gameSettings.playMinimumCoins * gameState.stars,
         );
@@ -518,6 +531,7 @@ class RemoteModeSettings implements GameModeSettings {
         remoteGameState.level,
         adventureUtility.maxLevel,
         gameState.endMessage,
+        gameState.descriptionMessage,
       );
     }
   }

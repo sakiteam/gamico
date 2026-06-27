@@ -40,10 +40,10 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
 
       UserService.displayName = player?.displayName ?? "";
 
-      if (UserService.authenticated) {
+      if (UserService.authenticated && UserService.displayName.isNotEmpty) {
         final name = userCubit.state.user?.name;
 
-        if (name != null && name != UserService.displayName) {
+        if (name == null || name != UserService.displayName) {
           usersRepository.updateUserName(
             UserService.uid,
             UserService.displayName,

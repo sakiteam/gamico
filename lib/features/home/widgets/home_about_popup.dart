@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gamico/commons/cubits/music/music_cubit.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/version.dart';
@@ -37,6 +38,10 @@ class HomeAboutPopup extends StatelessWidget {
         builder: (context, state) {
           return IconButton(
             onPressed: () {
+              try {
+                context.read<GamicoMusicCubit>().playClickBruitage();
+              } catch (_) {}
+
               String link = ""; // state.link;
 
               if (link.isEmpty) {

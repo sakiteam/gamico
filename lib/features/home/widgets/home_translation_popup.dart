@@ -19,6 +19,7 @@ import 'package:gamico/features/home/widgets/home_translation_flag.dart';
 
 class HomeTranslationPopup extends StatefulWidget {
   static bool simple = false;
+  static BorderRadius borderRadius = BorderRadius.circular(16);
 
   const HomeTranslationPopup({super.key});
 

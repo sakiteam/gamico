@@ -17,6 +17,7 @@ class GamicoGameState {
   final int stars;
   final bool secondVictory;
   final bool active;
+  final String? descriptionMessage;
 
   /// Optional narrative text shown in the end-of-game poster description.
   /// When set, it takes priority over the default mode description.
@@ -45,6 +46,7 @@ class GamicoGameState {
     this.ready = false,
     this.active = true,
     this.endMessage,
+    this.descriptionMessage,
   });
 
   GamicoGameState copyWith({
@@ -64,6 +66,7 @@ class GamicoGameState {
     bool? ready,
     bool? active,
     String? Function()? endMessage,
+    String? Function()? descriptionMessage,
   }) {
     return GamicoGameState(
       mode: mode ?? this.mode,
@@ -82,6 +85,9 @@ class GamicoGameState {
       animated: animated ?? this.animated,
       active: active ?? this.active,
       endMessage: endMessage != null ? endMessage() : this.endMessage,
+      descriptionMessage: descriptionMessage != null
+          ? descriptionMessage()
+          : this.descriptionMessage,
     );
   }
 }

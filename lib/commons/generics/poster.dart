@@ -16,6 +16,10 @@ class GamicoPoster extends StatelessWidget {
   final Widget? iconWidget;
   final Widget? descriptionWidget;
 
+  final Color? currentTitleColor;
+  final Color? currentIconColor;
+  final Color? currentDescriptionColor;
+
   final bool loading;
 
   final bool expandIcon;
@@ -64,6 +68,9 @@ class GamicoPoster extends StatelessWidget {
     this.descriptionPadding,
     this.contentPadding,
     this.loaderColor,
+    this.currentTitleColor,
+    this.currentIconColor,
+    this.currentDescriptionColor,
   });
 
   @override
@@ -74,7 +81,11 @@ class GamicoPoster extends StatelessWidget {
         iconWidget ??
         (icon == null
             ? null
-            : Icon(icon, size: 60 * 450 / 400, color: iconColor));
+            : Icon(
+                icon,
+                size: 60 * 450 / 400,
+                color: currentIconColor ?? iconColor,
+              ));
 
     final finalIconWidget = defaultIconWidget != null
         ? expandIcon
@@ -97,14 +108,17 @@ class GamicoPoster extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: descriptionFontSize,
-                    color: descriptionColor,
+                    color: currentDescriptionColor ?? descriptionColor,
                   ),
                 ),
               )
             : null));
 
     final finalTitleWidget =
-        titleWidget ?? (title != null ? GamicoPosterTitle(title) : null);
+        titleWidget ??
+        (title != null
+            ? GamicoPosterTitle(title, color: currentTitleColor)
+            : null);
 
     final Widget? finalContentWidget;
 
@@ -193,9 +207,10 @@ class GamicoPoster extends StatelessWidget {
 }
 
 class GamicoPosterTitle extends StatelessWidget {
-  const GamicoPosterTitle(this.title, {super.key});
+  const GamicoPosterTitle(this.title, {super.key, this.color});
 
   final String? title;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -205,7 +220,7 @@ class GamicoPosterTitle extends StatelessWidget {
       style: TextStyle(
         fontSize: GamicoPoster.titleFontSize,
         fontWeight: FontWeight.bold,
-        color: GamicoPoster.titleColor,
+        color: color ?? GamicoPoster.titleColor,
       ),
     );
   }

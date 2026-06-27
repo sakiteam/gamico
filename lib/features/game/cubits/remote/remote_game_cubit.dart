@@ -52,6 +52,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   // Remote game stream subscriptions
   StreamSubscription? newGameStreamSubscription;
   StreamSubscription? opponentStreamSubscription;
+  List<StreamSubscription> opponentStreamSubscriptions = [];
   StreamSubscription? gameEventsStreamSubscription;
 
   // Remote game user disconnection manager
@@ -159,7 +160,13 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       emit(state.copyWith(gameEndStatus: "INVITATION_ACCEPTATION"));
     }
 
-    if (!state.creator) {
+    final playersEntries = (currentGame?.players?.entries.toList() ?? [])
+      ..sort((a, b) => a.key.compareTo(b.key));
+    final sortedPlayerUids = playersEntries.map((e) => e.value.userId).toList();
+    final isFirstJoiner =
+        sortedPlayerUids.length > 1 && sortedPlayerUids[1] == UserService.uid;
+
+    if (isFirstJoiner) {
       newGameId = await gamesRepository.createGame(
         GamicoGameModel(
           events: const {},
@@ -214,53 +221,97 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
               })
               .toList();
 
-      final developerId = remoteUtility.developerId;
+      final otherPlayerIds = playersIds
+          .where((element) => element != UserService.uid)
+          .toList();
+      final Map<String, dynamic> loadedOpponents = {};
 
-      final opponentId = state.fakeOpponent
-          ? developerId
-          : (playersIds
-                    .where((element) => element != UserService.uid)
-                    .firstOrNull ??
-                developerId);
+      for (var s in opponentStreamSubscriptions) {
+        s.cancel();
+      }
+      opponentStreamSubscriptions = [];
 
-      // Listen to opponent connectivity
-      opponentStreamSubscription = FirebaseDatabase.instance
-          .ref()
-          .child("users/$opponentId")
-          .onValue
-          .listen((event) {
-            if (event.snapshot.exists) {
-              final rawData = event.snapshot.value;
-              final validData = jsonDecode(jsonEncode(rawData));
+      if (otherPlayerIds.isEmpty) {
+        final developerId = remoteUtility.developerId;
+        final sub = FirebaseDatabase.instance
+            .ref()
+            .child("users/$developerId")
+            .onValue
+            .listen((event) {
+              if (event.snapshot.exists) {
+                final rawData = event.snapshot.value;
+                final validData = jsonDecode(jsonEncode(rawData));
 
-              var finalOpponent = Gamico.instance.userFromJson(
-                Map<String, dynamic>.from(validData),
-              );
+                var finalOpponent = Gamico.instance.userFromJson(
+                  Map<String, dynamic>.from(validData),
+                );
 
-              if (state.fakeOpponent) {
                 final currentUser = gameCubit.userCubit.state.user!;
 
                 finalOpponent = Gamico.instance.userSettings
                     .userCreateFakeOpponent(currentUser, finalOpponent);
+
+                emit(
+                  state.copyWith(
+                    opponents: [finalOpponent],
+                    opponent: () => finalOpponent,
+                  ),
+                );
               }
+            });
+        opponentStreamSubscriptions.add(sub);
+      } else {
+        for (final opponentId in otherPlayerIds) {
+          final sub = FirebaseDatabase.instance
+              .ref()
+              .child("users/$opponentId")
+              .onValue
+              .listen((event) {
+                if (event.snapshot.exists) {
+                  final rawData = event.snapshot.value;
+                  final validData = jsonDecode(jsonEncode(rawData));
 
-              emit(state.copyWith(opponent: () => finalOpponent));
+                  var finalOpponent = Gamico.instance.userFromJson(
+                    Map<String, dynamic>.from(validData),
+                  );
 
-              if (state.fakeOpponent) {
-                opponentStreamSubscription?.cancel();
-              } else {
-                if (gameCubit.state.over && !(state.opponent?.online ?? true)) {
-                  gamesRepository.addGameEvent(
-                    gameId,
-                    GamicoGameEventModel(
-                      type: "DISCONNECTION",
-                      userId: state.opponentId,
+                  if (state.fakeOpponent) {
+                    final currentUser = gameCubit.userCubit.state.user!;
+
+                    finalOpponent = Gamico.instance.userSettings
+                        .userCreateFakeOpponent(currentUser, finalOpponent);
+                  }
+
+                  loadedOpponents[opponentId] = finalOpponent;
+
+                  final sortedOpponents = otherPlayerIds
+                      .map((id) => loadedOpponents[id])
+                      .where((o) => o != null)
+                      .toList();
+
+                  emit(
+                    state.copyWith(
+                      opponents: sortedOpponents,
+                      opponent: () => sortedOpponents.firstOrNull,
                     ),
                   );
+
+                  if (!state.fakeOpponent &&
+                      gameCubit.state.over &&
+                      !(finalOpponent.online ?? true)) {
+                    gamesRepository.addGameEvent(
+                      gameId,
+                      GamicoGameEventModel(
+                        type: "DISCONNECTION",
+                        userId: opponentId,
+                      ),
+                    );
+                  }
                 }
-              }
-            }
-          });
+              });
+          opponentStreamSubscriptions.add(sub);
+        }
+      }
 
       // Seeds
       final seedModulo = remoteUtility.seedModulo;
@@ -285,7 +336,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                 if (currentGameEvent.type == "READINESS") {
                   readinessRequests++;
 
-                  if (readinessRequests > 1) {
+                  if (readinessRequests >= playersIds.length) {
                     gameCubit.startGame();
                   }
                 } else if (currentGameEvent.type == "MOVE") {
@@ -296,11 +347,13 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                   }
                 } else if (currentGameEvent.type == "EXIT") {
                   if (currentGameEvent.userId != UserService.uid) {
-                    _manageRemoteExit();
+                    _manageRemoteExit(currentGameEvent.userId ?? "");
                   }
                 } else if (currentGameEvent.type == "ABANDONMENT") {
                   if (currentGameEvent.userId != UserService.uid) {
-                    gameCubit.settings?.onRemoteUserGaveUp();
+                    gameCubit.settings?.onRemoteUserGaveUp(
+                      currentGameEvent.userId ?? "",
+                    );
                     // endGame("B", "ABANDONMENT");
                   }
                 } else if (currentGameEvent.type == "DISCONNECTION") {
@@ -330,14 +383,14 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                     }
                   }
 
-                  if (replayRequests == 2) {
+                  if (replayRequests == playersIds.length) {
                     _launchNewGame();
-                  } else if (replayRequests == 1) {
+                  } else {
                     if (currentGameEvent.userId == UserService.uid) {
                       emit(
                         state.copyWith(gameEndStatus: "INTERNAL_INVITATION"),
                       );
-                    } else {
+                    } else if (state.gameEndStatus != "INTERNAL_INVITATION") {
                       emit(
                         state.copyWith(gameEndStatus: "EXTERNAL_INVITATION"),
                       );
@@ -356,12 +409,18 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                 } else if (currentGameEvent.type == "ACCEPTATION") {
                   replayRequests++;
 
-                  if (replayRequests == 1) {
-                    emit(
-                      state.copyWith(gameEndStatus: "", opponentExited: true),
-                    );
-                  } else if (replayRequests == 2) {
+                  if (replayRequests == playersIds.length) {
                     _launchNewGame();
+                  } else {
+                    if (currentGameEvent.userId == UserService.uid) {
+                      emit(
+                        state.copyWith(gameEndStatus: "INVITATION_ACCEPTATION"),
+                      );
+                    } else if (replayRequests == 1) {
+                      emit(
+                        state.copyWith(gameEndStatus: "", opponentExited: true),
+                      );
+                    }
                   }
                 } else if (currentGameEvent.type == "REJECTION") {
                   replayRequests = 0;
@@ -375,10 +434,12 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                   if (currentGameEvent.userId != UserService.uid) {
                     newGameId = currentGameEvent.data?["id"];
 
-                    await gamesRepository.updateGameStatus(
-                      newGameId,
-                      "STARTED",
-                    );
+                    if (state.creator) {
+                      await gamesRepository.updateGameStatus(
+                        newGameId,
+                        "STARTED",
+                      );
+                    }
 
                     emit(
                       state.copyWith(
@@ -401,18 +462,31 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
       if (Gamico.instance.playSettings?.exitUserWhenDisconnected == true ||
           !state.fakeOpponent) {
+        // For moded games (e.g. an embedded game), the disconnection penalty
+        // targets that mode's own progression namespace instead of the
+        // top-level stats. Coins stay a single shared wallet.
+        final mode = state.remoteUtility.matchmakingSettings.mode;
+
         await userDisconnectionReference?.update({
           "coins": ServerValue.increment(
             -Gamico.instance.gameSettings.playMinimumCoins,
           ),
-          "defeats": ServerValue.increment(1),
-          "trophies": ServerValue.increment(-1),
+          if (mode == null) "defeats": ServerValue.increment(1),
+          if (mode == null) "trophies": ServerValue.increment(-1),
+          if (mode != null)
+            "progression/$mode/defeats": ServerValue.increment(1),
+          if (mode != null)
+            "progression/$mode/trophies": ServerValue.increment(-1),
           "updated_at": DateTime.now().toString(),
         });
       }
 
       // Declare game as ready when really ready
-      await GamicoGlobalService.waitWhile(() => state.opponent == null);
+      await GamicoGlobalService.waitWhile(
+        () =>
+            state.opponent == null ||
+            state.opponents.length < otherPlayerIds.length,
+      );
 
       gameCubit.settings?.initGame();
 
@@ -428,14 +502,23 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
     gameCubit.onExitGame = () {
       if (!gameCubit.state.over) {
-        if (adventureUtility == null ||
-            (state.userInitialLevel == state.level)) {
-          gameCubit.userCubit.decrementCowries(
-            Gamico.instance.gameSettings.playMinimumCoins,
-          );
-        }
+        final mode = state.remoteUtility.matchmakingSettings.mode;
+        final onModedRemoteResult =
+            Gamico.instance.playSettings?.onModedRemoteResult;
 
-        gameCubit.userCubit.incrementDefeats();
+        if (mode != null && onModedRemoteResult != null) {
+          // Host owns result handling for this mode (exit mid-game = defeat).
+          onModedRemoteResult(gameCubit.userCubit, mode, false, 0);
+        } else {
+          if (adventureUtility == null ||
+              (state.userInitialLevel == state.level)) {
+            gameCubit.userCubit.decrementCowries(
+              Gamico.instance.gameSettings.playMinimumCoins,
+            );
+          }
+
+          gameCubit.userCubit.incrementDefeats();
+        }
       }
 
       declareCurrentUserExit();
@@ -459,14 +542,15 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     userDisconnectionReference = null;
   }
 
-  void _manageRemoteExit() {
+  void _manageRemoteExit(String userId) {
     emit(state.copyWith(gameEndStatus: "", opponentExited: true));
 
     if (gameCubit.state.over) {
       replayRequests = 0;
     } else {
-      gameCubit.settings
-          ?.onRemoteUserDisconnectedDuringGame(); // endGame("B", "EXIT")
+      gameCubit.settings?.onRemoteUserDisconnectedDuringGame(
+        userId,
+      ); // endGame("B", "EXIT")
     }
   }
 
@@ -484,6 +568,9 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     // Cancel all usual streams
     newGameStreamSubscription?.cancel();
     opponentStreamSubscription?.cancel();
+    for (var s in opponentStreamSubscriptions) {
+      s.cancel();
+    }
     gameEventsStreamSubscription?.cancel();
 
     cleanUserDisconnectionReference();

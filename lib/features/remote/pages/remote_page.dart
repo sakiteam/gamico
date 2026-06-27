@@ -128,11 +128,10 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
                             remoteCubit.setForcePop(true);
                             NavigationService.pop(context);
                           } else {
-                            remoteCubit.setAnimGame(false);
-                            await Future.delayed(
-                              AnimationService.animationDuration,
-                            );
-                            remoteCubit.setAnimated(false);
+                            // Pop the matchmaking page too: the user should
+                            // return to wherever they came from, not get stuck
+                            // on the "finding opponent" screen.
+                            if (context.mounted) Navigator.of(context).pop();
                           }
                         },
                       ),

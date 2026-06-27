@@ -145,6 +145,68 @@ class InvitationCubit extends Cubit<InvitationState> {
     return invitation;
   }
 
+  /// Creates a multi-player friendly game with all players pre-joined and sends
+  /// invitations to each receiver. The host navigates directly as creator.
+  /// Returns the shared game ID that all players will join.
+  Future<String> sendMultiInvitations({
+    required String senderId,
+    required List<String> receiverIds,
+    required String mode,
+    required int maxPlayers,
+  }) async {
+    final now = DateTime.now();
+
+    // Build players map: host + all receivers pre-added
+    final Map<String, GamicoGamePlayerModel> players = {};
+    final hostKey = _database.ref().push().key ?? "";
+    players[hostKey] = GamicoGamePlayerModel(
+      createdAt: now,
+      updatedAt: now,
+      status: "ACCEPTED",
+      userId: senderId,
+    );
+    for (final receiverId in receiverIds) {
+      final playerKey = _database.ref().push().key ?? "";
+      players[playerKey] = GamicoGamePlayerModel(
+        createdAt: now,
+        updatedAt: now,
+        status: "ACCEPTED",
+        userId: receiverId,
+      );
+    }
+
+    // Create the shared game
+    final gameRef = _database.ref().child('games').push();
+    final gameId = gameRef.key!;
+    await gameRef.set(
+      GamicoGameModel(
+        updatedAt: now,
+        createdAt: now,
+        status: "ACCEPTED",
+        players: players,
+      ).toJson(),
+    );
+
+    // Create one invitation per receiver pointing to the same game
+    for (final receiverId in receiverIds) {
+      final invRef = _database.ref().child('invitations').push();
+      await invRef.set({
+        'sender_id': senderId,
+        'receiver_id': receiverId,
+        'status': 'PENDING',
+        'created_at': now.toIso8601String(),
+        'updated_at': now.toIso8601String(),
+        'settings': {
+          'mode': mode,
+          'max_players': maxPlayers,
+          'game_id': gameId,
+        },
+      });
+    }
+
+    return gameId;
+  }
+
   Future<void> updateInvitationStatus(
     String invitationId,
     InvitationStatus status,

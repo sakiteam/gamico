@@ -27,8 +27,10 @@ class GamicoUserModel {
   final int? lastGratification;
   final int? nextGratification;
   final Map<String, dynamic>? progression;
-  final Map<String, dynamic>? skins;
+  // final Map<String, dynamic>? skins;
+  final List<String>? skins;
   final bool? premium;
+  final String? activeSkin;
 
   bool? get broke {
     return coins == null
@@ -64,6 +66,7 @@ class GamicoUserModel {
     this.skins,
     this.progression,
     this.premium,
+    this.activeSkin,
   });
 
   Map<String, dynamic> toJson() {
@@ -94,6 +97,7 @@ class GamicoUserModel {
       "skins": skins,
       "progression": progression,
       "premium": premium,
+      "active_skin": activeSkin,
     };
   }
 
@@ -126,12 +130,44 @@ class GamicoUserModel {
       gratifiedAt: DateTime.tryParse(json["gratified_at"] ?? ""),
       referrerId: json["referrer_id"],
       online: json["online"],
-      stars: (json["stars"] as List?)?.map<int>((e) {
-        return e.toInt();
-      }).toList(),
-      skins: json["skins"],
+      // Firebase RTDB serializes a "holey"/sparse array as an object keyed by
+      // index ({"0": 3, "2": 1}) rather than a JSON array. Tolerate both forms
+      // so reading never throws (a throw here would null the whole user).
+      stars: switch (json["stars"]) {
+        final List list =>
+          list.map<int>((e) => (e as num?)?.toInt() ?? 0).toList(),
+        final Map map => () {
+          var length = 0;
+          for (final k in map.keys) {
+            final i = int.tryParse(k.toString());
+            if (i != null && i + 1 > length) length = i + 1;
+          }
+          final result = List<int>.filled(length, 0);
+          map.forEach((k, v) {
+            final i = int.tryParse(k.toString());
+            if (i != null && i >= 0 && i < length) {
+              result[i] = (v as num?)?.toInt() ?? 0;
+            }
+          });
+          return result;
+        }(),
+        _ => null,
+      },
+      // `skins` is now a List<String> of owned skin ids, but legacy users (and
+      // the current `updateUserSkins` writer) store it as a Map { id: owned }.
+      // Tolerate both so reading a legacy user never throws (which would null
+      // the whole user). Map → keys whose value is truthy.
+      skins: switch (json["skins"]) {
+        final List list => list.map((e) => e.toString()).toList(),
+        final Map map => map.entries
+            .where((e) => e.value == true || e.value == 1)
+            .map((e) => e.key.toString())
+            .toList(),
+        _ => null,
+      },
       progression: json["progression"],
       premium: json["premium"],
+      activeSkin: json["active_skin"]?.toString(),
     );
   }
 }
