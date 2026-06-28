@@ -400,6 +400,20 @@ class RemoteCubit extends Cubit<RemoteState> {
     final names = <String>[];
     for (final uid in ordered) {
       if (uid == null) continue;
+      if (uid == myUid) {
+        String localName = "";
+        final userModel = userCubit.state.user;
+        if (userModel != null) {
+          try {
+            localName = userModel.name?.toString() ?? "";
+          } catch (_) {}
+        }
+        if (localName.isEmpty) {
+          localName = UserService.displayName;
+        }
+        names.add(localName.isNotEmpty ? localName : 'Vous');
+        continue;
+      }
       try {
         final snap =
             await FirebaseDatabase.instance.ref('users/$uid').get();

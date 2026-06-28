@@ -12,6 +12,7 @@ FUTTER
 - Ajouter un dossier contenant les images de la mascotte et mettre son nom dans CharacterSettings
 - Ajouter le nécessaire dans le pubspec.yaml en prenant un ancien projet
 - Ajouter des Client ID dans GCP pour Web, Android et iOS
+  (keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android)
 - Créer 2 applications Admob pour le projet
 
 ---
@@ -28,8 +29,8 @@ ANDROID
 
 Configurer le Manifest et le Gradle (pour les releases)
 Ajouter default_web_client_id à values.xml
-Configurer Android pour les écrans (le plein écran)
-Configurer Game Services
+Configurer Android pour les écrans (le plein écran) dans le Manifest
+Configurer Game Services en regardant le tuto
 Ajouter ic_stat_nom pour les notifications dans les ressources de l'application et le manifest
 Mettre une description, une image et une feature graphic pour Game Services dans Play Console
 Publier les changements de Game Services dans Play Console
