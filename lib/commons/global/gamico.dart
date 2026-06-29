@@ -1,4 +1,5 @@
 // import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -22,7 +23,6 @@ import 'package:gamico/commons/settings/store_settings.dart';
 import 'package:gamico/commons/settings/tutorial_settings.dart';
 import 'package:gamico/commons/settings/user_settings.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:simple_connection_checker/simple_connection_checker.dart';
 import 'package:gamico/commons/services/animation.dart';
 import 'package:gamico/commons/services/play.dart';
 import 'package:gamico/commons/services/local_storage.dart';
@@ -145,14 +145,11 @@ class Gamico {
       if (UserService.authenticated) {
         // Attempt to connect the user
         PlayService.initGameServices();
-
-        if (await SimpleConnectionChecker.isConnectedToInternet()) {
-          // Save user locally
-          await UserService.setUser(
-            await usersRepository.readUser(UserService.uid),
-          );
-        }
       } else {
+        await FirebaseAuth.instance.signOut();
+        UserService.authenticated = false;
+        UserService.uid = "";
+
         // Erase eventual locally-saved user
         await UserService.setUser(null);
       }

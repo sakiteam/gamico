@@ -23,7 +23,12 @@ part 'authentication_state.dart';
 class AuthenticationCubit extends Cubit<AuthenticationState> {
   static PlayerData? player;
 
+  final GamicoUsersRepository usersRepository;
+  final GamicoUserCubit userCubit;
   final FriendInvitationCubit friendInvitationCubit;
+
+  StreamSubscription<PlayerData?>? subscription;
+  StreamSubscription<User?>? _authSubscription;
 
   AuthenticationCubit({
     required this.usersRepository,
@@ -35,6 +40,37 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
            authenticated: UserService.authenticated,
          ),
        ) {
+    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((User? firebaseUser) async {
+      if (firebaseUser != null) {
+        UserService.authenticated = true;
+
+        _saveToken();
+
+        final photo = firebaseUser.photoURL;
+        if (photo != null && photo != userCubit.state.user?.photo) {
+          usersRepository.updateUserPhoto(UserService.uid, photo);
+        }
+
+        userCubit.listenToUserChanges();
+
+        emit(state.copyWith(
+          status: AuthenticationStateStatus.success,
+          authenticated: true,
+        ));
+      } else {
+        if (UserService.authenticated) {
+          UserService.authenticated = false;
+          UserService.uid = "";
+          await UserService.setUser(null);
+          userCubit.setUser(null);
+          emit(state.copyWith(
+            status: AuthenticationStateStatus.failure,
+            authenticated: false,
+          ));
+        }
+      }
+    });
+
     subscription = GameAuth.player.listen((p) {
       player = p;
 
@@ -62,11 +98,6 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
       }
     }
   }
-
-  final GamicoUsersRepository usersRepository;
-  final GamicoUserCubit userCubit;
-
-  StreamSubscription<PlayerData?>? subscription;
 
   Future<void> _saveToken() async {
     try {
@@ -243,6 +274,7 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
   @override
   Future<void> close() {
     subscription?.cancel();
+    _authSubscription?.cancel();
     return super.close();
   }
 }

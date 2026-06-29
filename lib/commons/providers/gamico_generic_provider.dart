@@ -25,9 +25,13 @@ class GamicoGenericProvider {
     String id,
   ) async {
     final snapshot = await ref.child("$col/$id").get();
+    final value = snapshot.value;
+    if (value == null) {
+      return <String, dynamic>{"id": snapshot.key};
+    }
 
     final data =
-        Map<String, dynamic>.from(jsonDecode(jsonEncode(snapshot.value)));
+        Map<String, dynamic>.from(jsonDecode(jsonEncode(value)));
     data["id"] = snapshot.key;
 
     return data;

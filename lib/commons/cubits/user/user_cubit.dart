@@ -8,7 +8,9 @@ import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/global.dart';
 import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/commons/services/play.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:simple_connection_checker/simple_connection_checker.dart';
 import 'package:gamico/commons/services/gratification.dart';
 import 'package:gamico/commons/repositories/gamico_users_repository.dart';
 
@@ -111,24 +113,29 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   // }
 
   void incrementLevel() {
+    if (UserService.uid.isEmpty) return;
     usersRepository.incrementUserLevel(UserService.uid);
   }
 
   void updateUserLevel(int level) {
+    if (UserService.uid.isEmpty) return;
     usersRepository.updateUserLevel(UserService.uid, level);
   }
 
   void updateStars(List<int> stars) {
+    if (UserService.uid.isEmpty) return;
     usersRepository.updateUserStars(UserService.uid, stars);
   }
 
   void incrementVictories() async {
+    if (UserService.uid.isEmpty) return;
     final finalCrowns = (state.user?.trophies ?? 0) + 1;
     await usersRepository.incrementUserTrophies(UserService.uid);
     await _submitTacticiansScore(finalCrowns);
   }
 
   void incrementDefeats() async {
+    if (UserService.uid.isEmpty) return;
     final finalCrowns = (state.user?.trophies ?? 0) - 1;
 
     await usersRepository.decrementUserTrophies(
@@ -142,6 +149,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   }
 
   Future<void> incrementCowries([int cowries = 1]) async {
+    if (UserService.uid.isEmpty) return;
     // Show that diamonds are increasing
     emit(
       state.copyWith(
@@ -161,6 +169,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   }
 
   Future<void> decrementCowries([int cowries = 1]) async {
+    if (UserService.uid.isEmpty) return;
     final userDiamonds = (state.user?.coins ?? 0);
     final cowriesToDecrement = min(cowries, userDiamonds);
 
@@ -185,14 +194,17 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   }
 
   void updateUserProgression(Map<String, dynamic> progression) {
+    if (UserService.uid.isEmpty) return;
     usersRepository.updateUserProgression(UserService.uid, progression);
   }
 
   void updateUserSkins(Map<String, dynamic> skins) {
+    if (UserService.uid.isEmpty) return;
     usersRepository.updateUserSkins(UserService.uid, skins);
   }
 
   void setPremium() {
+    if (UserService.uid.isEmpty) return;
     usersRepository.updateUserPremium(UserService.uid, true);
   }
 
@@ -244,7 +256,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   void listenToUserChanges() {
     _streamSubscription?.cancel();
 
-    if (UserService.authenticated) {
+    if (UserService.authenticated && UserService.uid.isNotEmpty) {
       _streamSubscription = FirebaseDatabase.instance
           .ref()
           .child("users/${UserService.uid}")
@@ -259,11 +271,21 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
         jsonDecode(jsonEncode(event.snapshot.value)),
       );
 
-      setUser(value);
+      if (value != null && value.name != null) {
+        setUser(value);
+      }
 
       if (!_managed) {
         _manageDisconnection();
       }
+    } else {
+      // The user node does not exist in the database (e.g. deleted account).
+      // Check if we are online before signing out to avoid false-positives while offline.
+      () async {
+        if (await SimpleConnectionChecker.isConnectedToInternet()) {
+          await FirebaseAuth.instance.signOut();
+        }
+      }();
     }
   }
 

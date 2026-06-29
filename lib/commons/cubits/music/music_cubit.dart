@@ -77,11 +77,11 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   // Init music
   Future<void> _initMusic() async {
     if (GameService.tutorialPassed) {
-      await _mainPlayer.safelySetAsset("assets/musics/main.aac");
+      await _mainPlayer.safelySetAsset("assets/musics/main.opus");
     }
 
     // else {
-    //   await _mainPlayer.setAsset("assets/musics/game.aac");
+    //   await _mainPlayer.setAsset("assets/musics/game.opus");
     // }
 
     await _mainPlayer.setLoopMode(LoopMode.all);
@@ -99,15 +99,15 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   }
 
   Future<void> setMainMusicAsset() async {
-    await _mainPlayer.safelySetAsset("assets/musics/main.aac");
+    await _mainPlayer.safelySetAsset("assets/musics/main.opus");
   }
 
   Future<void> setVictoryMusicAsset() async {
-    await _mainPlayer.safelySetAsset("assets/musics/victory.aac");
+    await _mainPlayer.safelySetAsset("assets/musics/victory.opus");
   }
 
   Future<void> setDefeatMusicAsset() async {
-    await _mainPlayer.safelySetAsset("assets/musics/defeat.aac");
+    await _mainPlayer.safelySetAsset("assets/musics/defeat.opus");
   }
 
   Future<void> setDrawMusicAsset() async {
@@ -122,14 +122,14 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   Future<void> playMainMusic() async {
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset("assets/musics/main.aac");
+      await _mainPlayer.safelySetAsset("assets/musics/main.opus");
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playVictoryMusic() async {
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset("assets/musics/victory.aac");
+      await _mainPlayer.safelySetAsset("assets/musics/victory.opus");
       await _mainPlayer.safelyPlay();
     }
   }
@@ -143,14 +143,14 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   Future<void> playDefeatMusic() async {
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset("assets/musics/defeat.aac");
+      await _mainPlayer.safelySetAsset("assets/musics/defeat.opus");
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playGameMusic() async {
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset("assets/musics/game.aac");
+      await _mainPlayer.safelySetAsset("assets/musics/game.opus");
       await _mainPlayer.safelyPlay();
     }
   }
@@ -158,11 +158,11 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   // Init bruitages
   Future<void> _initBruitages() async {
     await Future.wait([
-      _winPlayer.safelySetAsset("assets/bruitages/win.wav"),
-      _drawPlayer.safelySetAsset("assets/bruitages/draw.wav"),
-      _losePlayer.safelySetAsset("assets/bruitages/lose.wav"),
-      _clockPlayer.safelySetAsset("assets/bruitages/clock.wav"),
-      _firePlayer.safelySetAsset("assets/bruitages/fire.wav"),
+      _winPlayer.safelySetAsset("assets/bruitages/win.opus"),
+      _drawPlayer.safelySetAsset("assets/bruitages/draw.opus"),
+      _losePlayer.safelySetAsset("assets/bruitages/lose.opus"),
+      _clockPlayer.safelySetAsset("assets/bruitages/clock.opus"),
+      _firePlayer.safelySetAsset("assets/bruitages/fire.opus"),
     ]);
 
     await _clockPlayer.setLoopMode(LoopMode.all);
@@ -228,7 +228,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   // Toggle muting state
   Future<void> toggle() async {
-    playBruitage("assets/bruitages/click.wav", true);
+    playBruitage("assets/bruitages/click.opus", true);
 
     // Emit state
     emit(state.copyWith(mute: !state.mute));
@@ -285,12 +285,12 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   // Play click bruitage
   Future<void> playClickBruitage() async {
-    await playBruitage("assets/bruitages/click.wav");
+    await playBruitage("assets/bruitages/click.opus");
   }
 
   // Play lock bruitage
   Future<void> playLockBruitage() async {
-    await playBruitage("assets/bruitages/lock.wav");
+    await playBruitage("assets/bruitages/lock.opus");
   }
 
   // Play move bruitage
@@ -305,7 +305,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   // Play popup close bruitage
   Future<void> playPopupCloseBruitage() async {
-    await playBruitage("assets/bruitages/popup_close.mp3");
+    await playBruitage("assets/bruitages/popup_close.opus");
   }
 
   // Play win bruitage
