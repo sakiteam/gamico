@@ -1,38 +1,36 @@
-import 'dart:async';
-import 'dart:core';
-import 'dart:convert';
 import 'dart:io';
-// import 'dart:io';
+import 'dart:core';
+import 'dart:async';
+import 'dart:convert';
 import 'package:bloc/bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:games_services/games_services.dart';
-
-import 'package:gamico/commons/cubits/user/user_cubit.dart';
-import 'package:gamico/commons/global/gamico.dart';
-import 'package:gamico/commons/repositories/gamico_users_repository.dart';
-import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:gamico/commons/services/local_storage.dart';
 import 'package:gamico/commons/services/play.dart';
 import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/commons/global/gamico.dart';
+import 'package:games_services/games_services.dart';
+import 'package:gamico/commons/services/global.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:gamico/commons/cubits/user/user_cubit.dart';
+import 'package:gamico/commons/repositories/gamico_users_repository.dart';
 import 'package:gamico/features/friend/cubits/friend_invitation_cubit.dart';
 
 part 'authentication_state.dart';
 
 class AuthenticationCubit extends Cubit<AuthenticationState> {
-  static PlayerData? player;
+  static PlayerData? gameServicesPlayer;
 
-  final GamicoUsersRepository usersRepository;
   final GamicoUserCubit userCubit;
+  final GamicoUsersRepository usersRepository;
   final FriendInvitationCubit friendInvitationCubit;
 
-  StreamSubscription<PlayerData?>? subscription;
   StreamSubscription<User?>? _authSubscription;
+  StreamSubscription<PlayerData?>? _playerSubscription;
 
   AuthenticationCubit({
-    required this.usersRepository,
     required this.userCubit,
+    required this.usersRepository,
     required this.friendInvitationCubit,
   }) : super(
          AuthenticationState(
@@ -40,9 +38,11 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
            authenticated: UserService.authenticated,
          ),
        ) {
-    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((User? firebaseUser) async {
+    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((
+      User? firebaseUser,
+    ) async {
       if (firebaseUser != null) {
-        UserService.authenticated = true;
+        await GamicoGlobalService.waitWhile(() => !UserService.authenticated);
 
         _saveToken();
 
@@ -53,50 +53,33 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
 
         userCubit.listenToUserChanges();
 
-        emit(state.copyWith(
-          status: AuthenticationStateStatus.success,
-          authenticated: true,
-        ));
+        await GamicoGlobalService.waitWhile(() => userCubit.state.user == null);
+
+        emit(
+          state.copyWith(
+            status: AuthenticationStateStatus.success,
+            authenticated: true,
+          ),
+        );
       } else {
-        if (UserService.authenticated) {
-          UserService.authenticated = false;
-          UserService.uid = "";
-          await UserService.setUser(null);
-          userCubit.setUser(null);
-          emit(state.copyWith(
+        userCubit.cancelUserChangesListener();
+
+        UserService.uid = "";
+        userCubit.setUser(null);
+
+        emit(
+          state.copyWith(
             status: AuthenticationStateStatus.failure,
             authenticated: false,
-          ));
-        }
+          ),
+        );
       }
     });
 
-    subscription = GameAuth.player.listen((p) {
-      player = p;
-
-      UserService.displayName = player?.displayName ?? "";
-
-      if (UserService.authenticated && UserService.displayName.isNotEmpty) {
-        final name = userCubit.state.user?.name;
-
-        if (name == null || name != UserService.displayName) {
-          usersRepository.updateUserName(
-            UserService.uid,
-            UserService.displayName,
-          );
-        }
-      }
+    _playerSubscription = GameAuth.player.listen((player) async {
+      gameServicesPlayer = player;
+      userCubit.setUserName(gameServicesPlayer?.displayName ?? "");
     });
-
-    if (UserService.authenticated) {
-      _saveToken();
-
-      final photo = FirebaseAuth.instance.currentUser?.photoURL;
-
-      if (photo != null && photo != userCubit.state.user?.photo) {
-        usersRepository.updateUserPhoto(UserService.uid, photo);
-      }
-    }
   }
 
   Future<void> _saveToken() async {
@@ -111,22 +94,11 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
         }
       }
 
-      String? token = await FirebaseMessaging.instance.getToken();
-
-      if (token != null) await _updateUser(token);
-
-      FirebaseMessaging.instance.onTokenRefresh.listen(_updateUser);
+      userCubit.setUserToken(await FirebaseMessaging.instance.getToken());
+      FirebaseMessaging.instance.onTokenRefresh.listen(userCubit.setUserToken);
     } catch (e) {
       debugPrint("$e");
     }
-  }
-
-  Future<void> _updateUser(String token) async {
-    if (!UserService.authenticated) return;
-    if (FirebaseAuth.instance.currentUser == null) return;
-
-    await usersRepository.updateUserToken(UserService.uid, token);
-    LocalStorageService.token = token;
   }
 
   Future<void> signIn() async {
@@ -146,11 +118,10 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
     // Sign in to game services
     try {
       if (await PlayService.enableGameServices()) {
-        UserService.displayName = player?.displayName ?? "";
         String firebaseId = FirebaseAuth.instance.currentUser?.uid ?? "";
-        String socialId = player?.playerID ?? "";
+        String socialId = gameServicesPlayer?.playerID ?? "";
         FirebaseAuth.instance.currentUser?.updateDisplayName(
-          UserService.displayName,
+          gameServicesPlayer?.displayName ?? "",
         );
 
         final snapshot = await FirebaseDatabase.instance
@@ -165,7 +136,6 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
           final data = jsonDecode(jsonEncode(snapshot.value));
 
           UserService.uid = data.keys.first;
-          UserService.authenticated = true;
 
           userCubit.setUser(
             Gamico.instance.userFromJson(
@@ -175,62 +145,15 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
 
           friendInvitationCubit.listenToInvitations();
         } else {
-          // String? referrerId =
-          //     GlobalService.dynamicLink?.link.queryParameters["referrer_id"];
-
           final user = Gamico.instance.userSettings.createNewUser(
             firebaseId,
             socialId,
           );
 
-          // T(
-          //   type: Platform.isAndroid ? "google" : "apple",
-          //   defeats: 0,
-          //   level: 1,
-          //   victories: 0,
-          //   photo: FirebaseAuth.instance.currentUser?.photoURL,
-          //   firebaseId: firebaseId,
-          //   socialId: socialId,
-          //   name: UserService.displayName,
-          //   token: "",
-          //   referrerId: null,
-          //   online: true,
-          //   achievements: const <String, int>{},
-
-          //   //
-
-          //   cowries: 50,
-          //   crowns: 0,
-          //   cards: CardService.defaultCards,
-          //   decks: [
-          //     [...CardService.defaultCards.keys],
-          //     const [],
-          //     const [],
-          //   ],
-          //   stars: const [3],
-          //   activeDeck: 0,
-          // );
-
           UserService.uid = await usersRepository.createUser(user);
-          UserService.authenticated = true;
-
-          // if (referrerId != null) {
-          //   userCubit.rewardReferrer(referrerId, context);
-          // }
 
           // Save user information
           userCubit.setUser(user);
-
-          // userCubit.listenToUserChanges();
-
-          // Save Firebase token
-          _saveToken();
-
-          // Wait for user cubit listeners to be loaded
-          await Future.delayed(const Duration(seconds: 1));
-
-          // Unlock beginner achievement
-          // userCubit.unlockBeginnerAchievement();
         }
 
         emit(
@@ -240,26 +163,24 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
           ),
         );
       } else {
-        declareError();
+        handleError();
       }
     } catch (e) {
       debugPrint(e.toString());
-      declareError();
+      handleError();
     }
   }
 
   Future<void> signOut() async {
     await FirebaseAuth.instance.signOut();
 
-    UserService.authenticated = false;
     UserService.uid = "";
     userCubit.setUser(null);
 
     emit(state.copyWith(authenticated: false));
   }
 
-  void declareError() {
-    UserService.authenticated = false;
+  void handleError() {
     UserService.uid = "";
     userCubit.setUser(null);
 
@@ -273,8 +194,8 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
 
   @override
   Future<void> close() {
-    subscription?.cancel();
     _authSubscription?.cancel();
+    _playerSubscription?.cancel();
     return super.close();
   }
 }

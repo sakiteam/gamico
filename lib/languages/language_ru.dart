@@ -36,6 +36,10 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
 
   @override
   String get friendPageUnknown => "Неизвестно";
+  @override
+  String get notificationInvitationBody => "Вы получили приглашение в игру!";
+  @override
+  String notificationInvitationFrom(String name) => "$name приглашает вас сыграть!";
 
   /* ADVENTURE */
 

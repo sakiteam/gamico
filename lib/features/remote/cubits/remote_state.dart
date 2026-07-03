@@ -22,6 +22,7 @@ class RemoteState {
   final bool forcePop;
   final int playersFound;
   final List<String> playerNames;
+  final List<String> playerPhotos;
 
   const RemoteState({
     this.status = RemoteGameStatus.initial,
@@ -37,6 +38,7 @@ class RemoteState {
     this.forcePop = false,
     this.playersFound = 0,
     this.playerNames = const [],
+    this.playerPhotos = const [],
   });
 
   RemoteState copyWith({
@@ -53,6 +55,7 @@ class RemoteState {
     bool? forcePop,
     int? playersFound,
     List<String>? playerNames,
+    List<String>? playerPhotos,
   }) {
     return RemoteState(
       level: level != null ? level() : this.level,
@@ -68,6 +71,7 @@ class RemoteState {
       forcePop: forcePop ?? this.forcePop,
       playersFound: playersFound ?? this.playersFound,
       playerNames: playerNames ?? this.playerNames,
+      playerPhotos: playerPhotos ?? this.playerPhotos,
     );
   }
 }

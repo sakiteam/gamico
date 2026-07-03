@@ -35,7 +35,7 @@ class _CoinsPopupState extends State<CoinsPopup> {
 
     int initialIndex;
 
-    final cowries = context.read<GamicoUserCubit>().state.user.coins ?? 0;
+    final cowries = context.read<GamicoUserCubit>().state.user?.coins ?? 0;
     final gratificationEnabled =
         context.read<GratificationCubit>().state.gratificationEnabled;
 

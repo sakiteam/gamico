@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:games_services/games_services.dart';
-import 'package:gamico/commons/cubits/authentication/authentication_cubit.dart';
 import 'package:gamico/commons/services/user.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:simple_connection_checker/simple_connection_checker.dart';
@@ -14,21 +12,11 @@ class PlayService {
   static bool gameServicesEnabled = false;
 
   static void initGameServices([int exponent = 0]) async {
-    try {
-      if (await enableGameServices()) {
-        final player = AuthenticationCubit.player;
+    if (await enableGameServices()) return;
 
-        if (player != null) {
-          UserService.displayName = player.displayName;
-        }
-      } else {
-        await Future.delayed(pow(2, exponent).seconds);
+    await Future.delayed(pow(2, exponent).seconds);
 
-        initGameServices(exponent + 1);
-      }
-    } catch (e) {
-      debugPrint(e.toString());
-    }
+    initGameServices(exponent + 1);
   }
 
   static Future<bool> enableGameServices() async {

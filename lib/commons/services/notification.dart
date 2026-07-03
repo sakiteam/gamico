@@ -14,6 +14,7 @@ import 'package:gamico/features/friend/models/invitation_model.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:gamico/commons/services/local_storage.dart';
+import 'package:gamico/commons/services/locale.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 
 class NotificationService {
@@ -30,8 +31,18 @@ class NotificationService {
   static Future<bool> allowed() =>
       AwesomeNotifications().isNotificationAllowed();
 
+  /// App-level override for invitation notification actions. When set, it is
+  /// tried first and, if it returns true, the default (legacy 2-player)
+  /// handling below is skipped. Lets each app route the accept action to its
+  /// own game flow instead of the generic game page.
+  static Future<bool> Function(ReceivedAction action)? invitationActionHandler;
+
+  static bool _initialized = false;
+
   static void init() async {
     if (!(await allowed())) return;
+    if (_initialized) return;
+    _initialized = true;
 
     FirebaseMessaging.onMessage.listen(handleForegroundMessage);
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -118,6 +129,8 @@ class NotificationService {
       return;
     }
 
+    if (await invitationActionHandler?.call(receivedAction) ?? false) return;
+
     final invitationId = receivedAction.payload!['invitation_id']!;
     final cubit = InvitationCubit(FirebaseDatabase.instance);
 
@@ -186,6 +199,48 @@ class NotificationService {
     }
   }
 
+  /// Localized labels, with English fallbacks for contexts where the
+  /// languages singleton is not initialized (e.g. the background isolate).
+  static String get _acceptLabel {
+    try {
+      return GamicoLanguages.instance.globalAccept;
+    } catch (_) {
+      return "Accept";
+    }
+  }
+
+  static String get _rejectLabel {
+    try {
+      return GamicoLanguages.instance.globalReject;
+    } catch (_) {
+      return "Reject";
+    }
+  }
+
+  static String get invitationTitle {
+    try {
+      return GamicoLanguages.instance.friendPageGameInvitation;
+    } catch (_) {
+      return "New Game Invitation";
+    }
+  }
+
+  static String get invitationBody {
+    try {
+      return GamicoLanguages.instance.notificationInvitationBody;
+    } catch (_) {
+      return "You have been invited to play!";
+    }
+  }
+
+  static String invitationBodyFrom(String senderName) {
+    try {
+      return GamicoLanguages.instance.notificationInvitationFrom(senderName);
+    } catch (_) {
+      return "$senderName invites you to play!";
+    }
+  }
+
   static Future<void> showGameInvitationNotification({
     required String title,
     required String body,
@@ -195,22 +250,25 @@ class NotificationService {
 
     await AwesomeNotifications().createNotification(
       content: NotificationContent(
-        id: invitationId.hashCode,
+        // hashCode can be negative, which awesome_notifications rejects.
+        id: invitationId.hashCode & 0x7fffffff,
         channelKey: 'invitations',
         title: title,
         body: body,
         payload: {'invitation_id': invitationId},
         notificationLayout: NotificationLayout.Default,
+        wakeUpScreen: true,
+        displayOnForeground: true,
       ),
       actionButtons: [
         NotificationActionButton(
           key: "ACCEPT",
-          label: "Accept",
+          label: _acceptLabel,
           color: Colors.green,
         ),
         NotificationActionButton(
           key: "REJECT",
-          label: "Reject",
+          label: _rejectLabel,
           color: Colors.red,
         ),
       ],
@@ -227,7 +285,13 @@ class NotificationService {
             .ref()
             .child('users')
             .child(userId);
-        await ref.update({'token': token});
+        await ref.update({
+          'token': token,
+          // Lets the backend localize pushed notifications (e.g. game
+          // invitations) in the receiver's language.
+          if (LocaleService.language.isNotEmpty)
+            'language': LocaleService.language,
+        });
       }
     } catch (e) {
       debugPrint("Error updating user token: $e");
@@ -241,9 +305,14 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
   // Convert Firebase message to local notification
   if (message.data['type'] == 'invitation') {
+    final senderName = message.data['sender_name'] as String?;
     await NotificationService.showGameInvitationNotification(
-      title: message.notification?.title ?? 'New Game Invitation',
-      body: message.notification?.body ?? 'You have been invited to play!',
+      title: message.notification?.title ?? NotificationService.invitationTitle,
+      body:
+          message.notification?.body ??
+          (senderName != null
+              ? NotificationService.invitationBodyFrom(senderName)
+              : NotificationService.invitationBody),
       invitationId: message.data['invitation_id'],
     );
   }
@@ -251,9 +320,14 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> handleForegroundMessage(RemoteMessage message) async {
   if (message.data['type'] == 'invitation') {
+    final senderName = message.data['sender_name'] as String?;
     await NotificationService.showGameInvitationNotification(
-      title: message.notification?.title ?? 'New Game Invitation',
-      body: message.notification?.body ?? 'You have been invited to play!',
+      title: message.notification?.title ?? NotificationService.invitationTitle,
+      body:
+          message.notification?.body ??
+          (senderName != null
+              ? NotificationService.invitationBodyFrom(senderName)
+              : NotificationService.invitationBody),
       invitationId: message.data['invitation_id'],
     );
   }

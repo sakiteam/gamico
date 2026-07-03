@@ -32,14 +32,8 @@ class UserService {
   static String get uid => LocalStorageService.getString("uid") ?? "";
 
   // Authenticated
-  static set authenticated(bool value) =>
-      LocalStorageService.setBool("authenticated", value);
-  static bool get authenticated =>
-      LocalStorageService.getBool("authenticated") ?? false;
+  static bool get authenticated => uid.isNotEmpty;
 
   // Display name
-  static set displayName(String value) =>
-      LocalStorageService.setString("display_name", value);
-  static String get displayName =>
-      LocalStorageService.getString("display_name") ?? "";
+  static String get displayName => getUser()?.name ?? "";
 }

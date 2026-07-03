@@ -46,7 +46,7 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
       context.read<InvitationCubit>().startListening(currentUser.uid);
 
       // Mettre à jour le token de notification
-      NotificationService.updateUserToken(currentUser.uid);
+      NotificationService.updateUserToken(UserService.uid);
     }
   }
 

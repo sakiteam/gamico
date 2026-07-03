@@ -35,6 +35,10 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
 
   @override
   String get friendPageUnknown => "未知";
+  @override
+  String get notificationInvitationBody => "您收到了一条游戏邀请！";
+  @override
+  String notificationInvitationFrom(String name) => "$name 邀请您一起玩！";
 
   /* ADVENTURE */
 

@@ -74,10 +74,6 @@ class LocalStorageService {
   static set state(String value) => setString("state", value);
   static String get state => getString("state") ?? "";
 
-  // Token
-  static set token(String value) => setString("token", value);
-  static String get token => getString("token") ?? "";
-
   // Uid
   static set uid(String value) => setString("uid", value);
   static String get uid => getString("uid") ?? "";

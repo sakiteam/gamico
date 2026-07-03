@@ -1,5 +1,3 @@
-// import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -94,12 +92,6 @@ class Gamico {
       LocalStorageService.initialize(),
     ]);
 
-    // usersRepository = GamicoUsersRepository(
-    //   usersProvider: GamicoUsersProvider(),
-    //   fromJson: userFromJson,
-    //   toJson: userToJson,
-    // );
-
     // Initialize Crashlytics early because error could occur just after this line
     if (kReleaseMode) {
       // Replace default Flutter error manager
@@ -123,13 +115,14 @@ class Gamico {
     // Initialize Admob as soon as possible
     MobileAds.instance.initialize();
 
+    // Enable data persistence
     try {
-      // Enable data persistence
       FirebaseDatabase.instance.setPersistenceEnabled(true);
     } catch (e) {
       debugPrint(e.toString());
     }
 
+    // Notifications
     try {
       final initialMessage = await FirebaseMessaging.instance
           .getInitialMessage();
@@ -141,20 +134,9 @@ class Gamico {
       debugPrint(e.toString());
     }
 
-    try {
-      if (UserService.authenticated) {
-        // Attempt to connect the user
-        PlayService.initGameServices();
-      } else {
-        await FirebaseAuth.instance.signOut();
-        UserService.authenticated = false;
-        UserService.uid = "";
-
-        // Erase eventual locally-saved user
-        await UserService.setUser(null);
-      }
-    } catch (e) {
-      debugPrint(e.toString());
+    // Initialize Google Play services
+    if (UserService.authenticated) {
+      PlayService.initGameServices();
     }
   }
 }

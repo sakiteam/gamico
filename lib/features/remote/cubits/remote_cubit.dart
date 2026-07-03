@@ -42,6 +42,7 @@ class RemoteCubit extends Cubit<RemoteState> {
 
   bool? creator;
   String gameId = "";
+  String _myPlayerKey = "";
   StreamSubscription<DatabaseEvent>? _streamSubscription;
   OnDisconnect? _userDisconnectionReference;
   String createdGameStatus = "";
@@ -186,6 +187,7 @@ class RemoteCubit extends Cubit<RemoteState> {
 
       // Generate a new child location
       String playerKey = ref.push().key ?? "";
+      _myPlayerKey = playerKey;
 
       gameId = await gamesRepository.createGame(
         GamicoGameModel(
@@ -290,6 +292,7 @@ class RemoteCubit extends Cubit<RemoteState> {
 
       final playerRef = gameRef.child("players").push();
       final playerKey = playerRef.key ?? "";
+      _myPlayerKey = playerKey;
 
       bool firstRun = true;
       final result = await gameRef.runTransaction((Object? game) {
@@ -379,6 +382,10 @@ class RemoteCubit extends Cubit<RemoteState> {
                   );
                   launchGame();
                   _streamSubscription?.cancel();
+                } else if (gameStatus == "ABORTED") {
+                  // The creator left the lobby: re-search for another game.
+                  _streamSubscription?.cancel();
+                  reset(state.level);
                 } else {
                   _emitPlayersFound(gamePlayersIds);
                 }
@@ -390,48 +397,64 @@ class RemoteCubit extends Cubit<RemoteState> {
 
   Future<void> _emitPlayersFound(Set<String?> ids) async {
     emit(state.copyWith(playersFound: ids.length));
-    final names = await _fetchPlayerNames(ids);
-    if (!isClosed) emit(state.copyWith(playerNames: names));
+    final profiles = await _fetchPlayerProfiles(ids);
+    if (!isClosed) {
+      emit(
+        state.copyWith(
+          playerNames: profiles.map((p) => p.$1).toList(),
+          playerPhotos: profiles.map((p) => p.$2).toList(),
+        ),
+      );
+    }
   }
 
-  Future<List<String>> _fetchPlayerNames(Set<String?> ids) async {
+  /// Returns one (name, photoUrl) record per player, ordered with the local
+  /// user first. An empty photoUrl means no photo is available.
+  Future<List<(String, String)>> _fetchPlayerProfiles(Set<String?> ids) async {
     final myUid = UserService.uid;
     final ordered = [myUid, ...ids.where((id) => id != null && id != myUid)];
-    final names = <String>[];
+    final profiles = <(String, String)>[];
     for (final uid in ordered) {
       if (uid == null) continue;
       if (uid == myUid) {
         String localName = "";
+        String localPhoto = "";
         final userModel = userCubit.state.user;
         if (userModel != null) {
           try {
             localName = userModel.name?.toString() ?? "";
           } catch (_) {}
+          try {
+            localPhoto = userModel.photo?.toString() ?? "";
+          } catch (_) {}
         }
         if (localName.isEmpty) {
-          localName = UserService.displayName;
+          localName = userCubit.state.user?.name ?? "";
         }
-        names.add(localName.isNotEmpty ? localName : 'Vous');
+        profiles.add((localName.isNotEmpty ? localName : 'Vous', localPhoto));
         continue;
       }
       try {
-        final snap =
-            await FirebaseDatabase.instance.ref('users/$uid').get();
+        final snap = await FirebaseDatabase.instance.ref('users/$uid').get();
         final data = snap.value;
         if (data is Map) {
-          names.add(data['name']?.toString() ?? '...');
+          profiles.add((
+            data['name']?.toString() ?? '...',
+            data['photo']?.toString() ?? '',
+          ));
         } else {
-          names.add('...');
+          profiles.add(('...', ''));
         }
       } catch (_) {
-        names.add('...');
+        profiles.add(('...', ''));
       }
     }
-    return names;
+    return profiles;
   }
 
   void _manageFakeGame() async {
-    final requiredPlayersCount = remoteUtility.matchmakingSettings.maxPlayers ?? 2;
+    final requiredPlayersCount =
+        remoteUtility.matchmakingSettings.maxPlayers ?? 2;
     if (requiredPlayersCount > 2) return;
 
     await Future.delayed(5.seconds);
@@ -476,10 +499,22 @@ class RemoteCubit extends Cubit<RemoteState> {
     _userDisconnectionReference?.cancel();
     _userDisconnectionReference = null;
 
-    if (gameId.isNotEmpty) {
-      createdGameStatus = "ABORTED";
-      gamesRepository.updateGameStatus(gameId, "ABORTED");
+    if (gameId.isEmpty) return;
+
+    // A joiner leaving the lobby before the game starts should only remove
+    // their own slot, so the remaining players see the count drop instead of
+    // a phantom player. The creator (or anyone once the game has started)
+    // aborts the whole game as before.
+    final bool inLobby = state.status != RemoteGameStatus.success;
+    if (inLobby && creator == false && _myPlayerKey.isNotEmpty) {
+      FirebaseDatabase.instance
+          .ref("games/$gameId/players/$_myPlayerKey")
+          .remove();
+      return;
     }
+
+    createdGameStatus = "ABORTED";
+    gamesRepository.updateGameStatus(gameId, "ABORTED");
   }
 
   @override

@@ -61,8 +61,8 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
         if (invitation.status == InvitationStatus.pending &&
             DateTime.now().difference(invitation.createdAt).inMinutes < 5) {
           NotificationService.showGameInvitationNotification(
-            title: 'Jeu avec un ami',
-            body: 'Vous avez reçu une invitation !',
+            title: NotificationService.invitationTitle,
+            body: NotificationService.invitationBody,
             invitationId: invitation.id,
           );
         }

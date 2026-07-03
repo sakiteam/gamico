@@ -50,10 +50,14 @@ class NavigationService {
     BuildContext context,
     Widget page,
   ) async {
+    // Resolve the navigator before the delay: the caller's context may be
+    // deactivated while the exit animation plays (e.g. its subtree is
+    // rebuilt), which would make Navigator.of(context) throw.
+    final navigator = Navigator.of(context);
+
     await Future.delayed(AnimationService.animationDuration);
 
-    return await Navigator.push<T>(
-      context,
+    return await navigator.push<T>(
       PageRouteBuilder(
         pageBuilder: (_, _, _) => page,
         transitionDuration: Duration.zero,
@@ -66,10 +70,11 @@ class NavigationService {
     BuildContext context,
     Widget page,
   ) async {
+    final navigator = Navigator.of(context);
+
     await Future.delayed(AnimationService.animationDuration);
 
-    await Navigator.pushReplacement(
-      context,
+    await navigator.pushReplacement(
       PageRouteBuilder(
         pageBuilder: (_, _, _) => page,
         transitionDuration: Duration.zero,

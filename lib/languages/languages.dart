@@ -51,6 +51,8 @@ abstract class GamicoLanguages {
   String get friendPageInvitationSent;
   String get friendPageFailedToSendInvitation;
   String get friendPageUnknown;
+  String get notificationInvitationBody;
+  String notificationInvitationFrom(String name);
 
   /* ADVENTURE */
 

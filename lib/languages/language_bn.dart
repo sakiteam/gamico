@@ -35,6 +35,10 @@ abstract class GamicoLanguageBn extends GamicoLanguages {
 
   @override
   String get friendPageUnknown => "অজানা";
+  @override
+  String get notificationInvitationBody => "আপনি একটি গেম আমন্ত্রণ পেয়েছেন!";
+  @override
+  String notificationInvitationFrom(String name) => "$name আপনাকে খেলতে আমন্ত্রণ জানিয়েছেন!";
 
   /* ADVENTURE */
 

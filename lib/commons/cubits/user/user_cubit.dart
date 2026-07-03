@@ -10,7 +10,7 @@ import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/commons/services/play.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:simple_connection_checker/simple_connection_checker.dart';
+// import 'package:simple_connection_checker/simple_connection_checker.dart';
 import 'package:gamico/commons/services/gratification.dart';
 import 'package:gamico/commons/repositories/gamico_users_repository.dart';
 
@@ -39,6 +39,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   StreamSubscription? _streamSubscription;
   StreamSubscription<DatabaseEvent>? _disconnectionSubscription;
   OnDisconnect? _disconnectionReference;
+  // Timer? _pendingSignOutTimer;
 
   void _manageDisconnection() {
     _managed = true;
@@ -99,18 +100,6 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
       }
     }
   }
-
-  // void rewardReferrer(String referrerId) {
-  //   usersRepository.incrementUserCoins(referrerId, 50);
-  //
-  //   // GlobalService.sendUserNotification(
-  //   //   referrerId,
-  //   //   Languages.instance.referralNotificationTitle,
-  //   //   Languages.instance.referralNotificationBody(UserService.displayName),
-  //   //   null,
-  //   //   usersRepository,
-  //   // );
-  // }
 
   void incrementLevel() {
     if (UserService.uid.isEmpty) return;
@@ -253,25 +242,49 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     UserService.setUser(user);
   }
 
-  void listenToUserChanges() {
-    _streamSubscription?.cancel();
+  void setUserName(String name) {
+    if (UserService.authenticated && name.isNotEmpty) {
+      final currentName = state.user?.name;
 
-    if (UserService.authenticated && UserService.uid.isNotEmpty) {
-      _streamSubscription = FirebaseDatabase.instance
-          .ref()
-          .child("users/${UserService.uid}")
-          .onValue
-          .listen(manageUserChanges);
+      if (currentName == null || currentName != name) {
+        usersRepository.updateUserName(UserService.uid, name);
+      }
     }
   }
 
-  void manageUserChanges(DatabaseEvent event) {
+  void setUserToken(String? token) async {
+    if (token == null) return;
+
+    if (!UserService.authenticated) return;
+    if (FirebaseAuth.instance.currentUser == null) return;
+
+    await usersRepository.updateUserToken(UserService.uid, token);
+  }
+
+  void listenToUserChanges() {
+    _streamSubscription?.cancel();
+
+    if (!UserService.authenticated) return;
+
+    _streamSubscription = FirebaseDatabase.instance
+        .ref()
+        .child("users/${UserService.uid}")
+        .onValue
+        .listen(manageUserChanges);
+  }
+
+  void manageUserChanges(DatabaseEvent event) async {
     if (event.snapshot.value != null) {
       final value = Gamico.instance.userFromJson(
         jsonDecode(jsonEncode(event.snapshot.value)),
       );
 
-      if (value != null && value.name != null) {
+      // A real value arrived: cancel any pending sign-out scheduled by a
+      // previous (transient) null event.
+      // _pendingSignOutTimer?.cancel();
+      // _pendingSignOutTimer = null;
+
+      if (value != null) {
         setUser(value);
       }
 
@@ -279,17 +292,42 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
         _manageDisconnection();
       }
     } else {
-      // The user node does not exist in the database (e.g. deleted account).
-      // Check if we are online before signing out to avoid false-positives while offline.
-      () async {
-        if (await SimpleConnectionChecker.isConnectedToInternet()) {
-          await FirebaseAuth.instance.signOut();
-        }
-      }();
+      // setUser(null);
+
+      // if (!await SimpleConnectionChecker.isConnectedToInternet()) return;
+
+      // final uid = UserService.uid;
+      // if (uid.isEmpty) return;
+
+      // try {
+      //   final snapshot = await FirebaseDatabase.instance
+      //       .ref("users/$uid")
+      //       .get();
+
+      //   if (snapshot.exists && snapshot.value != null) {
+      //     // False alarm: the node is still there. Resync the user so the UI
+      //     // reflects the real value (the listener may stay stale on null).
+      //     final value = Gamico.instance.userFromJson(
+      //       jsonDecode(jsonEncode(snapshot.value)),
+      //     );
+
+      //     if (value != null && value.name != null) {
+      //       setUser(value);
+      //     }
+
+      //     return;
+      //   }
+      // } catch (_) {
+      //   // Could not confirm deletion (e.g. permission/transient error) —
+      //   // err on the safe side and keep the user signed in.
+      //   return;
+      // }
+
+      // await FirebaseAuth.instance.signOut();
     }
   }
 
-  void _cancelUserChangesListener() {
+  void cancelUserChangesListener() {
     _managed = false;
     _streamSubscription?.cancel();
     _disconnectionSubscription?.cancel();
@@ -336,7 +374,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     if (newUser != null && oldUser == null) {
       listenToUserChanges();
     } else if (newUser == null && oldUser != null) {
-      _cancelUserChangesListener();
+      cancelUserChangesListener();
     }
 
     super.onChange(change);

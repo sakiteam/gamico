@@ -35,6 +35,10 @@ abstract class GamicoLanguagePt extends GamicoLanguages {
 
   @override
   String get friendPageUnknown => "Desconhecido";
+  @override
+  String get notificationInvitationBody => "Você recebeu um convite para jogar!";
+  @override
+  String notificationInvitationFrom(String name) => "$name convida você para jogar!";
 
   /* ADVENTURE */
 

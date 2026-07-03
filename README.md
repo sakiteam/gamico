@@ -51,3 +51,4 @@ IAP & Leaderboards à configurer
 Mettre le SHA-1 de Release dans Firebase
 Mettre le SHA-1 de Release dans les credentials de GCP et lier ça dans Play Console (sinon les connexions ne passeront pas en release)
     Parmi les SHA-1 de la console Google Play, il faut prendre le SHA-1 de la section "App signing key certificate"
+On pourrait avoir besoin du SHA-1 de la clé JKS qu'on a générée en local pour tester la release
