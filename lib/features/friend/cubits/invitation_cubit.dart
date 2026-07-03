@@ -24,6 +24,9 @@ class InvitationCubit extends Cubit<InvitationState> {
     _receivedInvitationSubscription = invitationsRef
         .orderByChild('receiver_id')
         .equalTo(userId)
+        // [GAMICO-FIX] Invitations are never purged; bound the read to the most
+        // recent ones (push keys are chronological) instead of the full history.
+        .limitToLast(30)
         .onValue
         .listen((event) {
           if (event.snapshot.value != null) {
@@ -51,6 +54,9 @@ class InvitationCubit extends Cubit<InvitationState> {
         .child('invitations')
         .orderByChild('sender_id')
         .equalTo(userId)
+        // [GAMICO-FIX] Invitations are never purged; bound the read to the most
+        // recent ones (push keys are chronological) instead of the full history.
+        .limitToLast(30)
         .onValue
         .listen((event) {
           if (event.snapshot.value != null) {

@@ -1,4 +1,6 @@
 import 'package:awesome_notifications/awesome_notifications.dart';
+// import 'package:firebase_auth/firebase_auth.dart';
+// import 'package:gamico/commons/cubits/authentication/authentication_cubit.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/generics/coins_widget.dart';
 import 'package:gamico/commons/services/timestamp.dart';
@@ -13,6 +15,7 @@ import 'package:gamico/commons/generics/poster.dart';
 import 'package:gamico/commons/generics/icon_text_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+// import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/languages/languages.dart';
 
 class GamicoGratificationPoster extends StatelessWidget {
@@ -85,6 +88,9 @@ class GamicoGratificationPoster extends StatelessWidget {
                   outlined: false,
                   size: 50,
                 );
+
+                // print(user.toJson());
+                // print(UserService.uid);
 
                 return GamicoPoster(
                   icon: Icons.redeem,

@@ -28,6 +28,10 @@ class FriendInvitationState {
 
 class FriendInvitationCubit extends Cubit<FriendInvitationState> {
   StreamSubscription? _invitationSubscription;
+  // [GAMICO-FIX] Previously the onChildChanged/onChildRemoved listeners were
+  // never stored, so they could never be cancelled — see listenToInvitations.
+  StreamSubscription? _invitationChangedSubscription;
+  StreamSubscription? _invitationRemovedSubscription;
   final Map<String, InvitationModel> _invitations = {};
 
   FriendInvitationCubit() : super(const FriendInvitationState()) {
@@ -38,11 +42,25 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
     final userId = UserService.uid;
     if (userId.isEmpty) return;
 
+    // [GAMICO-FIX] listenToInvitations() is called from BOTH the constructor and
+    // on sign-in. Cancel every previous listener before re-subscribing, otherwise
+    // the onChildChanged/onChildRemoved listeners (which used to be unstored)
+    // stacked on each call — causing duplicated reads and duplicate invitation
+    // notifications.
+    _invitationSubscription?.cancel();
+    _invitationChangedSubscription?.cancel();
+    _invitationRemovedSubscription?.cancel();
+
     final invitationsRef = FirebaseDatabase.instance
         .ref()
         .child('invitations')
         .orderByChild('receiver_id')
-        .equalTo(userId);
+        .equalTo(userId)
+        // [GAMICO-FIX] Invitations are never purged, so onChildAdded would
+        // replay the user's entire lifetime of received invitations on every
+        // (re)subscribe. Bound the replay to the most recent ones (push keys are
+        // chronological, so among a fixed receiver_id this is "the latest N").
+        .limitToLast(30);
 
     // Écouter les nouvelles invitations
     _invitationSubscription = invitationsRef.onChildAdded.listen((event) {
@@ -70,7 +88,10 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
     });
 
     // Écouter les changements de statut
-    invitationsRef.onChildChanged.listen((event) {
+    // [GAMICO-FIX] Store the subscription so it can be cancelled.
+    _invitationChangedSubscription = invitationsRef.onChildChanged.listen((
+      event,
+    ) {
       if (event.snapshot.value != null) {
         final invitationData = Map<String, dynamic>.from(
           event.snapshot.value as Map,
@@ -85,7 +106,10 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
     });
 
     // Écouter les suppressions d'invitations
-    invitationsRef.onChildRemoved.listen((event) {
+    // [GAMICO-FIX] Store the subscription so it can be cancelled.
+    _invitationRemovedSubscription = invitationsRef.onChildRemoved.listen((
+      event,
+    ) {
       _invitations.remove(event.snapshot.key!);
       _updatePendingState();
     });
@@ -121,7 +145,10 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
 
   @override
   Future<void> close() {
+    // [GAMICO-FIX] Cancel all three listeners (previously only onChildAdded).
     _invitationSubscription?.cancel();
+    _invitationChangedSubscription?.cancel();
+    _invitationRemovedSubscription?.cancel();
     return super.close();
   }
 }

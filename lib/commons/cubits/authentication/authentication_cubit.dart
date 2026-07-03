@@ -42,7 +42,22 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
       User? firebaseUser,
     ) async {
       if (firebaseUser != null) {
+        // print("///");
+        // print(firebaseUser);
+        // print("///");
         await GamicoGlobalService.waitWhile(() => !UserService.authenticated);
+
+        userCubit.listenToUserChanges();
+
+        // [GAMICO-FIX] name/level-loss investigation.
+        // Wait for a REAL user to load from RTDB BEFORE any write to
+        // users/<uid>. If the persisted uid points to a ghost/corrupted node
+        // (no identity), the writers below (_saveToken -> setUserToken,
+        // updateUserPhoto) would otherwise (re)create/maintain that ghost with
+        // {token/photo, updated_at} on every launch. manageUserChanges refuses
+        // to load a ghost, so state.user stays null for a bad uid and these
+        // writes are correctly skipped.
+        await GamicoGlobalService.waitWhile(() => userCubit.state.user == null);
 
         _saveToken();
 
@@ -50,10 +65,6 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
         if (photo != null && photo != userCubit.state.user?.photo) {
           usersRepository.updateUserPhoto(UserService.uid, photo);
         }
-
-        userCubit.listenToUserChanges();
-
-        await GamicoGlobalService.waitWhile(() => userCubit.state.user == null);
 
         emit(
           state.copyWith(

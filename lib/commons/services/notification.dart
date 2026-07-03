@@ -275,6 +275,15 @@ class NotificationService {
     );
   }
 
+  /// Dismisses a previously shown invitation notification (same id derivation
+  /// as [showGameInvitationNotification]). Triggered by the host-side
+  /// `invitation_cancelled` data push when an invitation is withdrawn.
+  static Future<void> cancelGameInvitationNotification(
+    String invitationId,
+  ) async {
+    await AwesomeNotifications().cancel(invitationId.hashCode & 0x7fffffff);
+  }
+
   static Future<void> updateUserToken(String userId) async {
     if (!(await allowed())) return;
 
@@ -315,6 +324,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
               : NotificationService.invitationBody),
       invitationId: message.data['invitation_id'],
     );
+  } else if (message.data['type'] == 'invitation_cancelled') {
+    await NotificationService.cancelGameInvitationNotification(
+      message.data['invitation_id'],
+    );
   }
 }
 
@@ -330,6 +343,10 @@ Future<void> handleForegroundMessage(RemoteMessage message) async {
               : NotificationService.invitationBody),
       invitationId: message.data['invitation_id'],
     );
+  } else if (message.data['type'] == 'invitation_cancelled') {
+    await NotificationService.cancelGameInvitationNotification(
+      message.data['invitation_id'],
+    );
   }
 }
 
@@ -338,7 +355,6 @@ Future<void> handleMessageOpenedApp(RemoteMessage message) async {
   if (message.data['type'] == 'invitation') {
     // La notification a déjà été créée, pas besoin de la recréer
     // On pourrait ajouter ici une logique pour ouvrir directement l'écran approprié
-    // TODO : display invitation popup to accept
   }
 }
 
@@ -347,6 +363,5 @@ Future<void> handleInitialMessage(RemoteMessage message) async {
   if (message.data['type'] == 'invitation') {
     // La notification a déjà été créée, pas besoin de la recréer
     // On pourrait ajouter ici une logique pour ouvrir directement l'écran approprié
-    // TODO : display invitation popup to accept
   }
 }

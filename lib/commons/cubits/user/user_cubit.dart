@@ -25,10 +25,14 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     required this.usersRepository,
     // required this.fromJson,
     // required this.toJson,
-  }) : super(GamicoUserState(user: UserService.getUser())) {
-    if (UserService.authenticated) {
-      listenToUserChanges();
-    }
+  }) : super(
+         GamicoUserState(
+           // user: UserService.getUser()
+         ),
+       ) {
+    // if (UserService.authenticated) {
+    //   listenToUserChanges();
+    // }
   }
 
   // final dynamic Function(Map<String, dynamic>) fromJson;
@@ -42,6 +46,11 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   // Timer? _pendingSignOutTimer;
 
   void _manageDisconnection() {
+    // Never operate on an empty uid: `ref("users/")` resolves to the `users`
+    // collection ROOT, and writing online/updated_at there corrupts the shared
+    // user store. (Mirrors the guard already in Ludiko's connecto UserCubit.)
+    if (UserService.uid.isEmpty) return;
+
     _managed = true;
 
     final ref = FirebaseDatabase.instance.ref("users/${UserService.uid}");
@@ -310,16 +319,47 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     await usersRepository.updateUserToken(UserService.uid, token);
   }
 
-  void listenToUserChanges() {
+  void listenToUserChanges() async {
     _streamSubscription?.cancel();
 
     if (!UserService.authenticated) return;
 
-    _streamSubscription = FirebaseDatabase.instance
-        .ref()
-        .child("users/${UserService.uid}")
-        .onValue
-        .listen(manageUserChanges);
+    final ref = FirebaseDatabase.instance.ref("users/${UserService.uid}");
+
+    // await ref.keepSynced(false);
+
+    // [DIAG] `.get()` returned only {updated_at} (cached optimistic value)
+    // without throwing -> the SDK likely could NOT reach the RTDB backend and
+    // fell back to cache. Confirm the actual connection state + the URL used,
+    // and force the socket online in case a stray goOffline() left it down.
+    // debugPrint("🔎 databaseURL => ${FirebaseDatabase.instance.databaseURL}");
+    // await FirebaseDatabase.instance.goOnline();
+    // FirebaseDatabase.instance.ref(".info/connected").onValue.listen((event) {
+    //   final online = event.snapshot.value as bool? ?? false;
+
+    //   print(online);
+    // });
+
+    // // print(a);
+    // // .then((s) => print("🔎 .info/connected => ${s}")).onError((e, stack) {
+    // //   print("AAA $e $stack");
+    // // });
+
+    // ref
+    //     .get()
+    //     .then(
+    //       (snap) =>
+    //           debugPrint("🔎 users/${UserService.uid} .get() => ${snap.value}"),
+    //     )
+    //     .catchError(
+    //       (e) => debugPrint("⚠️ users/${UserService.uid} .get() ERROR => $e"),
+    //     );
+
+    _streamSubscription = ref.onValue.listen(
+      manageUserChanges,
+      onError: (e) =>
+          debugPrint("⚠️ users/${UserService.uid} onValue ERROR => $e"),
+    );
   }
 
   void manageUserChanges(DatabaseEvent event) async {
@@ -328,14 +368,35 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
         jsonDecode(jsonEncode(event.snapshot.value)),
       );
 
+      // print("OKOK $value");
       // A real value arrived: cancel any pending sign-out scheduled by a
       // previous (transient) null event.
       // _pendingSignOutTimer?.cancel();
       // _pendingSignOutTimer = null;
 
-      if (value != null) {
-        setUser(value);
+      // [GAMICO-FIX] name/level-loss investigation.
+      // A genuine user record always carries an identity: social_id, firebase_id
+      // or at least a name. A payload where ALL of these are null is a corrupted
+      // / ghost node (typically reduced to just {updated_at}). Applying it would
+      // (1) overwrite the good in-memory user and (2) persist the garbage to
+      // local storage via setUser -> UserService.setUser, so it resurfaces
+      // all-null on the next restart. Refuse it, and do NOT start disconnection
+      // management on it (that write would keep the ghost node alive).
+      final looksEmpty =
+          value == null ||
+          (value.socialId == null &&
+              value.firebaseId == null &&
+              value.name == null);
+
+      if (looksEmpty) {
+        debugPrint(
+          "⚠️ manageUserChanges: ignoring empty/corrupted user payload for "
+          "users/${UserService.uid}: ${event.snapshot.value}",
+        );
+        return;
       }
+
+      setUser(value);
 
       if (!_managed) {
         _manageDisconnection();
