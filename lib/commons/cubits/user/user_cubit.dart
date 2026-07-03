@@ -108,6 +108,23 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
   void updateUserLevel(int level) {
     if (UserService.uid.isEmpty) return;
+
+    // [GAMICO-FIX] name/level-loss investigation.
+    // Guard + instrumentation: a level is written as an ABSOLUTE value, and the
+    // level getters default to 1 when the user isn't loaded. So writing while
+    // `state.user` is null — or writing a value below the known level — is how
+    // a real progression gets clobbered down to 1. Refuse both and log the
+    // culprit (value + whether the user was null + call stack).
+    final current = state.user?.level;
+    if (state.user == null || level < (current ?? 0)) {
+      debugPrint(
+        "⚠️ updateUserLevel($level) BLOCKED "
+        "userNull=${state.user == null} currentLevel=$current\n"
+        "${StackTrace.current}",
+      );
+      return;
+    }
+
     usersRepository.updateUserLevel(UserService.uid, level);
   }
 
@@ -184,6 +201,20 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
   void updateUserProgression(Map<String, dynamic> progression) {
     if (UserService.uid.isEmpty) return;
+
+    // [GAMICO-FIX] name/level-loss investigation.
+    // Guard + instrumentation: callers build `progression` by merging onto the
+    // current `state.user.progression`. If `state.user` is null they merge onto
+    // an empty map, so this write would overwrite EVERY game's progression with
+    // a near-empty one. Refuse when the user isn't loaded and log the culprit.
+    if (state.user == null) {
+      debugPrint(
+        "⚠️ updateUserProgression BLOCKED (user not loaded) "
+        "progression=$progression\n${StackTrace.current}",
+      );
+      return;
+    }
+
     usersRepository.updateUserProgression(UserService.uid, progression);
   }
 
@@ -237,18 +268,36 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
   // dynamic?
   void setUser(dynamic user) {
+    // [GAMICO-FIX] name/level-loss investigation.
+    // Instrumentation: clearing a previously-loaded user also wipes the
+    // persisted local copy (UserService.setUser(null) below), which is what
+    // makes a name/level "disappear". Log it so it can be correlated with the
+    // auth event that triggered it.
+    if (user == null && state.user != null) {
+      debugPrint(
+        "⚠️ setUser(null) clearing loaded user\n${StackTrace.current}",
+      );
+    }
+
     emit(state.copyWith(user: () => user));
 
     UserService.setUser(user);
   }
 
   void setUserName(String name) {
-    if (UserService.authenticated && name.isNotEmpty) {
-      final currentName = state.user?.name;
+    final currentName = state.user?.name;
 
-      if (currentName == null || currentName != name) {
-        usersRepository.updateUserName(UserService.uid, name);
-      }
+    if (UserService.authenticated && name.isNotEmpty && currentName != name) {
+      // [GAMICO-FIX] name/level-loss investigation.
+      // Instrumentation: the only spontaneous writer of the name is the
+      // GameAuth.player stream (game services displayName). On an unstable
+      // Game Center (e.g. the simulator) this can push a placeholder/wrong
+      // alias over the real name — log every change so it's visible.
+      debugPrint(
+        "⚠️ setUserName: '$currentName' -> '$name' (game services displayName)",
+      );
+      usersRepository.updateUserName(UserService.uid, name);
+      FirebaseAuth.instance.currentUser?.updateDisplayName(name);
     }
   }
 

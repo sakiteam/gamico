@@ -62,6 +62,14 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
           ),
         );
       } else {
+        // [GAMICO-FIX] name/level-loss investigation.
+        // Instrumentation: authStateChanges emitted null (no persisted user,
+        // a signOut(), or a token-refresh failure). This clears the user — log
+        // it so a vanished name/level can be traced back here.
+        debugPrint(
+          "⚠️ authStateChanges -> null: clearing session\n${StackTrace.current}",
+        );
+
         userCubit.cancelUserChangesListener();
 
         UserService.uid = "";
@@ -109,20 +117,38 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
     emit(state.copyWith(status: AuthenticationStateStatus.loading));
 
     // Sign out if not already done
-    try {
-      await FirebaseAuth.instance.signOut();
-    } catch (e) {
-      debugPrint(e.toString());
-    }
+    // try {
+    //   await FirebaseAuth.instance.signOut();
+    // } catch (e) {
+    //   debugPrint(e.toString());
+    // }
 
     // Sign in to game services
     try {
       if (await PlayService.enableGameServices()) {
         String firebaseId = FirebaseAuth.instance.currentUser?.uid ?? "";
         String socialId = gameServicesPlayer?.playerID ?? "";
-        FirebaseAuth.instance.currentUser?.updateDisplayName(
-          gameServicesPlayer?.displayName ?? "",
-        );
+
+        // [GAMICO-FIX] name/level-loss investigation.
+        // Guard: an unstable game services layer (typically the simulator's
+        // Game Center) can resolve an empty playerID. Proceeding would either
+        // match the wrong user or, worse, fall through to createNewUser and
+        // spawn a blank account. Bail without touching the existing session.
+        if (socialId.isEmpty) {
+          debugPrint(
+            "⚠️ signIn: empty game services socialId (unstable Game Center?); "
+            "keeping current session, not creating/overwriting a user",
+          );
+          emit(
+            state.copyWith(
+              status: UserService.authenticated
+                  ? AuthenticationStateStatus.success
+                  : AuthenticationStateStatus.failure,
+              authenticated: UserService.authenticated,
+            ),
+          );
+          return;
+        }
 
         final snapshot = await FirebaseDatabase.instance
             .ref()

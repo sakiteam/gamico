@@ -295,12 +295,12 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   // Play move bruitage
   Future<void> playMoveBruitage() async {
-    await playBruitage("assets/bruitages/move.wav");
+    await playBruitage("assets/bruitages/move.opus");
   }
 
   // Play popup open bruitage
   Future<void> playPopupOpenBruitage() async {
-    await playBruitage("assets/bruitages/popup_open.wav");
+    await playBruitage("assets/bruitages/popup_open.opus");
   }
 
   // Play popup close bruitage
