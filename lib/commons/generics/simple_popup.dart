@@ -39,6 +39,12 @@ class GamicoSimplePopup extends StatefulWidget {
   final bool dismissible;
   final List<GamicoCharacterPosition>? characterPositions;
 
+  /// Height of the popup content area in reference coordinates. Defaults to
+  /// [LayoutService.referenceWidth] (the historical square-ish popup); pass a
+  /// larger value when the content needs more vertical room (e.g. a full
+  /// scoreboard that must be visible without scrolling).
+  final double? customHeight;
+
   const GamicoSimplePopup({
     super.key,
     required this.child,
@@ -49,6 +55,7 @@ class GamicoSimplePopup extends StatefulWidget {
     this.pageControllerLength,
     this.dismissible = true,
     this.characterPositions,
+    this.customHeight,
   });
 
   @override
@@ -178,7 +185,8 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
                         child: SizedBox(
                           width: double.infinity,
                           height:
-                              LayoutService.referenceWidth +
+                              (widget.customHeight ??
+                                  LayoutService.referenceWidth) +
                               topPadding +
                               bottomPadding,
                           child: Stack(

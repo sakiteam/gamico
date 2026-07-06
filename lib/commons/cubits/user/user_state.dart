@@ -6,11 +6,13 @@ class GamicoUserState {
   final dynamic user;
   final int cowriesUpdate;
   final int cowriesUpdateDifference;
+  final bool loaded;
 
   const GamicoUserState({
     this.user,
     this.cowriesUpdate = 0,
     this.cowriesUpdateDifference = 0,
+    this.loaded = false,
   });
 
   // UserState copyWith({
@@ -26,6 +28,7 @@ class GamicoUserState {
     dynamic Function()? user,
     int? cowriesUpdate,
     int? cowriesUpdateDifference,
+    bool? loaded,
     // bool? loadingAchievements,
     // bool? loadingCollectorsLeaderboards,
   }) {
@@ -34,6 +37,7 @@ class GamicoUserState {
       cowriesUpdate: cowriesUpdate ?? this.cowriesUpdate,
       cowriesUpdateDifference:
           cowriesUpdateDifference ?? this.cowriesUpdateDifference,
+      loaded: loaded ?? this.loaded,
     );
   }
 }

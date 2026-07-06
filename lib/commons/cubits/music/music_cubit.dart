@@ -66,12 +66,42 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   double _currentVolume = 1;
 
+  // Voice-chat ducking factors: while an in-game voice chat is running the
+  // music drops to 10% and the sound effects to 50% so voices stay clear.
+  double _musicDuck = 1;
+  double _bruitageDuck = 1;
+
   void setGlobalVolume(double volume) {
     _currentVolume = volume;
 
-    for (final player in _allPlayers) {
-      player.setVolume(volume);
+    _mainPlayer.setVolume(volume * _musicDuck);
+    for (final player in _bruitagePlayers) {
+      player.setVolume(volume * _bruitageDuck);
     }
+  }
+
+  /// An in-game voice chat started: lower the music to 10% of its volume and
+  /// the sound effects to 50%.
+  Future<void> duckForVoiceChat() async {
+    _musicDuck = 0.1;
+    _bruitageDuck = 0.5;
+    await _applyDucking();
+  }
+
+  /// The voice chat ended: music and sound effects return to normal volume.
+  Future<void> restoreAfterVoiceChat() async {
+    _musicDuck = 1;
+    _bruitageDuck = 1;
+    await _applyDucking();
+  }
+
+  Future<void> _applyDucking() async {
+    await Future.wait([
+      _mainPlayer.setVolume(_currentVolume * _musicDuck),
+      ..._bruitagePlayers.map(
+        (player) => player.setVolume(_currentVolume * _bruitageDuck),
+      ),
+    ]);
   }
 
   // Init music
@@ -197,6 +227,10 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
       try {
         await tmpPlayer.safelySetAsset(source);
+        // One-shot effects follow the voice-chat ducking too.
+        if (_bruitageDuck < 1) {
+          await tmpPlayer.setVolume(_bruitageDuck);
+        }
         await tmpPlayer.safelyPlay(force);
 
         // Avoid disposing immediately to prevent native crashes (e.g., _setPlatformActive)

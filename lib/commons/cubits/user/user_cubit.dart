@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'dart:math';
 import 'dart:async';
 import 'dart:convert';
 import 'package:bloc/bloc.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:games_services/games_services.dart';
 import 'package:gamico/commons/global/gamico.dart';
@@ -25,11 +27,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     required this.usersRepository,
     // required this.fromJson,
     // required this.toJson,
-  }) : super(
-         GamicoUserState(
-           // user: UserService.getUser()
-         ),
-       ) {
+  }) : super(GamicoUserState(user: UserService.getUser())) {
     // if (UserService.authenticated) {
     //   listenToUserChanges();
     // }
@@ -62,16 +60,30 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
           final online = event.snapshot.value as bool? ?? false;
 
           if (online) {
-            final now = DateTime.now();
+            final user = state.user;
+            final isUserComplete =
+                user != null &&
+                (user.socialId != null ||
+                    user.firebaseId != null ||
+                    user.name != null);
 
-            _disconnectionReference = ref.onDisconnect();
+            if (state.loaded && isUserComplete) {
+              final now = DateTime.now();
 
-            _disconnectionReference?.update({
-              "online": false,
-              "updated_at": "$now",
-            });
+              _disconnectionReference = ref.onDisconnect();
 
-            ref.update({"online": true, "updated_at": "$now"});
+              _disconnectionReference?.update({
+                "online": false,
+                "updated_at": "$now",
+              });
+
+              ref.update({"online": true, "updated_at": "$now"});
+            } else {
+              debugPrint(
+                "⚠️ [UserCubit] Connexion détectée mais l'utilisateur n'est pas "
+                "complètement chargé. Mise à jour de présence ignorée.",
+              );
+            }
           }
         });
   }
@@ -276,7 +288,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   }
 
   // dynamic?
-  void setUser(dynamic user) {
+  void setUser(dynamic user, {bool loaded = false}) {
     // [GAMICO-FIX] name/level-loss investigation.
     // Instrumentation: clearing a previously-loaded user also wipes the
     // persisted local copy (UserService.setUser(null) below), which is what
@@ -288,7 +300,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
       );
     }
 
-    emit(state.copyWith(user: () => user));
+    emit(state.copyWith(user: () => user, loaded: loaded));
 
     UserService.setUser(user);
   }
@@ -317,6 +329,33 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     if (FirebaseAuth.instance.currentUser == null) return;
 
     await usersRepository.updateUserToken(UserService.uid, token);
+  }
+
+  void setUserPhoto(String? photo) {
+    //
+    // final photo = ;
+    if (photo != null && photo != state.user?.photo) {
+      usersRepository.updateUserPhoto(UserService.uid, photo);
+    }
+  }
+
+  Future<void> saveToken() async {
+    try {
+      if (Platform.isIOS) {
+        String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+
+        if (apnsToken == null) {
+          await Future.delayed(const Duration(minutes: 1));
+          saveToken();
+          return;
+        }
+      }
+
+      setUserToken(await FirebaseMessaging.instance.getToken());
+      FirebaseMessaging.instance.onTokenRefresh.listen(setUserToken);
+    } catch (e) {
+      debugPrint("$e");
+    }
   }
 
   void listenToUserChanges() async {
@@ -396,45 +435,46 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
         return;
       }
 
-      setUser(value);
+      setUser(value, loaded: true);
 
       if (!_managed) {
         _manageDisconnection();
       }
-    } else {
-      // setUser(null);
-
-      // if (!await SimpleConnectionChecker.isConnectedToInternet()) return;
-
-      // final uid = UserService.uid;
-      // if (uid.isEmpty) return;
-
-      // try {
-      //   final snapshot = await FirebaseDatabase.instance
-      //       .ref("users/$uid")
-      //       .get();
-
-      //   if (snapshot.exists && snapshot.value != null) {
-      //     // False alarm: the node is still there. Resync the user so the UI
-      //     // reflects the real value (the listener may stay stale on null).
-      //     final value = Gamico.instance.userFromJson(
-      //       jsonDecode(jsonEncode(snapshot.value)),
-      //     );
-
-      //     if (value != null && value.name != null) {
-      //       setUser(value);
-      //     }
-
-      //     return;
-      //   }
-      // } catch (_) {
-      //   // Could not confirm deletion (e.g. permission/transient error) —
-      //   // err on the safe side and keep the user signed in.
-      //   return;
-      // }
-
-      // await FirebaseAuth.instance.signOut();
     }
+    // else {
+    // setUser(null);
+
+    // if (!await SimpleConnectionChecker.isConnectedToInternet()) return;
+
+    // final uid = UserService.uid;
+    // if (uid.isEmpty) return;
+
+    // try {
+    //   final snapshot = await FirebaseDatabase.instance
+    //       .ref("users/$uid")
+    //       .get();
+
+    //   if (snapshot.exists && snapshot.value != null) {
+    //     // False alarm: the node is still there. Resync the user so the UI
+    //     // reflects the real value (the listener may stay stale on null).
+    //     final value = Gamico.instance.userFromJson(
+    //       jsonDecode(jsonEncode(snapshot.value)),
+    //     );
+
+    //     if (value != null && value.name != null) {
+    //       setUser(value);
+    //     }
+
+    //     return;
+    //   }
+    // } catch (_) {
+    //   // Could not confirm deletion (e.g. permission/transient error) —
+    //   // err on the safe side and keep the user signed in.
+    //   return;
+    // }
+
+    // await FirebaseAuth.instance.signOut();
+    // }
   }
 
   void cancelUserChangesListener() {
@@ -442,6 +482,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     _streamSubscription?.cancel();
     _disconnectionSubscription?.cancel();
     _disconnectionReference?.cancel();
+    emit(state.copyWith(loaded: false));
   }
 
   Future<void> updateUserGratification(

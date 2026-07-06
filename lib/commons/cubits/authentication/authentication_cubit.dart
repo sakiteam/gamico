@@ -1,4 +1,4 @@
-import 'dart:io';
+// import 'dart:io';
 import 'dart:core';
 import 'dart:async';
 import 'dart:convert';
@@ -11,7 +11,7 @@ import 'package:gamico/commons/global/gamico.dart';
 import 'package:games_services/games_services.dart';
 import 'package:gamico/commons/services/global.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
+// import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/repositories/gamico_users_repository.dart';
 import 'package:gamico/features/friend/cubits/friend_invitation_cubit.dart';
@@ -42,9 +42,6 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
       User? firebaseUser,
     ) async {
       if (firebaseUser != null) {
-        // print("///");
-        // print(firebaseUser);
-        // print("///");
         await GamicoGlobalService.waitWhile(() => !UserService.authenticated);
 
         userCubit.listenToUserChanges();
@@ -57,14 +54,11 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
         // {token/photo, updated_at} on every launch. manageUserChanges refuses
         // to load a ghost, so state.user stays null for a bad uid and these
         // writes are correctly skipped.
-        await GamicoGlobalService.waitWhile(() => userCubit.state.user == null);
 
-        _saveToken();
+        await GamicoGlobalService.waitWhile(() => !userCubit.state.loaded);
 
-        final photo = firebaseUser.photoURL;
-        if (photo != null && photo != userCubit.state.user?.photo) {
-          usersRepository.updateUserPhoto(UserService.uid, photo);
-        }
+        userCubit.saveToken();
+        userCubit.setUserPhoto(firebaseUser.photoURL);
 
         emit(
           state.copyWith(
@@ -99,25 +93,6 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
       gameServicesPlayer = player;
       userCubit.setUserName(gameServicesPlayer?.displayName ?? "");
     });
-  }
-
-  Future<void> _saveToken() async {
-    try {
-      if (Platform.isIOS) {
-        String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
-
-        if (apnsToken == null) {
-          await Future.delayed(const Duration(minutes: 1));
-          _saveToken();
-          return;
-        }
-      }
-
-      userCubit.setUserToken(await FirebaseMessaging.instance.getToken());
-      FirebaseMessaging.instance.onTokenRefresh.listen(userCubit.setUserToken);
-    } catch (e) {
-      debugPrint("$e");
-    }
   }
 
   Future<void> signIn() async {
@@ -178,6 +153,7 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
             Gamico.instance.userFromJson(
               Map<String, dynamic>.from(data.values.first),
             ),
+            loaded: true,
           );
 
           friendInvitationCubit.listenToInvitations();
@@ -190,7 +166,7 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
           UserService.uid = await usersRepository.createUser(user);
 
           // Save user information
-          userCubit.setUser(user);
+          userCubit.setUser(user, loaded: true);
         }
 
         emit(

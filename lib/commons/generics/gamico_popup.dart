@@ -25,6 +25,10 @@ class GamicoPopup extends StatelessWidget {
   final bool dismissible;
   final List<GamicoCharacterPosition>? characterPositions;
 
+  /// See [GamicoSimplePopup.customHeight]: overrides the default popup content
+  /// height (in reference coordinates) when the content needs more room.
+  final double? customHeight;
+
   const GamicoPopup({
     super.key,
     required this.child,
@@ -35,6 +39,7 @@ class GamicoPopup extends StatelessWidget {
     this.pageControllerLength,
     this.dismissible = true,
     this.characterPositions,
+    this.customHeight,
   });
 
   @override
@@ -43,6 +48,7 @@ class GamicoPopup extends StatelessWidget {
       context,
       GamicoSimplePopup(
         additionalChild: additionalChild,
+        customHeight: customHeight,
         characterPositions: characterPositions,
         dismissible: dismissible,
         pageController: pageController,
