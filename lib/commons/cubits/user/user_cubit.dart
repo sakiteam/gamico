@@ -236,6 +236,14 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
       return;
     }
 
+    // Optimistically update the local state to prevent read-modify-write
+    // race conditions when multiple updates are fired synchronously
+    // (e.g. setUserStars followed immediately by setUserLevel).
+    final updatedUser = Gamico.instance.userFromJson(
+      state.user!.toJson()..["progression"] = progression,
+    );
+    emit(state.copyWith(user: updatedUser));
+
     usersRepository.updateUserProgression(UserService.uid, progression);
   }
 

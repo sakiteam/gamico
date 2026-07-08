@@ -1,3 +1,4 @@
+import 'package:flame/extensions.dart';
 import 'package:gamico/commons/generics/button.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/generics/elevated_button.dart';
@@ -99,12 +100,12 @@ class GamicoIconTextButton extends StatelessWidget {
         final finalForegroundColor = enabled
             ? (color ?? defaultForegroundColor)
             : (simple ? Colors.grey.withAlpha(100) : Colors.grey);
-        final finalBackgroundColor = enabled
-            ? (backgroundColor ??
-                  (color == null
-                      ? defaultBackgroundColor
-                      : ColorService.accentBackgroundColor))
-            : Colors.grey.shade700;
+        // final finalBackgroundColor = enabled
+        //     ? (backgroundColor ??
+        //           (color == null
+        //               ? defaultBackgroundColor
+        //               : ColorService.accentBackgroundColor))
+        //     : Colors.grey.shade700;
 
         if (simple) {
           return ClipRRect(
@@ -131,7 +132,9 @@ class GamicoIconTextButton extends StatelessWidget {
           width: finalSize,
           height: finalSize,
           foregroundColor: finalForegroundColor,
-          backgroundColor: finalBackgroundColor,
+          backgroundColor: finalForegroundColor.darken(
+            0.75 / 2,
+          ), //finalBackgroundColor,
           bruitage: enabled ? null : "",
           onPressed: enabled ? onPressed : animate,
           child: contentChild,

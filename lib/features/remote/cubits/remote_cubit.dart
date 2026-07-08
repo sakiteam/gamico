@@ -8,13 +8,33 @@ import 'package:gamico/commons/services/layout.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
-import 'package:gamico/commons/models/gamico_game_model.dart';
 import 'package:gamico/features/adventure/utilities/remote_utility.dart';
 import 'package:gamico/commons/repositories/gamico_games_repository.dart';
 
 part 'remote_state.dart';
 
 /// Cubit for managing the remote game mode.
+///
+/// ## Matchmaking model
+///
+/// Players looking for the same game converge on a single, deterministic
+/// **lobby room** at a fixed database path derived from the mode and level
+/// range (e.g. `matchmakings/mm_crazy_eights_4_elimination_000_050`). A single
+/// create-or-join **transaction** on that node makes gathering race-free: even
+/// if several players start searching at the exact same instant, Firebase
+/// serialises their transactions, so they all land in the same room instead of
+/// each spawning a private game that never meets the others.
+///
+/// When the room reaches the required player count the transaction flips its
+/// status to `STARTED`, and the room **graduates**: its players are copied into
+/// a brand new `games/{pushKey}` node (the structure the rest of the app
+/// consumes) and everyone launches into it. The fixed room is then free to be
+/// reused (overwritten) by the next batch of players.
+///
+/// The lobby host is the player holding the smallest (chronologically first)
+/// player key among those actually present at graduation, so a player leaving
+/// the waiting room — the creator included — only ever removes their own slot
+/// and never tears the room down for the others.
 class RemoteCubit extends Cubit<RemoteState> {
   /// Cubit for managing the remote game mode.
   RemoteCubit({
@@ -41,11 +61,37 @@ class RemoteCubit extends Cubit<RemoteState> {
   }
 
   bool? creator;
+
+  /// Id of the real game the current lobby will graduate into (a fresh push
+  /// key generated when the room is first created and carried by the room so
+  /// every occupant agrees on it).
   String gameId = "";
+
+  /// Our own slot key inside the lobby room.
   String _myPlayerKey = "";
-  StreamSubscription<DatabaseEvent>? _streamSubscription;
+
+  /// Fixed database path of the lobby room we are gathering in.
+  String _roomKey = "";
+
+  /// Live subscription to the lobby room (drives the "players found" count and
+  /// triggers graduation once the room fills).
+  StreamSubscription<DatabaseEvent>? _roomSubscription;
+
+  /// Live subscription to the graduated game node — the single authoritative
+  /// signal that the match has started, for every player alike.
+  StreamSubscription<DatabaseEvent>? _gameSubscription;
+
+  /// Removes only our own slot from the lobby room if we disconnect while still
+  /// waiting.
   OnDisconnect? _userDisconnectionReference;
+
   String createdGameStatus = "";
+
+  /// Guards a single graduation write per lobby.
+  bool _graduated = false;
+
+  /// Guards a single launch (the game-node listener can fire more than once).
+  bool _launching = false;
 
   void init() {
     launch();
@@ -88,8 +134,14 @@ class RemoteCubit extends Cubit<RemoteState> {
   void reset([int? level]) {
     abortGame();
 
+    _roomSubscription?.cancel();
+    _gameSubscription?.cancel();
+
     gameId = "";
-    _streamSubscription?.cancel();
+    _roomKey = "";
+    _myPlayerKey = "";
+    _graduated = false;
+    _launching = false;
 
     emit(
       state.copyWith(
@@ -108,6 +160,29 @@ class RemoteCubit extends Cubit<RemoteState> {
     launch();
   }
 
+  /// Builds the fixed lobby-room key for the current mode / level range. Every
+  /// player sharing the same matchmaking settings produces the same key and so
+  /// converges on the same room.
+  String _buildRoomKey() {
+    final settings = remoteUtility.matchmakingSettings;
+
+    final width = settings.maxLevel.toString().length < 3
+        ? 3
+        : settings.maxLevel.toString().length;
+    String pad(int value) => value.toString().padLeft(width, "0");
+    final levelRange = "${pad(settings.minLevel)}_${pad(settings.maxLevel)}";
+
+    final modePart = _sanitizeKey(settings.mode ?? "default");
+    final levelPart = state.level != null ? "_lvl${state.level}" : "";
+
+    return "$modePart${levelPart}_$levelRange";
+  }
+
+  /// Strips characters Firebase forbids in a path key.
+  String _sanitizeKey(String value) {
+    return value.replaceAll(RegExp(r'[.#$/\[\]\s]'), '_');
+  }
+
   void _init() async {
     if (isClosed) return;
 
@@ -120,279 +195,171 @@ class RemoteCubit extends Cubit<RemoteState> {
       ),
     );
 
-    final ref = FirebaseDatabase.instance.ref();
+    final db = FirebaseDatabase.instance;
+    final settings = remoteUtility.matchmakingSettings;
+    final required = settings.maxPlayers ?? 2;
 
-    final matchmakingSettings = remoteUtility.matchmakingSettings;
+    _roomKey = _buildRoomKey();
+    final roomRef = db.ref("matchmakings/$_roomKey");
 
-    int matchmakingLevel = matchmakingSettings.getMatchmakingLevel(
-      userCubit.state.user!,
+    final myPlayerKey = db.ref().push().key ?? "";
+    _myPlayerKey = myPlayerKey;
+    // Pre-generated id of the real game this lobby will graduate into.
+    final freshGameId = db.ref("games").push().key ?? "";
+
+    final now = DateTime.now().toString();
+    Map<String, dynamic> buildMyPlayer() => <String, dynamic>{
+      "user_id": UserService.uid,
+      "status": "ACCEPTED",
+      "created_at": now,
+      "updated_at": now,
+    };
+    Map<String, dynamic> buildFreshRoom() => <String, dynamic>{
+      "status": "PENDING",
+      "created_at": now,
+      "next_game_id": freshGameId,
+      "players": <String, dynamic>{myPlayerKey: buildMyPlayer()},
+    };
+
+    // Atomic create-or-join. Because Firebase serialises transactions on a
+    // node, simultaneous searchers can never split into separate games.
+    final result = await roomRef.runTransaction((current) {
+      if (current == null) {
+        return Transaction.success(buildFreshRoom());
+      }
+
+      final room = Map<String, dynamic>.from(current as Map);
+      final status = room["status"]?.toString() ?? "";
+
+      // A previous batch already started here: open a fresh room for a new one.
+      if (status != "PENDING") {
+        return Transaction.success(buildFreshRoom());
+      }
+
+      final players = Map<String, dynamic>.from(
+        room["players"] as Map? ?? <String, dynamic>{},
+      );
+
+      // Defensive: a full-but-not-yet-flipped room shouldn't exist, but if it
+      // does, don't overflow it — start a fresh batch instead.
+      if (players.length >= required) {
+        return Transaction.success(buildFreshRoom());
+      }
+
+      players[myPlayerKey] = buildMyPlayer();
+      room["players"] = players;
+      if (players.length >= required) {
+        room["status"] = "STARTED";
+      }
+      return Transaction.success(room);
+    }, applyLocally: false);
+
+    if (isClosed) return;
+
+    if (result.committed != true || result.snapshot.value == null) {
+      // Transient contention / abort: retry from scratch.
+      _init();
+      return;
+    }
+
+    final room = Map<String, dynamic>.from(
+      jsonDecode(jsonEncode(result.snapshot.value)) as Map,
+    );
+    gameId = room["next_game_id"]?.toString() ?? freshGameId;
+    createdGameStatus = room["status"]?.toString() ?? "PENDING";
+
+    // Leave only our own slot behind on disconnect — for every player, creator
+    // included — so one player quitting the lobby never ends it for the others.
+    _userDisconnectionReference = db
+        .ref("matchmakings/$_roomKey/players/$myPlayerKey")
+        .onDisconnect();
+    await _userDisconnectionReference?.remove();
+
+    // Keep the live "players found" count fresh, and graduate once the room
+    // fills. A room whose next_game_id changed has already graduated and been
+    // replaced by a new batch — the game-node listener drives our launch then.
+    _roomSubscription?.cancel();
+    _roomSubscription = roomRef.onValue.listen((event) {
+      final value = event.snapshot.value;
+      if (value == null) return;
+      final data = Map<String, dynamic>.from(
+        jsonDecode(jsonEncode(value)) as Map,
+      );
+      if (data["next_game_id"]?.toString() != gameId) return;
+
+      final players = Map<String, dynamic>.from(
+        data["players"] as Map? ?? <String, dynamic>{},
+      );
+      final ids = players.values
+          .map((p) => (p as Map)["user_id"]?.toString())
+          .whereType<String>()
+          .toSet();
+      _emitPlayersFound(ids);
+
+      if (data["status"]?.toString() == "STARTED") {
+        _graduate(data);
+      }
+    });
+
+    // The single authoritative launch signal: the graduated game node going
+    // STARTED. Never races, and is never overwritten by later batches.
+    _gameSubscription?.cancel();
+    _gameSubscription = db.ref("games/$gameId").onValue.listen((event) {
+      final value = event.snapshot.value;
+      if (value == null) return;
+      final data = Map<String, dynamic>.from(
+        jsonDecode(jsonEncode(value)) as Map,
+      );
+      if (data["status"]?.toString() != "STARTED") return;
+
+      final players = Map<String, dynamic>.from(
+        data["players"] as Map? ?? <String, dynamic>{},
+      );
+      final realIds = players.values
+          .map((p) => (p as Map)["user_id"]?.toString())
+          .whereType<String>()
+          .toSet();
+      // The host is the chronologically first player still present.
+      final orderedKeys = players.keys.toList()..sort();
+      creator = orderedKeys.isNotEmpty && orderedKeys.first == _myPlayerKey;
+
+      launchGame(fakeOpponent: realIds.length < required);
+    });
+
+    // Our own join may have already filled the room: graduate right away.
+    if (createdGameStatus == "STARTED") {
+      _graduate(room);
+    }
+
+    // 2-player pools fall back to a bot if nobody shows up in time.
+    if (!remoteUtility.isDeveloper &&
+        !appScreenshots &&
+        Gamico.instance.playSettings?.enableFakeOpponent == true) {
+      _manageFakeGame();
+    }
+  }
+
+  /// Copies a full lobby room into its real (graduated) game node. Every
+  /// finishing client writes the same authoritative data idempotently, so the
+  /// game exists even if the player who filled the room drops out in the same
+  /// instant. The launch itself is driven uniformly by the game-node listener.
+  Future<void> _graduate(Map<String, dynamic> room) async {
+    if (_graduated) return;
+    _graduated = true;
+
+    final gid = room["next_game_id"]?.toString() ?? gameId;
+    final createdAt =
+        room["created_at"]?.toString() ?? DateTime.now().toString();
+    final players = Map<String, dynamic>.from(
+      room["players"] as Map? ?? <String, dynamic>{},
     );
 
-    final int minOpponentLevel;
-    final int maxOpponentLevel;
-
-    // if (DateTime.now().year < 2025) {
-
-    minOpponentLevel = matchmakingSettings.minLevel;
-    maxOpponentLevel = matchmakingSettings.maxLevel + 1;
-
-    // } else {
-    // minOpponentLevel = max(
-    //   matchmakingSettings.minLevel,
-    //   matchmakingLevel - matchmakingSettings.increment,
-    // );
-    // maxOpponentLevel = min(
-    //   matchmakingSettings.maxLevel,
-    //   matchmakingLevel + matchmakingSettings.increment,
-    // );
-    // }
-
-    final maxLevelLength = matchmakingSettings.maxLevel.toString().length;
-
-    String formatLevel(int level) {
-      return level.toString().padLeft(maxLevelLength, "0");
-    }
-
-    final modePotentialString = [
-      if (matchmakingSettings.mode != null) matchmakingSettings.mode,
-      if (state.level != null) state.level,
-    ].join(" ");
-
-    final modeString = matchmakingSettings.mode == null
-        ? " "
-        : " $modePotentialString ";
-
-    // bool currentPlayerIsCreator;
-    // DataSnapshot snapshot;
-
-    final snapshot = await ref
-        .child("games")
-        .orderByChild("status")
-        .startAt("PENDING$modeString${formatLevel(minOpponentLevel)}")
-        .endAt("PENDING$modeString${formatLevel(maxOpponentLevel)}")
-        .limitToFirst(1)
-        .get();
-
-    // snapshot = await ref
-    //     .child("games")
-    //     .orderByChild("status")
-    //     .equalTo("PENDING")
-    //     .limitToFirst(1)
-    //     .get();
-
-    creator = !snapshot.exists;
-
-    if (creator == true) {
-      DateTime now = DateTime.now();
-
-      // Generate a new child location
-      String playerKey = ref.push().key ?? "";
-      _myPlayerKey = playerKey;
-
-      gameId = await gamesRepository.createGame(
-        GamicoGameModel(
-          events: const {},
-          players: {
-            playerKey: GamicoGamePlayerModel(
-              status: "ACCEPTED",
-              userId: UserService.uid,
-              createdAt: now,
-              updatedAt: now,
-            ),
-          },
-          status: "PENDING$modeString${formatLevel(matchmakingLevel)}",
-        ),
-      );
-
-      // Notify Irié Bi Irié Alex
-      // _sendUserNotification(
-      //   "-N99UonKL3fJdKmGQLQl",
-      //   "Nouveau jeu !",
-      // "Une partie en ligne a été lancée par $playerName. Voulez-vous le rejoindre ?"
-      //   Languages.of(context)
-      //       .notificationsNewGameDescription(LocalStorageService.displayName),
-      //   null,
-      // );
-
-      _userDisconnectionReference = FirebaseDatabase.instance
-          .ref("games")
-          .child(gameId)
-          .onDisconnect();
-      await _userDisconnectionReference?.update({"status": "ABORTED"});
-
-      // await gamesRepository.addGamePlayer(
-      //   gameId,
-      //   GamePlayerModel(
-      //     status: "ACCEPTED",
-      //     userId: UserService.uid,
-      //   ),
-      // );
-
-      createdGameStatus = "PENDING";
-
-      _streamSubscription?.cancel();
-      // _streamSubscription = FirebaseDatabase.instance
-      //     .ref("games/$gameId/status")
-      //     .onValue
-      //     .listen((event) {
-      //   final status = event.snapshot.value.toString();
-
-      //   createdGameStatus = status;
-
-      //   if (status == "STARTED") {
-      //     launchGame();
-      //     _streamSubscription?.cancel();
-      //   }
-      // });
-
-      _streamSubscription = FirebaseDatabase.instance
-          .ref("games/$gameId")
-          .onValue
-          .listen((event) {
-            final rawData = event.snapshot.value;
-            final validData = jsonDecode(jsonEncode(rawData));
-            final gameData = GamicoGameModel.fromJson(
-              Map<String, dynamic>.from(validData ?? {}),
-            );
-            final gameStatus = gameData.status ?? "";
-            final gamePlayers = gameData.players?.values ?? [];
-            final gamePlayersIds = gamePlayers.map((e) => e.userId).toSet();
-            final requiredPlayersCount = matchmakingSettings.maxPlayers ?? 2;
-
-            createdGameStatus = gameStatus;
-
-            if (gameStatus == "STARTED") {
-              emit(
-                state.copyWith(
-                  fakeOpponent: gamePlayersIds.length < requiredPlayersCount,
-                  playersFound: gamePlayersIds.length,
-                ),
-              );
-
-              launchGame();
-              _streamSubscription?.cancel();
-            } else {
-              _emitPlayersFound(gamePlayersIds);
-            }
-          });
-
-      if (!remoteUtility.isDeveloper &&
-          !appScreenshots &&
-          Gamico.instance.playSettings?.enableFakeOpponent == true) {
-        _manageFakeGame();
-      }
-    } else if (creator == false) {
-      final data = jsonDecode(jsonEncode(snapshot.value)) as Map;
-
-      gameId = data.keys.first ?? "";
-
-      DatabaseReference gameRef = FirebaseDatabase.instance.ref().child(
-        "games/$gameId",
-      );
-
-      final playerRef = gameRef.child("players").push();
-      final playerKey = playerRef.key ?? "";
-      _myPlayerKey = playerKey;
-
-      bool firstRun = true;
-      final result = await gameRef.runTransaction((Object? game) {
-        if (firstRun) {
-          firstRun = false;
-          return Transaction.success(null);
-        }
-
-        if (game == null) {
-          return Transaction.abort();
-        }
-
-        Map<String, dynamic> currentGame = Map<String, dynamic>.from(
-          game as Map,
-        );
-
-        if (!currentGame["status"].toString().contains("PENDING")) {
-          return Transaction.abort();
-        }
-
-        DateTime now = DateTime.now();
-
-        final playersMap = currentGame["players"] as Map? ?? {};
-        final requiredPlayersCount = matchmakingSettings.maxPlayers ?? 2;
-
-        if (playersMap.length + 1 >= requiredPlayersCount) {
-          currentGame["status"] = "STARTED";
-        }
-        currentGame["players"] ??= <String, dynamic>{};
-        currentGame["players"][playerKey] = <String, dynamic>{
-          "created_at": now.toString(),
-          "updated_at": now.toString(),
-          "status": "ACCEPTED",
-          "user_id": UserService.uid,
-        };
-
-        return Transaction.success(currentGame);
-      }, applyLocally: false);
-
-      if (result.committed == false) {
-        _init();
-      } else {
-        _userDisconnectionReference = FirebaseDatabase.instance
-            .ref("games/$gameId/players/$playerKey")
-            .onDisconnect();
-        await _userDisconnectionReference?.remove();
-
-        final rawData = result.snapshot.value;
-        final validData = jsonDecode(jsonEncode(rawData));
-        final gameData = GamicoGameModel.fromJson(
-          Map<String, dynamic>.from(validData ?? {}),
-        );
-        final gameStatus = gameData.status ?? "";
-        final gamePlayers = gameData.players?.values ?? [];
-        final gamePlayersIds = gamePlayers.map((e) => e.userId).toSet();
-        final requiredPlayersCount = matchmakingSettings.maxPlayers ?? 2;
-
-        if (gameStatus == "STARTED") {
-          emit(
-            state.copyWith(
-              fakeOpponent: gamePlayersIds.length < requiredPlayersCount,
-            ),
-          );
-          launchGame();
-        } else {
-          _streamSubscription?.cancel();
-          _streamSubscription = FirebaseDatabase.instance
-              .ref("games/$gameId")
-              .onValue
-              .listen((event) {
-                final rawData = event.snapshot.value;
-                final validData = jsonDecode(jsonEncode(rawData));
-                final gameData = GamicoGameModel.fromJson(
-                  Map<String, dynamic>.from(validData ?? {}),
-                );
-                final gameStatus = gameData.status ?? "";
-                final gamePlayers = gameData.players?.values ?? [];
-                final gamePlayersIds = gamePlayers.map((e) => e.userId).toSet();
-
-                if (gameStatus == "STARTED") {
-                  emit(
-                    state.copyWith(
-                      fakeOpponent:
-                          gamePlayersIds.length < requiredPlayersCount,
-                      playersFound: gamePlayersIds.length,
-                    ),
-                  );
-                  launchGame();
-                  _streamSubscription?.cancel();
-                } else if (gameStatus == "ABORTED") {
-                  // The creator left the lobby: re-search for another game.
-                  _streamSubscription?.cancel();
-                  reset(state.level);
-                } else {
-                  _emitPlayersFound(gamePlayersIds);
-                }
-              });
-        }
-      }
-    }
+    await FirebaseDatabase.instance.ref("games/$gid").update(<String, dynamic>{
+      "status": "STARTED",
+      "created_at": createdAt,
+      "updated_at": DateTime.now().toString(),
+      "players": players,
+    });
   }
 
   Future<void> _emitPlayersFound(Set<String?> ids) async {
@@ -452,45 +419,64 @@ class RemoteCubit extends Cubit<RemoteState> {
     return profiles;
   }
 
+  /// 2-player fallback: if we are still alone in a pending room after a short
+  /// wait, start the game against a bot. Guarded by a transaction so a real
+  /// opponent who joined at the last second always wins over the bot.
   void _manageFakeGame() async {
-    final requiredPlayersCount =
-        remoteUtility.matchmakingSettings.maxPlayers ?? 2;
-    if (requiredPlayersCount > 2) return;
+    final required = remoteUtility.matchmakingSettings.maxPlayers ?? 2;
+    if (required > 2) return;
 
     await Future.delayed(5.seconds);
 
+    if (isClosed) return;
     if (state.status == RemoteGameStatus.success) return;
+    if (_graduated || _launching) return;
 
-    if (dirtyStateForFakeGame) return;
+    final roomRef = FirebaseDatabase.instance.ref("matchmakings/$_roomKey");
+    final result = await roomRef.runTransaction((current) {
+      if (current == null) return Transaction.abort();
+      final room = Map<String, dynamic>.from(current as Map);
+      if (room["status"]?.toString() != "PENDING") return Transaction.abort();
+      if (room["next_game_id"]?.toString() != gameId) {
+        return Transaction.abort();
+      }
 
-    final DateTime now = DateTime.now();
+      final players = Map<String, dynamic>.from(
+        room["players"] as Map? ?? <String, dynamic>{},
+      );
+      // Only fall back to a bot while we are genuinely alone.
+      if (players.length != 1 || !players.containsKey(_myPlayerKey)) {
+        return Transaction.abort();
+      }
 
-    await gamesRepository.addGamePlayer(
-      gameId,
-      GamicoGamePlayerModel(
-        createdAt: now,
-        updatedAt: now,
-        status: "ACCEPTED",
-        userId: UserService.uid,
-      ),
-    );
+      room["status"] = "STARTED";
+      return Transaction.success(room);
+    }, applyLocally: false);
 
-    if (dirtyStateForFakeGame) return;
-
-    await gamesRepository.updateGameStatus(gameId, "STARTED");
+    if (isClosed) return;
+    if (result.committed == true && result.snapshot.value != null) {
+      final room = Map<String, dynamic>.from(
+        jsonDecode(jsonEncode(result.snapshot.value)) as Map,
+      );
+      _graduate(room);
+    }
   }
 
-  void launchGame() {
-    if (isClosed) return;
+  void launchGame({bool fakeOpponent = false}) {
+    if (isClosed || _launching) return;
+    _launching = true;
 
     _userDisconnectionReference?.cancel();
     _userDisconnectionReference = null;
+    _roomSubscription?.cancel();
+    _gameSubscription?.cancel();
 
     emit(
       state.copyWith(
         status: RemoteGameStatus.success,
         creator: () => creator,
         gameId: gameId,
+        fakeOpponent: fakeOpponent,
       ),
     );
   }
@@ -499,27 +485,24 @@ class RemoteCubit extends Cubit<RemoteState> {
     _userDisconnectionReference?.cancel();
     _userDisconnectionReference = null;
 
-    if (gameId.isEmpty) return;
+    if (_roomKey.isEmpty || _myPlayerKey.isEmpty) return;
 
-    // A joiner leaving the lobby before the game starts should only remove
-    // their own slot, so the remaining players see the count drop instead of
-    // a phantom player. The creator (or anyone once the game has started)
-    // aborts the whole game as before.
-    final bool inLobby = state.status != RemoteGameStatus.success;
-    if (inLobby && creator == false && _myPlayerKey.isNotEmpty) {
+    // Leaving the lobby before the game starts removes only our own slot — for
+    // every player alike, creator included — so the others stay in the room.
+    // Once the match has started (or is launching) the lobby room is no longer
+    // ours to touch; the in-game cubit owns disconnection from there on.
+    final inLobby = state.status != RemoteGameStatus.success && !_launching;
+    if (inLobby) {
       FirebaseDatabase.instance
-          .ref("games/$gameId/players/$_myPlayerKey")
+          .ref("matchmakings/$_roomKey/players/$_myPlayerKey")
           .remove();
-      return;
     }
-
-    createdGameStatus = "ABORTED";
-    gamesRepository.updateGameStatus(gameId, "ABORTED");
   }
 
   @override
   Future<void> close() {
-    _streamSubscription?.cancel();
+    _roomSubscription?.cancel();
+    _gameSubscription?.cancel();
 
     abortGame();
 

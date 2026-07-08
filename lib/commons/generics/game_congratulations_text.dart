@@ -7,7 +7,9 @@ import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 
 const fontSize = 40.0;
-final color = ColorService.accentColor;
+Color get color => ColorService.accentColor == Colors.orange.shade900
+    ? Colors.orange
+    : ColorService.accentColor;
 
 class GamicoGameCongratulationsText extends StatefulWidget {
   const GamicoGameCongratulationsText({
