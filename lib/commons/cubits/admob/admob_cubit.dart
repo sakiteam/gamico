@@ -87,12 +87,16 @@ class AdmobCubit extends Cubit<AdmobState> {
 
           ad.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (ad) {
+              _rewardedAd = null;
               ad.dispose();
 
               loadRewardedAd();
             },
             onAdFailedToShowFullScreenContent: (ad, error) {
+              _rewardedAd = null;
               ad.dispose();
+
+              loadRewardedAd();
             },
           );
 
@@ -121,12 +125,16 @@ class AdmobCubit extends Cubit<AdmobState> {
 
           ad.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (ad) {
+              _interstitialAd = null;
               ad.dispose();
 
               loadInterstitialAd();
             },
             onAdFailedToShowFullScreenContent: (ad, error) {
+              _interstitialAd = null;
               ad.dispose();
+
+              loadInterstitialAd();
             },
           );
 
@@ -164,16 +172,28 @@ class AdmobCubit extends Cubit<AdmobState> {
   Future<void> showRewardedAd(Function onShown) async {
     MusicService.pausedByAd = true;
 
-    await _rewardedAd?.show(
-      onUserEarnedReward: (_, _) {
-        onShown();
-      },
-    );
+    try {
+      await _rewardedAd?.show(
+        onUserEarnedReward: (_, _) {
+          onShown();
+        },
+      );
+    } catch (e) {
+      debugPrint('Failed to show rewarded ad: $e');
+      _rewardedAd = null;
+      loadRewardedAd();
+    }
   }
 
   Future<void> showInterstitialAd() async {
     MusicService.pausedByAd = true;
 
-    await _interstitialAd?.show();
+    try {
+      await _interstitialAd?.show();
+    } catch (e) {
+      debugPrint('Failed to show interstitial ad: $e');
+      _interstitialAd = null;
+      loadInterstitialAd();
+    }
   }
 }

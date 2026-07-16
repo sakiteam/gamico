@@ -80,17 +80,19 @@ void gamePageManageCoinsAndStarsInAdventureGame(
         userCubit.updateStars(newStars);
       }
 
-      final int currentUserLevel = adventureUtility.getUserLevel(
-        userCubit.state.user,
-      );
       final multiplicationFactor = currentLevelStars - levelPreviousStars;
 
-      // 8 Américain pays a flat per-win reward below (every win, not just a new
-      // best), so skip the default improvement-based reward for it.
-      if (multiplicationFactor > 0 && adventureUtility.name != "crazy_eights") {
+      // Adventure reward is improvement-based for every game (8 Américain
+      // included): coins are paid only when a level's star count beats its
+      // previous best, proportionally to the gain. (8 Américain online/WiFi
+      // modes keep their own flat per-win reward in remote_mode_settings.)
+      // The gameEndReward bonus applies only when the level just played is the
+      // adventure's final one — not whenever the player's progression has
+      // reached it, which used to overpay every replay of earlier levels.
+      if (multiplicationFactor > 0) {
         final int cowriesReward;
 
-        if (currentUserLevel == adventureUtility.maxLevel) {
+        if (level == adventureUtility.maxLevel) {
           cowriesReward = adventureUtility.gameEndReward;
         } else {
           cowriesReward = Gamico.instance.gameSettings.playMinimumCoins;
@@ -100,14 +102,6 @@ void gamePageManageCoinsAndStarsInAdventureGame(
           (cowriesReward * multiplicationFactor).toInt(),
         );
       }
-    }
-
-    // 8 Américain: a flat per-win reward every time — 5 coins per star earned
-    // (1★ → 5, 2★ → 10, 3★ → 15) — independent of past bests.
-    if (adventureUtility.name == "crazy_eights") {
-      userCubit.incrementCowries(
-        Gamico.instance.gameSettings.playMinimumCoins * currentLevelStars,
-      );
     }
 
     if (isCurrentLevelLast) {
@@ -122,13 +116,13 @@ void gamePageManageCoinsAndStarsInAdventureGame(
         userCubit.incrementLevel();
       }
     }
-  } else {
-    // 8 Américain: every defeat costs 5 coins (not only at the furthest level).
-    if (adventureUtility.name == "crazy_eights") {
-      userCubit.decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
-    } else if (isCurrentLevelLast) {
-      userCubit.decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
-    }
+  } else if (isCurrentLevelLast) {
+    // Losing (or quitting, which registers as a defeat) costs coins only on the
+    // furthest, not-yet-cleared level. Replaying an already-passed level is
+    // free — matching the quit/exit rule (adventure onExitGame) and the
+    // closing-popup copy. (8 Américain previously charged on every defeat
+    // regardless of level, which drained coins even on already-passed replays.)
+    userCubit.decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
   }
 }
 

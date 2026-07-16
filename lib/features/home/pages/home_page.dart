@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/game.dart';
-import 'package:store_redirect/store_redirect.dart';
+import 'package:gamico/commons/services/store.dart';
 import 'package:gamico/commons/services/version.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
@@ -153,7 +153,7 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
               acceptationText: l.homeUpdateInstall,
               acceptationIcon: Icons.download,
               onAccepted: () {
-                StoreRedirect.redirect();
+                StoreService.openStorePage();
               },
             ),
           );

@@ -14,6 +14,14 @@ class GamicoGameCubitSettings {
   final void Function() startGame;
   final void Function() onUserGiveUp;
 
+  /// Whether leaving right now is a legitimate, penalty-free exit even though
+  /// the framework game state is not "over". Score-based matches with no
+  /// built-in end (every settled round is a valid stopping point) report true
+  /// between rounds, so a player who leaves then is neither docked coins nor
+  /// asked to confirm an "abandonment". Null (or false) keeps the default
+  /// rule: leaving a game that isn't over is an abandonment.
+  final bool Function()? exitIsPenaltyFree;
+
   final dynamic gameCubit;
 
   const GamicoGameCubitSettings({
@@ -24,6 +32,7 @@ class GamicoGameCubitSettings {
     required this.onUserWonByPass,
     required this.initGame,
     required this.startGame,
+    this.exitIsPenaltyFree,
     required this.gameCubit,
   });
 }

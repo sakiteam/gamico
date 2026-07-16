@@ -17,6 +17,12 @@ class GamicoTutorialGameCubit extends Cubit<GamicoTutorialGameState> {
     required int tutorialLessonIndex,
   }) : super(GamicoTutorialGameState(tutorialLessonIndex: tutorialLessonIndex));
 
+  @override
+  void emit(GamicoTutorialGameState state) {
+    if (isClosed) return;
+    super.emit(state);
+  }
+
   void startTutorial() async {
     final settingsGameCubit = gameCubit.settings?.gameCubit;
 

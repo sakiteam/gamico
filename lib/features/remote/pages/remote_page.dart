@@ -102,7 +102,9 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
             listener: (context, remoteState) async {
               final remoteCubit = context.read<RemoteCubit>();
 
-              final remoteUtility = widget.remoteUtility;
+              // Resolved to the pool the game actually came from, so a "no
+              // preference" search hands the game its real mode.
+              final remoteUtility = remoteCubit.matchedRemoteUtility;
 
               if (remoteState.enabled) {
                 remoteCubit.setAnimGame(true);

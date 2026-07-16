@@ -132,6 +132,11 @@ class NotificationService {
     if (await invitationActionHandler?.call(receivedAction) ?? false) return;
 
     final invitationId = receivedAction.payload!['invitation_id']!;
+
+    // The invitation has now been acted on from its notification: drop it from
+    // the tray so the ACCEPT/REJECT buttons can't be pressed again.
+    await cancelGameInvitationNotification(invitationId);
+
     final cubit = InvitationCubit(FirebaseDatabase.instance);
 
     if (receivedAction.buttonKeyPressed == "ACCEPT") {

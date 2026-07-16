@@ -44,4 +44,17 @@ class RemoteUtility {
     required this.developerAppleId,
     required this.developerAndroidId,
   });
+
+  /// Copy of this utility whose matchmaking settings are pinned to the single
+  /// resolved [mode] a "no preference" search ended up playing in.
+  RemoteUtility withMatchmakingMode(String? mode) {
+    return RemoteUtility(
+      adventure: adventure,
+      matchmakingSettings: matchmakingSettings.withMode(mode),
+      levelsBuilder: levelsBuilder,
+      seedModulo: seedModulo,
+      developerAppleId: developerAppleId,
+      developerAndroidId: developerAndroidId,
+    );
+  }
 }

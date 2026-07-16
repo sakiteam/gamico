@@ -7,7 +7,7 @@ import 'package:gamico/commons/services/version.dart';
 import 'package:gamico/commons/utilities/couple/couple_utility.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:store_redirect/store_redirect.dart';
+import 'package:gamico/commons/services/store.dart';
 import 'package:gamico/commons/cubits/referral/referral_cubit.dart';
 import 'package:gamico/commons/generics/poster.dart';
 import 'package:gamico/commons/generics/icon_text_button.dart';
@@ -83,7 +83,7 @@ class HomeAboutPopup extends StatelessWidget {
               iconColor: ColorService.aboutIconColor,
               text: l.homeAboutPopupRateGame,
               onPressed: () {
-                StoreRedirect.redirect();
+                StoreService.openStorePage();
               },
             ),
             GamicoIconTextButton(
@@ -92,7 +92,7 @@ class HomeAboutPopup extends StatelessWidget {
               iconColor: ColorService.aboutIconColor,
               text: l.homeAboutPopupVisitWebstie,
               onPressed: () {
-                launchUrl(Uri.parse("https://www.sakihub.com"));
+                launchUrl(Uri.parse("https://saki-hub.web.app"));
               },
             ),
             GamicoIconTextButton(

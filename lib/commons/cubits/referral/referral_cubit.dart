@@ -12,12 +12,11 @@ part 'referral_state.dart';
 
 class ReferralCubit extends Cubit<ReferralState> {
   ReferralCubit(
-      // {
-      // required this.authenticationCubit,
-      // required this.internetCubit,
-      // }
-      )
-      : super(const ReferralState()) {
+    // {
+    // required this.authenticationCubit,
+    // required this.internetCubit,
+    // }
+  ) : super(const ReferralState()) {
     // if (UserService.authenticated) {
     //   () async {
     //     _generateLink(await SimpleConnectionChecker.isConnectedToInternet());
@@ -69,7 +68,7 @@ class ReferralCubit extends Cubit<ReferralState> {
   //       final DynamicLinkParameters parameters = DynamicLinkParameters(
   //         uriPrefix: 'https://tactico.page.link',
   //         link: Uri.parse(
-  //           'https://www.sakihub.com?referrer_id=${UserService.uid}',
+  //           'https://saki-hub.web.app?referrer_id=${UserService.uid}',
   //         ),
   //         androidParameters: const AndroidParameters(
   //           packageName: "com.saki.tactico",

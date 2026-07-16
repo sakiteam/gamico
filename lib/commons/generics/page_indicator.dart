@@ -63,7 +63,7 @@ class _GamicoPageIndicatorState extends State<GamicoPageIndicator> {
         //       );
         //     },
 
-        final mainColor = widget.color ?? Colors.brown;
+        final mainColor = widget.color ?? Colors.white;
 
         return widget.builder?.call(active) ??
             Padding(
@@ -74,7 +74,6 @@ class _GamicoPageIndicatorState extends State<GamicoPageIndicator> {
                 decoration: BoxDecoration(
                   color: active ? mainColor : mainColor.withAlpha(100),
                   borderRadius: BorderRadius.circular(widget.indicatorSize),
-                  border: Border.all(color: Colors.grey.shade700),
                 ),
               ),
             );

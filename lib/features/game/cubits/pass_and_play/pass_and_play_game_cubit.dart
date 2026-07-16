@@ -18,6 +18,12 @@ class GamicoPassAndPlayGameCubit extends Cubit<GamicoPassAndPlayGameState> {
         ),
       );
 
+  @override
+  void emit(GamicoPassAndPlayGameState state) {
+    if (isClosed) return;
+    super.emit(state);
+  }
+
   void init() {
     gameCubit.onInit = () async {
       gameCubit.settings?.initGame();

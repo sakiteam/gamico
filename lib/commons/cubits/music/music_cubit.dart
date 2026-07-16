@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/services/game.dart';
+import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/global.dart';
 import 'package:gamico/commons/services/locale.dart';
 import 'package:gamico/commons/services/music.dart';
@@ -24,8 +25,21 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     // Load bruitages
     _initBruitages();
 
-    // Set ads mute mode
-    MobileAds.instance.setAppMuted(state.mute);
+    // Set ads mute mode once the SDK is ready (non-blocking for the
+    // constructor — runs asynchronously in the background).
+    _initAdsMuteState();
+  }
+
+  /// Waits for the MobileAds SDK to finish initialising, then applies
+  /// the current mute state. Called from the constructor so it runs in
+  /// the background without blocking widget creation.
+  Future<void> _initAdsMuteState() async {
+    try {
+      await Gamico.mobileAdsInitFuture;
+      MobileAds.instance.setAppMuted(state.mute);
+    } catch (e) {
+      debugPrint('MobileAds.setAppMuted failed: $e');
+    }
   }
 
   // Initialization states

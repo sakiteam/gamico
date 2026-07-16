@@ -34,11 +34,10 @@ dependencies:
   firebase_analytics:
   firebase_crashlytics:
   firebase_performance:
-  games_services: ^5.1.0
+  games_services:
 
   # Flame
-  flame: ^1.34.0
-  flame_texturepacker: ^5.0.3
+  flame:
 
   # Utilities
   http:
@@ -54,21 +53,18 @@ dependencies:
   auto_size_text:
   store_redirect:
   poly_collisions:
-  in_app_purchase:
-  flutter_timezone: ^5.0.1
+  in_app_purchase: ^3.3.0
+  flutter_timezone:
   flutter_animate:
   google_mobile_ads: ^9.0.0
-  new_version_plus: ^1.0.1
+  new_version_plus:
   shared_preferences:
   cached_network_image:
-  awesome_notifications: ^0.12.0
+  awesome_notifications:
   simple_connection_checker:
   loading_animation_widget:
-  remove_diacritic: ^0.9.0
-  equatable: ^2.0.8
-
-dependency_overrides:
-  intl: ^0.20.2
+  remove_diacritic:
+  equatable:
 
 # Development dependencies
 dev_dependencies:

@@ -89,11 +89,13 @@ class GamicoCoinsStorePoster extends StatelessWidget {
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: purchasesProducts
+                children: (purchasesProducts
                     .where((element) =>
                         Gamico.instance.purchasesSettings?.classicPacksIds
                             .contains(element.id) ==
                         true)
+                    .toList()
+                  ..sort((a, b) => a.rawPrice.compareTo(b.rawPrice)))
                     .map((productDetail) {
                   return GamicoPurchaseButton(productDetails: productDetail);
                 }).toList(),

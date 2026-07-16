@@ -129,11 +129,11 @@ class _GamicoProgressButtonState extends State<GamicoProgressButton>
             // Wait for the progress option button to be visible
             await Future.delayed(AnimationService.animationDuration);
 
-            if (mounted) {
-              setState(() {
-                _cowriesUpdateVisible = true;
-              });
-            }
+            if (!mounted) return;
+
+            setState(() {
+              _cowriesUpdateVisible = true;
+            });
 
             // Perform the animation
             _cowriesUpdateController.reset();
@@ -141,11 +141,11 @@ class _GamicoProgressButtonState extends State<GamicoProgressButton>
 
             await Future.delayed(const Duration(seconds: 1));
 
-            if (mounted) {
-              setState(() {
-                _cowriesUpdateVisible = false;
-              });
-            }
+            if (!mounted) return;
+
+            setState(() {
+              _cowriesUpdateVisible = false;
+            });
           },
         ),
         // BlocListener<GratificationCubit, GratificationState>(
@@ -208,6 +208,8 @@ class _GamicoProgressButtonState extends State<GamicoProgressButton>
                         });
 
                         await NavigationService.showCowriesPopup(context, null);
+
+                        if (!mounted) return;
 
                         setState(() {
                           GamicoProgressButton.popupVisible = false;

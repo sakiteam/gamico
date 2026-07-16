@@ -34,7 +34,7 @@ class GamicoSimplePopup extends StatefulWidget {
   static double get watchButtonFinalHeight =>
       watchButtonDefaultHeight + watchButtonMargin;
   static Widget background = Container(color: Colors.white);
-  static Color pageIndicatorColor = Colors.brown;
+  static Color pageIndicatorColor = Colors.white;
 
   final bool dismissible;
   final List<GamicoCharacterPosition>? characterPositions;

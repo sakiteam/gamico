@@ -242,7 +242,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     final updatedUser = Gamico.instance.userFromJson(
       state.user!.toJson()..["progression"] = progression,
     );
-    emit(state.copyWith(user: updatedUser));
+    emit(state.copyWith(user: () => updatedUser));
 
     usersRepository.updateUserProgression(UserService.uid, progression);
   }

@@ -31,6 +31,10 @@ class Gamico {
   /// Reference to the current global Gamico instance.
   static late final Gamico instance;
 
+  /// Completes when `MobileAds.instance.initialize()` finishes.
+  /// Await this before calling any SDK method that requires initialisation.
+  static late final Future<InitializationStatus> mobileAdsInitFuture;
+
   final String title;
 
   late final UserSettings userSettings;
@@ -95,11 +99,22 @@ class Gamico {
     // Initialize Crashlytics early because error could occur just after this line
     if (kReleaseMode) {
       // Replace default Flutter error manager
-      FlutterError.onError =
-          FirebaseCrashlytics.instance.recordFlutterFatalError;
+      FlutterError.onError = (details) {
+        final errorStr = details.exception.toString();
+        if (errorStr.contains("Loading interrupted")) {
+          debugPrint("Crashlytics: Ignored loading interrupted error");
+          return;
+        }
+        FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+      };
 
       // Replace default Flutter platform dispatcher error manager
       PlatformDispatcher.instance.onError = (error, stack) {
+        final errorStr = error.toString();
+        if (errorStr.contains("Loading interrupted")) {
+          debugPrint("PlatformDispatcher: Ignored loading interrupted error");
+          return true;
+        }
         // Send error to Crashlytics
         FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
 
@@ -112,8 +127,10 @@ class Gamico {
     Animate.restartOnHotReload = true;
     Animate.defaultDuration = AnimationService.duration;
 
-    // Initialize Admob as soon as possible
-    MobileAds.instance.initialize();
+    // Initialize Admob without blocking app startup. Downstream code
+    // (e.g. MusicCubit.setAppMuted) must await this future before
+    // calling SDK methods that require initialisation.
+    mobileAdsInitFuture = MobileAds.instance.initialize();
 
     // Enable data persistence
     try {

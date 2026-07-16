@@ -225,6 +225,8 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
 
                   await Future.delayed(2.seconds);
 
+                  if (!context.mounted) return;
+
                   NavigationService.closePopups();
                   gameMode.gamePageManageGamePopup(context);
 
@@ -309,7 +311,9 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
       return false;
     }
 
-    if (gameState.over || gameState.gameMode.shouldForceExit(context)) {
+    if (gameState.over ||
+        gameState.gameMode.shouldForceExit(context) ||
+        (gameCubit.settings?.exitIsPenaltyFree?.call() ?? false)) {
       return _managePop(context);
     }
 

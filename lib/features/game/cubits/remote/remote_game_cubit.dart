@@ -41,6 +41,12 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
          ),
        );
 
+  @override
+  void emit(GamicoRemoteGameState state) {
+    if (isClosed) return;
+    super.emit(state);
+  }
+
   final GamicoGameCubit gameCubit;
 
   final RemoteUtility remoteUtility;
@@ -501,7 +507,13 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     };
 
     gameCubit.onExitGame = () {
-      if (!gameCubit.state.over) {
+      // A game can declare the current moment a legitimate stopping point
+      // (e.g. between two settled rounds of a score-based match): leaving is
+      // then treated like leaving a finished game, not an abandonment.
+      final penaltyFree =
+          gameCubit.settings?.exitIsPenaltyFree?.call() ?? false;
+
+      if (!gameCubit.state.over && !penaltyFree) {
         final mode = state.remoteUtility.matchmakingSettings.mode;
         final onModedRemoteResult =
             Gamico.instance.playSettings?.onModedRemoteResult;

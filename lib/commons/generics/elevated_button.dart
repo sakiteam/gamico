@@ -83,6 +83,25 @@ class _GamicoElevatedButtonState extends State<GamicoElevatedButton> {
         BorderRadius.circular(GamicoButton.defaultBorderRadius);
     final borderWidth = widget.borderWidth ?? 1.5;
 
+    // Radius used to clip the button's content. Subtracting the border width can
+    // produce a negative radius when [borderRadius] is (near) zero, which breaks
+    // the antialiased clipping and makes the content disappear on tap. Clamp
+    // every corner to a non-negative value.
+    final innerBorderRadius = BorderRadius.only(
+      topLeft: Radius.circular(
+        (borderRadius.topLeft.x - borderWidth).clamp(0.0, double.infinity),
+      ),
+      topRight: Radius.circular(
+        (borderRadius.topRight.x - borderWidth).clamp(0.0, double.infinity),
+      ),
+      bottomLeft: Radius.circular(
+        (borderRadius.bottomLeft.x - borderWidth).clamp(0.0, double.infinity),
+      ),
+      bottomRight: Radius.circular(
+        (borderRadius.bottomRight.x - borderWidth).clamp(0.0, double.infinity),
+      ),
+    );
+
     const double inset = 6.0;
 
     final finalDisabledForegroundColor =
@@ -257,9 +276,7 @@ class _GamicoElevatedButtonState extends State<GamicoElevatedButton> {
                       GamicoButton(
                         bruitage: widget.bruitage,
                         onPressed: widget.onPressed,
-                        borderRadius: borderRadius
-                            .subtract(BorderRadius.circular(borderWidth))
-                            .resolve(null),
+                        borderRadius: innerBorderRadius,
                         onDownChanged: (down) {
                           setState(() {
                             _down = down;

@@ -25,6 +25,12 @@ class GamicoAdventureGameCubit extends Cubit<GamicoAdventureGameState> {
          ),
        );
 
+  @override
+  void emit(GamicoAdventureGameState state) {
+    if (isClosed) return;
+    super.emit(state);
+  }
+
   void init() {
     gameCubit.onInit = () async {
       // Initial configs

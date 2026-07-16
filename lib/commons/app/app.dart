@@ -304,8 +304,17 @@ class _GamicoAppState extends State<GamicoApp> {
                     child: child,
                   );
 
-                  return widget.builder?.call(context, finalContent) ??
-                      finalContent;
+                  // Ignore the system font-size setting so text keeps the
+                  // same proportions on every device (layout is handled by
+                  // the game's own FittedBox scaling).
+                  return MediaQuery(
+                    data: MediaQuery.of(
+                      context,
+                    ).copyWith(textScaler: TextScaler.noScaling),
+                    child:
+                        widget.builder?.call(context, finalContent) ??
+                        finalContent,
+                  );
                 },
                 theme:
                     widget.theme ??
