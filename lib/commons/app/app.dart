@@ -46,6 +46,11 @@ class GamicoApp extends StatefulWidget {
   final Widget? background;
 
   final String? fontFamily;
+
+  /// Resolves the font family from the effective locale, so apps can swap
+  /// fonts per language (e.g. a Cyrillic-capable font for Russian).
+  /// Takes precedence over [fontFamily] when provided.
+  final String? Function(Locale locale)? fontFamilyBuilder;
   final Color? textColor;
 
   final Widget Function(BuildContext context, Widget child)? builder;
@@ -66,6 +71,7 @@ class GamicoApp extends StatefulWidget {
     this.localizationsDelegates,
     this.textColor,
     this.fontFamily,
+    this.fontFamilyBuilder,
     this.dividerThickness,
     this.theme,
     this.darkTheme,
@@ -269,6 +275,11 @@ class _GamicoAppState extends State<GamicoApp> {
         ],
         child: BlocBuilder<LocaleCubit, LocaleState>(
           builder: (context, localeState) {
+            // A null cubit locale means "follow the system": resolve it so
+            // fontFamilyBuilder still gets the locale the app will display.
+            final Locale effectiveLocale =
+                localeState.locale ??
+                WidgetsBinding.instance.platformDispatcher.locale;
             return GamicoMaterialAppWrapper(
               child: MaterialApp(
                 navigatorKey: NavigationService.globalNavigatorKey,
@@ -322,7 +333,9 @@ class _GamicoAppState extends State<GamicoApp> {
                       colorScheme: ColorScheme.fromSeed(
                         seedColor: ColorService.primaryColor,
                       ),
-                      fontFamily: widget.fontFamily,
+                      fontFamily:
+                          widget.fontFamilyBuilder?.call(effectiveLocale) ??
+                          widget.fontFamily,
                       textTheme: TextTheme(
                         bodyMedium: TextStyle(
                           fontSize: 14 * 450 / 400,

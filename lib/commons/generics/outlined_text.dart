@@ -11,6 +11,7 @@ class TextUtility {
   final TextAlign? textAlign;
   final AutoSizeGroup? group;
   final TextOverflow? overflow;
+  final double minFontSize;
 
   const TextUtility({
     required this.text,
@@ -22,6 +23,7 @@ class TextUtility {
     required this.textAlign,
     required this.group,
     required this.overflow,
+    this.minFontSize = 5,
   });
 }
 
@@ -35,6 +37,7 @@ class GamicoOutlinedText extends StatelessWidget {
   final TextAlign? textAlign;
   final AutoSizeGroup? group;
   final TextOverflow? overflow;
+  final double minFontSize;
 
   static Widget Function(TextUtility) builder = normalBuilder;
 
@@ -57,6 +60,7 @@ class GamicoOutlinedText extends StatelessWidget {
     this.maxLines,
     this.overflow,
     this.group,
+    this.minFontSize = 5,
   });
 
   @override
@@ -72,6 +76,7 @@ class GamicoOutlinedText extends StatelessWidget {
         textAlign: textAlign,
         group: group,
         overflow: overflow,
+        minFontSize: minFontSize,
       ),
     );
 
@@ -150,7 +155,7 @@ class GamicoOutlinedTextNormal extends StatelessWidget {
           maxLines: textUtility.maxLines,
           overflow: textUtility.overflow,
           group: textUtility.group,
-          minFontSize: 5,
+          minFontSize: textUtility.minFontSize,
         ),
 
         // Border
@@ -166,7 +171,7 @@ class GamicoOutlinedTextNormal extends StatelessWidget {
           maxLines: textUtility.maxLines,
           overflow: textUtility.overflow,
           group: textUtility.group,
-          minFontSize: 5,
+          minFontSize: textUtility.minFontSize,
         ),
       ],
     );

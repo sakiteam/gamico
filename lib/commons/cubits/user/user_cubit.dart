@@ -326,7 +326,12 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
         "⚠️ setUserName: '$currentName' -> '$name' (game services displayName)",
       );
       usersRepository.updateUserName(UserService.uid, name);
-      FirebaseAuth.instance.currentUser?.updateDisplayName(name);
+      FirebaseAuth.instance.currentUser?.updateDisplayName(name).catchError((e) {
+        // Best-effort: ignore network errors (timeout, offline, etc.)
+        // The display name is stored in Firestore; a Firebase Auth sync failure
+        // is non-critical and must not crash the app.
+        debugPrint("⚠️ updateDisplayName failed (ignored): $e");
+      });
     }
   }
 
