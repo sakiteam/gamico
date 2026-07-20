@@ -28,7 +28,7 @@ import 'package:gamico/commons/services/game.dart';
 import 'package:gamico/commons/services/gif.dart';
 import 'package:gamico/commons/services/locale.dart';
 import 'package:gamico/commons/services/navigation.dart';
-// import 'package:gamico/commons/services/notification.dart';
+import 'package:gamico/commons/services/notification.dart';
 import 'package:gamico/commons/services/time_zone.dart';
 import 'package:gamico/commons/services/version.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
@@ -62,6 +62,7 @@ class GamicoApp extends StatefulWidget {
 
   final double? dividerThickness;
   final bool showPerformanceOverlay;
+  final Route<dynamic>? Function(RouteSettings)? onUnknownRoute;
 
   const GamicoApp({
     super.key,
@@ -77,13 +78,14 @@ class GamicoApp extends StatefulWidget {
     this.darkTheme,
     this.themeMode,
     this.showPerformanceOverlay = false,
+    this.onUnknownRoute,
   });
 
   @override
   State<GamicoApp> createState() => _GamicoAppState();
 }
 
-class _GamicoAppState extends State<GamicoApp> {
+class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
   ValueNotifier<bool> loadingNotifier = ValueNotifier(true);
   LocaleCubit localeCubit = LocaleCubit();
 
@@ -168,6 +170,10 @@ class _GamicoAppState extends State<GamicoApp> {
   void initState() {
     super.initState();
 
+    WidgetsBinding.instance.addObserver(this);
+    // Clear any stale app-icon badge on launch (see [didChangeAppLifecycleState]).
+    NotificationService.clearBadge();
+
     _load();
 
     if (LocaleService.language.isNotEmpty) {
@@ -182,6 +188,24 @@ class _GamicoAppState extends State<GamicoApp> {
 
       localeCubit.setLocale(defaultLocale);
     }
+  }
+
+  /// Reset the app-icon badge every time the app returns to the foreground.
+  /// iOS never decrements the badge on its own, so without this it keeps
+  /// climbing as scheduled reminders and pushed invitations arrive.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.resumed) {
+      NotificationService.clearBadge();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   /// Build.
@@ -367,6 +391,16 @@ class _GamicoAppState extends State<GamicoApp> {
 
                   return GamicoLanguages.fallbackLocale;
                 },
+                onUnknownRoute: widget.onUnknownRoute ??
+                    (settings) {
+                      return MaterialPageRoute(
+                        builder: (context) => Scaffold(
+                          body: Center(
+                            child: Text('Route ${settings.name} not found'),
+                          ),
+                        ),
+                      );
+                    },
                 debugShowCheckedModeBanner: false,
               ),
             );

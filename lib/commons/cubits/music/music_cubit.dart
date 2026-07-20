@@ -406,6 +406,16 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     await _firePlayer.seek(Duration.zero);
   }
 
+  /// Stops every looping in-game sound effect at once (fire + clock). Called
+  /// when leaving a game so no bruitage keeps playing past the game screen.
+  Future<void> stopGameBruitages() async {
+    await Future.wait([
+      _firePlayer.stop(),
+      _clockPlayer.stop(),
+    ]);
+    await _firePlayer.seek(Duration.zero);
+  }
+
   // Close cubit
   @override
   Future<void> close() async {

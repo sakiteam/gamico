@@ -18,14 +18,17 @@ class UserService {
 
     // [GAMICO-FIX] name/level-loss investigation.
     // A previous build could persist a partial RTDB latency-compensation
-    // snapshot (e.g. {token, updated_at}) as the "user". Such a poisoned copy
-    // has no identity, and returning it would (a) seed state.user with garbage
-    // and (b) satisfy `waitWhile(state.user == null)` in the auth flow — letting
-    // premature writes fire again. Reject it (and purge it) so the app behaves
-    // as if no user were cached and waits for the real server node.
+    // snapshot (e.g. {token, updated_at}, or {name, formatted_name} after a
+    // rename) as the "user". Such a poisoned copy has no identity, and
+    // returning it would (a) seed state.user with garbage and (b) satisfy
+    // `waitWhile(state.user == null)` in the auth flow — letting premature
+    // writes fire again. Reject it (and purge it) so the app behaves as if no
+    // user were cached and waits for the real server node.
+    //
+    // `name` is NOT an identity marker: a rename write carries one.
     final looksEmpty = userMap["social_id"] == null &&
         userMap["firebase_id"] == null &&
-        userMap["name"] == null;
+        userMap["created_at"] == null;
     if (looksEmpty) {
       LocalStorageService.setMap("user", null);
       return null;

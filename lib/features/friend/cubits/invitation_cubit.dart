@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:gamico/commons/models/gamico_game_model.dart';
+import 'package:gamico/commons/services/notification.dart';
 import 'package:gamico/features/friend/models/invitation_model.dart';
 
 part 'invitation_state.dart';
@@ -223,6 +224,14 @@ class InvitationCubit extends Cubit<InvitationState> {
       'status': status.name.toUpperCase(),
       'updated_at': DateTime.now().toIso8601String(),
     });
+
+    // The invitation just left PENDING (accepted/rejected), so its tray
+    // notification — with its ACCEPT/REJECT buttons — is now stale. Drop it so
+    // it can't be acted on a second time. Idempotent: cancelling an already
+    // dismissed notification is a no-op.
+    if (status != InvitationStatus.pending) {
+      await NotificationService.cancelGameInvitationNotification(invitationId);
+    }
   }
 
   void nullifyCurrentInvitation() {

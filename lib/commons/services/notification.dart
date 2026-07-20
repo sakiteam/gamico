@@ -28,8 +28,48 @@ class NotificationService {
   static set notificationsAccepted(bool value) =>
       LocalStorageService.setBool("notifications_accepted", value);
 
+  /// Whether the native OS permission dialog has ever been presented. It stays
+  /// `false` while the player only declined our in-app prompt (the system
+  /// dialog was never shown) and flips to `true` the first time we actually
+  /// call [requestPermissionToSendNotifications]. Used by the home reminder to
+  /// decide whether re-asking can still show the native dialog (not yet
+  /// requested) or must instead send the player to the app's notification
+  /// settings (already requested and denied).
+  static bool get notificationsRequested =>
+      LocalStorageService.getBool("notifications_requested") ?? false;
+  static set notificationsRequested(bool value) =>
+      LocalStorageService.setBool("notifications_requested", value);
+
+  /// Whether the one-off reminder popup (shown to players who left the flow
+  /// without enabling notifications) has already been presented. Once `true`,
+  /// the reminder is never shown again, so a player who declines it is not
+  /// nagged on every launch.
+  static bool get notificationsReminderShown =>
+      LocalStorageService.getBool("notifications_reminder_shown") ?? false;
+  static set notificationsReminderShown(bool value) =>
+      LocalStorageService.setBool("notifications_reminder_shown", value);
+
+  /// Debug-only switch: when `true`, the home page shows the notification
+  /// reminder popup on every launch regardless of the stored permission state,
+  /// so its appearance can be inspected. Guarded by [kDebugMode] on the call
+  /// site, so it has no effect in release builds. Set it from `main()`.
+  static bool debugForceReminderPopup = false;
+
   static Future<bool> allowed() =>
       AwesomeNotifications().isNotificationAllowed();
+
+  /// Clears the app-icon badge counter (notably on iOS, where the OS never
+  /// decrements the badge on its own — reading or dismissing notifications
+  /// from the tray does not touch the icon count, only the app can reset it).
+  /// Call this whenever the app comes to the foreground so the badge doesn't
+  /// keep accumulating from scheduled reminders and pushed invitations.
+  static Future<void> clearBadge() async {
+    try {
+      await AwesomeNotifications().resetGlobalBadge();
+    } catch (e) {
+      debugPrint("Error clearing badge: $e");
+    }
+  }
 
   /// App-level override for invitation notification actions. When set, it is
   /// tried first and, if it returns true, the default (legacy 2-player)

@@ -72,15 +72,33 @@ class NavigationService {
   ) async {
     final navigator = Navigator.of(context);
 
+    // Capture the caller's own route now. A popup (e.g. the game-over popup
+    // whose "Rejouer" button triggers this) is usually dismissed just before
+    // getting here, but its exit animation runs on the same duration as the
+    // delay below — so after the delay it may still be the topmost route.
+    // pushReplacement would then replace the *popup* instead of this page,
+    // leaving the old page orphaned in the back stack (each replay stacking a
+    // dead game screen the player has to walk back through). Replacing the
+    // captured route explicitly makes this deterministic regardless of the
+    // popup's animation state.
+    final previousRoute = ModalRoute.of(context);
+
     await Future.delayed(AnimationService.animationDuration);
 
-    await navigator.pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, _, _) => page,
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-      ),
+    final route = PageRouteBuilder(
+      pageBuilder: (_, _, _) => page,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
     );
+
+    if (previousRoute == null) {
+      await navigator.pushReplacement(route);
+      return;
+    }
+
+    final result = navigator.push(route);
+    navigator.removeRoute(previousRoute);
+    await result;
   }
 
   static void closePopups() {

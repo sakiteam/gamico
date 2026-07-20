@@ -122,6 +122,11 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
   @override
   String get homeNotificationsAllow => "Разрешить";
   @override
+  String get homeNotificationsReminderTitle => "Включить уведомления";
+  @override
+  String get homeNotificationsReminderDescription =>
+      "Уведомления важны для лучшего игрового опыта. Хотите включить их сейчас?";
+  @override
   String get homeUpdateTitle => "Доступно обновление!";
   @override
   String get homeUpdateForceDescription =>

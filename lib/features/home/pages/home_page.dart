@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/languages/languages.dart';
@@ -49,20 +50,33 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
     //   await GlobalService.waitWhile(() => showcaseCubit.state.active);
     // }
 
-    // Check whether the notifications popup has already been showed
-    if (NotificationService.notificationsSet &&
-        !(NotificationService.notificationsAccepted &&
-            !(await NotificationService.allowed()))) {
+    // Debug helper: force the reminder popup so its layout can be reviewed
+    // without having to reproduce a real refusal. No effect in release.
+    if (kDebugMode && NotificationService.debugForceReminderPopup) {
+      _showNotificationsReminderPopup();
+      return;
+    }
+
+    // Route the player through the right notification flow.
+    if (!NotificationService.notificationsSet) {
+      // First launch: ask whether notifications should be enabled.
+      _showNotificationsPopup();
+    } else if (!NotificationService.notificationsReminderShown &&
+        !(await NotificationService.allowed())) {
+      // The player already went through the flow but notifications are still
+      // disabled — either they declined our first prompt, denied the native
+      // permission, or revoked it later. Encourage them to enable it, but only
+      // once: if they decline the reminder too, we don't nag them again.
+      NotificationService.notificationsReminderShown = true;
+      _showNotificationsReminderPopup();
+    } else {
+      // Notifications are enabled: proceed with the normal home flow.
       // Display a popup that asks the player to update the current game.
       _showUpdatePopup();
 
       // Schedule notifications if they are allowed
       NotificationService.init();
       NotificationService.scheduleNotificationsIfAllowed();
-    }
-    // Display the notifications popup
-    else {
-      _showNotificationsPopup();
     }
 
     // Check if user tried to mislead the game
@@ -98,6 +112,10 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
             acceptationText: l.homeNotificationsAllow,
             onAccepted: () async {
               if (!(await AwesomeNotifications().isNotificationAllowed())) {
+                // The native permission dialog is being presented — remember it
+                // so a later reminder knows the OS dialog has already been used.
+                NotificationService.notificationsRequested = true;
+
                 await AwesomeNotifications()
                     .requestPermissionToSendNotifications();
 
@@ -110,8 +128,63 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
               NotificationService.notificationsSet = true;
             },
             onRejected: () {
+              // The player declined our prompt: the native dialog was never
+              // shown, so `notificationsRequested` stays false.
               NotificationService.notificationsAccepted = false;
               NotificationService.notificationsSet = true;
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  /// Display a reminder popup for players who have notifications disabled,
+  /// explaining why they matter and offering to enable them again.
+  ///
+  /// Accepting resolves to one of two behaviors depending on how far the
+  /// player got in the original flow:
+  ///  - if the native OS dialog was never shown (they only declined our
+  ///    in-app prompt), present the native permission dialog now;
+  ///  - if the native dialog was already shown and denied, the OS won't show
+  ///    it again, so send the player to the app's notification settings.
+  void _showNotificationsReminderPopup() {
+    final l = GamicoLanguages.of(context);
+
+    NavigationService.showPopup(
+      context: context,
+      draggable: false,
+      dismissible: false,
+      builder: (_) {
+        return GamicoPopup(
+          dismissible: false,
+          child: GamicoDialogPoster(
+            icon: Icons.notifications_active,
+            title: l.homeNotificationsReminderTitle,
+            description: l.homeNotificationsReminderDescription,
+            acceptationText: l.homeNotificationsAllow,
+            onAccepted: () async {
+              if (NotificationService.notificationsRequested) {
+                // Native dialog already used and denied: the OS won't present
+                // it again, so send the player to the app's notification
+                // settings to grant the permission manually.
+                await AwesomeNotifications().showNotificationConfigPage();
+              } else {
+                // The native dialog was never shown — present it now.
+                NotificationService.notificationsRequested = true;
+
+                await AwesomeNotifications()
+                    .requestPermissionToSendNotifications();
+              }
+
+              NotificationService.notificationsAccepted =
+                  await NotificationService.allowed();
+
+              // Start listening / scheduling as soon as we're granted.
+              if (NotificationService.notificationsAccepted) {
+                NotificationService.init();
+                NotificationService.scheduleNotificationsIfAllowed();
+              }
             },
           ),
         );

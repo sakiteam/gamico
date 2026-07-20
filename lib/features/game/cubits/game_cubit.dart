@@ -37,6 +37,12 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
   void Function()? onExitGame;
   void Function()? onGameEnd;
 
+  /// Optional gate awaited right before the end-of-game popup is shown (after
+  /// the standard result delay). A game can use it to let an end-game
+  /// cinematic play out first — the popup only appears once this completes.
+  /// Null (the default) keeps the standard timing for every other game.
+  Future<void> Function()? awaitBeforeGamePopup;
+
   /* INHERITED */
 
   @override

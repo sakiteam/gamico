@@ -83,6 +83,12 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
             body: NotificationService.invitationBody,
             invitationId: invitation.id,
           );
+        } else if (invitation.status != InvitationStatus.pending) {
+          // Safety net: on (re)subscribe, onChildAdded replays past invitations.
+          // If one is already answered but a stale notification is still sitting
+          // in the tray (app killed while it showed, or it arrived on another
+          // device), drop it now.
+          NotificationService.cancelGameInvitationNotification(invitation.id);
         }
       }
     });
@@ -102,6 +108,15 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
         });
         _invitations[event.snapshot.key!] = invitation;
         _updatePendingState();
+
+        // Multi-device: every device signed in as the receiver gets this
+        // child-changed event via the RTDB sync. When the invitation leaves
+        // PENDING — because it was answered here, on another device, or
+        // withdrawn by the host — drop its (now stale) tray notification on
+        // this device too, without needing a server-side push.
+        if (invitation.status != InvitationStatus.pending) {
+          NotificationService.cancelGameInvitationNotification(invitation.id);
+        }
       }
     });
 
@@ -141,6 +156,14 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
       'status': status.name.toUpperCase(),
       'updated_at': DateTime.now().toIso8601String(),
     });
+
+    // The invitation just left PENDING (accepted/rejected), so its tray
+    // notification — with its ACCEPT/REJECT buttons — is now stale. Drop it so
+    // it can't be acted on a second time. Idempotent: cancelling an already
+    // dismissed notification is a no-op.
+    if (status != InvitationStatus.pending) {
+      await NotificationService.cancelGameInvitationNotification(invitationId);
+    }
   }
 
   @override

@@ -39,8 +39,24 @@ class GamicoUsersRepository {
     await usersProvider.updateUser(id, {"photo": photo});
   }
 
-  Future<void> updateUserName(String id, String name) async {
-    await usersProvider.updateUser(id, {"name": name});
+  /// Updates the player-facing name. `formatted_name` is the normalized
+  /// (lowercased, diacritic-free) mirror used both by the friend search and by
+  /// the uniqueness check, so the two must always be written together.
+  Future<void> updateUserName(
+    String id,
+    String name,
+    String formattedName,
+  ) async {
+    await usersProvider.updateUser(id, {
+      "name": name,
+      "formatted_name": formattedName,
+    });
+  }
+
+  /// Updates the Game Center / Play Games display name. Never touches [name]:
+  /// the player owns that one once it has been seeded.
+  Future<void> updateUserSocialName(String id, String socialName) async {
+    await usersProvider.updateUser(id, {"social_name": socialName});
   }
 
   // Level

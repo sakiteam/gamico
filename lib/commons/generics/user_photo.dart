@@ -8,7 +8,7 @@ class GamicoUserPhoto extends StatelessWidget {
   final String? url;
   final IconData? icon;
 
-  static bool simple = false;
+  static bool simple = true;
 
   const GamicoUserPhoto(this.url, {super.key, this.icon});
 

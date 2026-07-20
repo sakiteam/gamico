@@ -37,9 +37,11 @@ abstract class GamicoLanguageFr extends GamicoLanguages {
   @override
   String get friendPageUnknown => "Inconnu";
   @override
-  String get notificationInvitationBody => "Vous avez reçu une invitation à jouer !";
+  String get notificationInvitationBody =>
+      "Vous avez reçu une invitation à jouer !";
   @override
-  String notificationInvitationFrom(String name) => "$name vous invite à jouer !";
+  String notificationInvitationFrom(String name) =>
+      "$name vous invite à jouer !";
 
   /* ADVENTURE */
 
@@ -121,6 +123,11 @@ abstract class GamicoLanguageFr extends GamicoLanguages {
       "Pour améliorer votre expérience de jeu, vous devez autoriser les notifications ! Voulez-vous autoriser les notifications ?";
   @override
   String get homeNotificationsAllow => "Autoriser";
+  @override
+  String get homeNotificationsReminderTitle => "Activer les notifications";
+  @override
+  String get homeNotificationsReminderDescription =>
+      "Les notifications sont importantes pour une meilleure expérience de jeu. Voulez-vous les activer maintenant ?";
   @override
   String get homeUpdateTitle => "Mise à jour disponible !";
   @override

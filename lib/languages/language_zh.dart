@@ -119,6 +119,11 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
   @override
   String get homeNotificationsAllow => "允许";
   @override
+  String get homeNotificationsReminderTitle => "开启通知";
+  @override
+  String get homeNotificationsReminderDescription =>
+      "通知有助于提升您的游戏体验。您想现在开启吗？";
+  @override
   String get homeUpdateTitle => "有更新可用！";
   @override
   String get homeUpdateForceDescription => "新版本中修复了多个错误和问题。快速安装以享受这些修复！";

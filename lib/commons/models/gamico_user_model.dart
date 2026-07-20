@@ -9,6 +9,11 @@ class GamicoUserModel {
   final String? token;
   final String? name;
   final String? formattedName;
+
+  /// Display name coming from the platform (Game Center / Play Games). Unlike
+  /// [name] it is never chosen by the player: it is refreshed from the social
+  /// account on every sign-in, and only seeds [name] the very first time.
+  final String? socialName;
   final String? type;
   final String? photo;
   final String? firebaseId;
@@ -46,6 +51,7 @@ class GamicoUserModel {
     this.token,
     this.name,
     this.formattedName,
+    this.socialName,
     this.type,
     this.photo,
     this.level,
@@ -77,6 +83,7 @@ class GamicoUserModel {
       "token": token,
       "name": name,
       "formatted_name": formattedName,
+      "social_name": socialName,
       "type": type,
       "photo": photo,
       "coins": coins,
@@ -109,6 +116,7 @@ class GamicoUserModel {
       token: json["token"],
       name: json["name"],
       formattedName: json["formatted_name"],
+      socialName: json["social_name"],
       type: json["type"],
       photo: json["photo"],
       coins: json["coins"]?.toInt(),

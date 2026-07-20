@@ -123,6 +123,11 @@ abstract class GamicoLanguageBn extends GamicoLanguages {
   @override
   String get homeNotificationsAllow => "অনুমোদন দিন";
   @override
+  String get homeNotificationsReminderTitle => "বিজ্ঞপ্তি চালু করুন";
+  @override
+  String get homeNotificationsReminderDescription =>
+      "আরও ভালো গেমিং অভিজ্ঞতার জন্য বিজ্ঞপ্তি গুরুত্বপূর্ণ। আপনি কি এখন এগুলি চালু করতে চান?";
+  @override
   String get homeUpdateTitle => "নতুন আপডেট উপলব্ধ!";
   @override
   String get homeUpdateForceDescription =>

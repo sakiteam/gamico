@@ -110,11 +110,36 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
       (GamicoUserCubit userCubit) => userCubit.state.user?.blocked ?? false,
     );
 
+    // Keyboard avoidance: the popup is anchored to the bottom of the screen,
+    // so a text field inside it would sit behind the keyboard. Modal bottom
+    // sheets do not reflow for `viewInsets`, so lift the whole popup by hand —
+    // in REAL pixels (outside the FittedBox), and never further than the free
+    // space above it, so the top of the popup can't be pushed off-screen.
+    final mediaQuery = MediaQuery.of(context);
+
+    final popupScaledHeight =
+        (widget.customHeight ?? LayoutService.referenceWidth) +
+        topPadding +
+        bottomPadding +
+        (widget.additionalChild != null
+            ? GamicoSimplePopup.watchButtonFinalHeight
+            : 0);
+
+    final availableSpace = max(
+      0.0,
+      mediaQuery.size.height - popupScaledHeight * LayoutService.ratio,
+    );
+
+    final keyboardLift = min(mediaQuery.viewInsets.bottom, availableSpace);
+
     return PopScope(
       canPop: widget.dismissible,
       child: OnlyOnePointerRecognizerWidget(
         child: DeferredPointerHandler(
-          child: SizedBox(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            transform: Matrix4.translationValues(0, -keyboardLift, 0),
             width: double.infinity,
             height: double.infinity,
             child: FittedBox(
@@ -262,13 +287,15 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
                                             widget.pageController != null &&
                                                 widget.pageControllerLength !=
                                                     null
-                                            ? GamicoPageIndicator(
-                                                controller:
-                                                    widget.pageController!,
-                                                count: widget
-                                                    .pageControllerLength!,
-                                                color: GamicoSimplePopup
-                                                    .pageIndicatorColor,
+                                            ? Center(
+                                                child: GamicoPageIndicator(
+                                                  controller:
+                                                      widget.pageController!,
+                                                  count: widget
+                                                      .pageControllerLength!,
+                                                  color: GamicoSimplePopup
+                                                      .pageIndicatorColor,
+                                                ),
                                               )
                                             : null,
                                       ),

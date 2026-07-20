@@ -708,61 +708,91 @@ class RemoteCubit extends Cubit<RemoteState> {
     _emitPlayersFound(best);
   }
 
-  Future<void> _emitPlayersFound(Set<String?> ids) async {
-    emit(state.copyWith(playersFound: ids.length));
-    final profiles = await _fetchPlayerProfiles(ids);
-    if (!isClosed) {
-      emit(
-        state.copyWith(
-          playerNames: profiles.map((p) => p.$1).toList(),
-          playerPhotos: profiles.map((p) => p.$2).toList(),
-        ),
-      );
-    }
-  }
+  /// Monotonic tag for [_emitPlayersFound] passes: room events can arrive in
+  /// bursts and each pass fetches profiles over the network, so a slow older
+  /// pass must never overwrite the list a newer pass already emitted.
+  int _playersFoundSeq = 0;
 
-  /// Returns one (name, photoUrl) record per player, ordered with the local
-  /// user first. An empty photoUrl means no photo is available.
-  Future<List<(String, String)>> _fetchPlayerProfiles(Set<String?> ids) async {
-    final myUid = UserService.uid;
-    final ordered = [myUid, ...ids.where((id) => id != null && id != myUid)];
-    final profiles = <(String, String)>[];
+  /// Profiles already resolved this search (uid → (name, photo)), so a player
+  /// who was already listed never flips back to a placeholder while a burst
+  /// of room events re-fetches everyone.
+  final Map<String, (String, String)> _profileCache = {};
+
+  Future<void> _emitPlayersFound(Set<String?> ids) async {
+    final seq = ++_playersFoundSeq;
+
+    // Emit instantly from what is known locally — the local user's own
+    // profile and previously fetched ones. The player must at least see
+    // themself immediately: network fetches (below) can be slow or hang
+    // right after a game while the connection churns.
+    final ordered = _orderedIds(ids);
+    List<(String, String)> resolve() => [
+      for (final uid in ordered) _localProfileFor(uid) ?? ('...', ''),
+    ];
+    var profiles = resolve();
+    emit(
+      state.copyWith(
+        playersFound: ids.length,
+        playerNames: profiles.map((p) => p.$1).toList(),
+        playerPhotos: profiles.map((p) => p.$2).toList(),
+      ),
+    );
+
+    // Then resolve the missing profiles over the network and patch them in,
+    // unless a newer pass took over meanwhile.
     for (final uid in ordered) {
-      if (uid == null) continue;
-      if (uid == myUid) {
-        String localName = "";
-        String localPhoto = "";
-        final userModel = userCubit.state.user;
-        if (userModel != null) {
-          try {
-            localName = userModel.name?.toString() ?? "";
-          } catch (_) {}
-          try {
-            localPhoto = userModel.photo?.toString() ?? "";
-          } catch (_) {}
-        }
-        if (localName.isEmpty) {
-          localName = userCubit.state.user?.name ?? "";
-        }
-        profiles.add((localName.isNotEmpty ? localName : 'Vous', localPhoto));
-        continue;
-      }
+      if (_localProfileFor(uid) != null) continue;
       try {
-        final snap = await FirebaseDatabase.instance.ref('users/$uid').get();
+        final snap = await FirebaseDatabase.instance
+            .ref('users/$uid')
+            .get()
+            .timeout(const Duration(seconds: 5));
         final data = snap.value;
         if (data is Map) {
-          profiles.add((
+          _profileCache[uid] = (
             data['name']?.toString() ?? '...',
             data['photo']?.toString() ?? '',
-          ));
-        } else {
-          profiles.add(('...', ''));
+          );
         }
-      } catch (_) {
-        profiles.add(('...', ''));
-      }
+      } catch (_) {}
     }
-    return profiles;
+    if (isClosed || seq != _playersFoundSeq) return;
+    profiles = resolve();
+    emit(
+      state.copyWith(
+        playerNames: profiles.map((p) => p.$1).toList(),
+        playerPhotos: profiles.map((p) => p.$2).toList(),
+      ),
+    );
+  }
+
+  /// The room's uids ordered with the local user first.
+  List<String> _orderedIds(Set<String?> ids) {
+    final myUid = UserService.uid;
+    return [
+      myUid,
+      ...ids.whereType<String>().where((id) => id != myUid),
+    ];
+  }
+
+  /// Profile for [uid] available without touching the network: the local
+  /// user's own loaded profile, or one already fetched this search.
+  (String, String)? _localProfileFor(String uid) {
+    if (uid == UserService.uid) {
+      String localName = "";
+      String localPhoto = "";
+      final userModel = userCubit.state.user;
+      if (userModel != null) {
+        try {
+          localName = userModel.name?.toString() ?? "";
+        } catch (_) {}
+        try {
+          localPhoto = userModel.photo?.toString() ?? "";
+        } catch (_) {}
+      }
+      return (localName.isNotEmpty ? localName : 'Vous', localPhoto);
+    }
+    return _profileCache[uid];
   }
 
   /// 2-player fallback: if we are still alone in a pending room after a short
@@ -853,16 +883,18 @@ class RemoteCubit extends Cubit<RemoteState> {
     // longer ours to touch; the in-game cubit owns disconnection from there on.
     final inLobby = state.status != RemoteGameStatus.success && !_launching;
 
-    for (final attempt in _attempts) {
+    for (final attempt in List<_LobbyAttempt>.from(_attempts)) {
       attempt.disconnectionReference?.cancel();
       attempt.disconnectionReference = null;
 
-      if (inLobby &&
-          attempt.roomKey.isNotEmpty &&
-          attempt.playerKey.isNotEmpty) {
-        FirebaseDatabase.instance
-            .ref("matchmakings/${attempt.roomKey}/players/${attempt.playerKey}")
-            .remove();
+      if (inLobby) {
+        // Withdraw transactionally: a blind slot remove could race the room
+        // filling at this exact instant, leaving a graduated game waiting
+        // forever on a seat we vacated. _withdraw only removes the slot while
+        // the batch is still gathering, and otherwise tells the graduated
+        // game we are not coming (an EXIT event), so nobody waits on a ghost.
+        _attempts.remove(attempt);
+        _withdraw(attempt);
       }
     }
   }

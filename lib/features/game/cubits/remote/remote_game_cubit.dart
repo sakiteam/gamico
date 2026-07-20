@@ -72,7 +72,24 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
   // Remote requests managers
   int replayRequests = 0;
-  int readinessRequests = 0;
+
+  /// Readiness roll-call, by uid. The game deals only when every player still
+  /// expected has declared READINESS. Counting by uid (not a raw counter)
+  /// survives duplicated events, and a player who EXITs before the game
+  /// starts (left the app between matchmaking and launch) is struck from the
+  /// expected set instead of blocking the table forever.
+  final Set<String> _readyPlayerIds = {};
+  final Set<String> _exitedPlayerIds = {};
+  Set<String> _expectedPlayerIds = {};
+
+  void _checkReadiness() {
+    if (gameCubit.state.ready) return;
+    final expected = _expectedPlayerIds.difference(_exitedPlayerIds);
+    if (expected.isEmpty) return;
+    if (_readyPlayerIds.containsAll(expected)) {
+      gameCubit.startGame();
+    }
+  }
 
   // Remote game seeds
   late final int seed1;
@@ -227,6 +244,8 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
               })
               .toList();
 
+      _expectedPlayerIds = playersIds.toSet();
+
       final otherPlayerIds = playersIds
           .where((element) => element != UserService.uid)
           .toList();
@@ -340,11 +359,9 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                 );
 
                 if (currentGameEvent.type == "READINESS") {
-                  readinessRequests++;
-
-                  if (readinessRequests >= playersIds.length) {
-                    gameCubit.startGame();
-                  }
+                  final uid = currentGameEvent.userId;
+                  if (uid != null) _readyPlayerIds.add(uid);
+                  _checkReadiness();
                 } else if (currentGameEvent.type == "MOVE") {
                   if (currentGameEvent.userId != UserService.uid) {
                     gameCubit.settings?.receiveMoveFromRemotePlayer(
@@ -353,7 +370,15 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                   }
                 } else if (currentGameEvent.type == "EXIT") {
                   if (currentGameEvent.userId != UserService.uid) {
-                    _manageRemoteExit(currentGameEvent.userId ?? "");
+                    final uid = currentGameEvent.userId ?? "";
+                    // A player leaving before the deal (quit between
+                    // matchmaking and launch) will never declare READINESS:
+                    // stop expecting them or the table waits forever.
+                    if (!gameCubit.state.ready && uid.isNotEmpty) {
+                      _exitedPlayerIds.add(uid);
+                      _checkReadiness();
+                    }
+                    _manageRemoteExit(uid);
                   }
                 } else if (currentGameEvent.type == "ABANDONMENT") {
                   if (currentGameEvent.userId != UserService.uid) {
@@ -487,11 +512,17 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         });
       }
 
-      // Declare game as ready when really ready
+      // Declare game as ready when really ready. The wait is bounded:
+      // profiles normally resolve in well under a second, and one unreadable
+      // opponent profile must not strand the whole table on the loader
+      // forever (our READINESS would never be sent) — names and avatars all
+      // have their own fallbacks downstream.
+      final profilesDeadline = DateTime.now().add(const Duration(seconds: 20));
       await GamicoGlobalService.waitWhile(
         () =>
-            state.opponent == null ||
-            state.opponents.length < otherPlayerIds.length,
+            DateTime.now().isBefore(profilesDeadline) &&
+            (state.opponent == null ||
+                state.opponents.length < otherPlayerIds.length),
       );
 
       gameCubit.settings?.initGame();

@@ -98,6 +98,8 @@ abstract class GamicoLanguages {
   String get homeNotificationsTitle;
   String get homeNotificationsDescription;
   String get homeNotificationsAllow;
+  String get homeNotificationsReminderTitle;
+  String get homeNotificationsReminderDescription;
   String get homeUpdateTitle;
   String get homeUpdateSimpleDescription;
   String get homeUpdateForceDescription;

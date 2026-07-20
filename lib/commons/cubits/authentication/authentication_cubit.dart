@@ -91,7 +91,10 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
 
     _playerSubscription = GameAuth.player.listen((player) async {
       gameServicesPlayer = player;
-      userCubit.setUserName(gameServicesPlayer?.displayName ?? "");
+      // Writes `social_name` only. The player-facing `name` is seeded from it
+      // once (first sign-in) and then belongs to the player, who can rename
+      // themselves from the profile popup.
+      userCubit.setUserSocialName(gameServicesPlayer?.displayName ?? "");
     });
   }
 
@@ -167,6 +170,10 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
 
           // Save user information
           userCubit.setUser(user, loaded: true);
+
+          // The name was resolved offline (game services / random): make sure
+          // it doesn't collide with an existing player before it is used.
+          await userCubit.ensureUniqueName();
         }
 
         emit(

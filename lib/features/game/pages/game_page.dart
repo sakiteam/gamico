@@ -107,18 +107,28 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
       ],
       child: Builder(
         builder: (context) {
+          // Read once, during build: the listeners below can fire while this
+          // element is already deactivated (the page being popped), and a
+          // `context.read` at that point throws "Looking up a deactivated
+          // widget's ancestor is unsafe".
+          final pageGameCubit = context.read<GamicoGameCubit>();
+          final pageAdmobCubit = context.read<AdmobCubit>();
+          final pageUserCubit = context.read<GamicoUserCubit>();
+          final pageMusicCubit = context.read<GamicoMusicCubit>();
+          final pageCharacterCubit = context.read<CharacterCubit>();
+
           final finalChild = MultiBlocListener(
             listeners: [
               BlocListener<GamicoGameCubit, GamicoGameState>(
                 listener: (context, state) {
                   if (state.displayGamePopup) {
-                    context.read<GamicoGameCubit>().setDisplayGamePopup(false);
+                    pageGameCubit.setDisplayGamePopup(false);
 
                     NavigationService.showPopup(
                       context: context,
                       builder: (_) {
                         final finalPopup = BlocProvider.value(
-                          value: context.read<GamicoGameCubit>(),
+                          value: pageGameCubit,
                           child: const GamicoGamePopup(),
                         );
 
@@ -164,20 +174,20 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
 
                   GameService.gameSkipped = false;
 
-                  final admobCubit = context.read<AdmobCubit>();
-                  final gameCubit = context.read<GamicoGameCubit>();
-                  final userCubit = context.read<GamicoUserCubit>();
+                  final admobCubit = pageAdmobCubit;
+                  final gameCubit = pageGameCubit;
+                  final userCubit = pageUserCubit;
 
                   final victory = state.victory;
                   final gameMode = state.gameMode;
 
                   // Display message and character feeling
                   if (victory == null) {
-                    context.read<CharacterCubit>().setFeeling(
+                    pageCharacterCubit.setFeeling(
                       FeelingType.normal,
                     );
                   } else if (victory) {
-                    context.read<CharacterCubit>().setFeeling(
+                    pageCharacterCubit.setFeeling(
                       FeelingType.happy,
                     );
 
@@ -185,7 +195,7 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
                       gameCubit.displayMessage(CongratulationsMessageUtility());
                     }
                   } else {
-                    context.read<CharacterCubit>().setFeeling(FeelingType.sad);
+                    pageCharacterCubit.setFeeling(FeelingType.sad);
                   }
 
                   // Manage coins and stars
@@ -194,7 +204,7 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
                   }
 
                   // Music management 1
-                  final musicCubit = context.read<GamicoMusicCubit>();
+                  final musicCubit = pageMusicCubit;
 
                   try {
                     Future<void> Function()? playingBruitageFunction;
@@ -224,6 +234,12 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
                   }
 
                   await Future.delayed(2.seconds);
+
+                  if (!context.mounted) return;
+
+                  // Let an end-game cinematic (e.g. a chapter unlock) play out
+                  // before the result popup slides in over it.
+                  await gameCubit.awaitBeforeGamePopup?.call();
 
                   if (!context.mounted) return;
 
@@ -366,8 +382,23 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
 
     gameCubit.state.gameMode.onExitingGame(context);
 
+    // "Nouvelle partie" (newRemoteGameActive) keeps the matchmaking page
+    // below alive: onExitingGame just reset it to search again, and this pop
+    // must land the player back on its waiting screen. onBackButtonPressed —
+    // which pops the matchmaking page too, sending the player home — is for
+    // genuine exits only.
+    var newRemoteSearch = false;
+    try {
+      newRemoteSearch = context
+          .read<GamicoRemoteGameCubit>()
+          .state
+          .newRemoteGameActive;
+    } catch (_) {}
+
     onClosed = () {
-      widget.gameUtility.onBackButtonPressed?.call();
+      if (!newRemoteSearch) {
+        widget.gameUtility.onBackButtonPressed?.call();
+      }
       musicCubit.playMainMusic();
     };
 

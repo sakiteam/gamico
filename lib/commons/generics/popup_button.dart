@@ -71,7 +71,7 @@ class GamicoPopupButton extends StatelessWidget {
                             icon,
                             color: Colors.white,
                             size: 40 * 450 / 400,
-                            strokeWidth: 0.5,
+                            strokeWidth: 0.125,
                           ),
                         if (iconText != null)
                           Container(
@@ -103,7 +103,7 @@ class GamicoPopupButton extends StatelessWidget {
                     GamicoOutlinedText(
                       text ?? "",
                       // textAlign: TextAlign.center,
-                      // strokeWidth: 0.5,
+                      strokeWidth: 0.125,
                       style: const TextStyle(
                         fontSize: 16 * 450 / 400,
                         fontWeight: FontWeight.bold,

@@ -12,11 +12,29 @@ import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/commons/services/play.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:remove_diacritic/remove_diacritic.dart';
 // import 'package:simple_connection_checker/simple_connection_checker.dart';
 import 'package:gamico/commons/services/gratification.dart';
 import 'package:gamico/commons/repositories/gamico_users_repository.dart';
 
 part 'user_state.dart';
+
+/// Outcome of a player-initiated rename (see [GamicoUserCubit.updateUserName]).
+enum GamicoNameUpdateResult {
+  success,
+
+  /// Empty, too short/long, or contains forbidden characters.
+  invalid,
+
+  /// Another account already uses this name.
+  taken,
+
+  /// No signed-in account to rename.
+  unauthenticated,
+
+  /// The write (or the uniqueness check) could not be completed.
+  failure,
+}
 
 class GamicoUserCubit extends Cubit<GamicoUserState> {
   // UserCubit({
@@ -313,26 +331,219 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     UserService.setUser(user);
   }
 
-  void setUserName(String name) {
-    final currentName = state.user?.name;
+  // Names
+  //
+  // Two distinct names live on a user:
+  //  * `social_name` mirrors the Game Center / Play Games display name. It is
+  //    refreshed on every sign-in and the player cannot change it from here.
+  //  * `name` is what the game shows everywhere. It is seeded from the social
+  //    name the first time the account is seen, then belongs to the player:
+  //    the platform must never overwrite it again.
+  //
+  // `formatted_name` is the normalized mirror of `name` (lowercased, no
+  // diacritics). It backs the friend search AND the uniqueness check, so both
+  // are always written together.
 
-    if (UserService.authenticated && name.isNotEmpty && currentName != name) {
-      // [GAMICO-FIX] name/level-loss investigation.
-      // Instrumentation: the only spontaneous writer of the name is the
-      // GameAuth.player stream (game services displayName). On an unstable
-      // Game Center (e.g. the simulator) this can push a placeholder/wrong
-      // alias over the real name — log every change so it's visible.
-      debugPrint(
-        "⚠️ setUserName: '$currentName' -> '$name' (game services displayName)",
+  static const int nameMinLength = 5;
+  static const int nameMaxLength = 15;
+
+  /// RTDB never fails a write while offline, it just keeps it pending. Cap the
+  /// wait so a rename can be reported as failed instead of hanging.
+  static const Duration _writeTimeout = Duration(seconds: 10);
+
+  /// Letters (any alphabet), digits, spaces and a few separators.
+  static final RegExp _nameAllowedCharacters = RegExp(
+    r"^[\p{L}\p{N} ._'-]+$",
+    unicode: true,
+  );
+
+  /// Trims and collapses whitespace. What actually gets stored in `name`.
+  static String sanitizeName(String name) =>
+      name.trim().replaceAll(RegExp(r"\s+"), " ");
+
+  /// Normalized form stored in `formatted_name`.
+  static String formatName(String name) =>
+      removeDiacritics(sanitizeName(name).toLowerCase());
+
+  static bool isNameValid(String name) {
+    final sanitized = sanitizeName(name);
+
+    return sanitized.length >= nameMinLength &&
+        sanitized.length <= nameMaxLength &&
+        _nameAllowedCharacters.hasMatch(sanitized);
+  }
+
+  /// Whether [formattedName] already belongs to ANOTHER account.
+  ///
+  /// Returns null when the check itself failed (offline, permission, …) so the
+  /// caller can refuse the rename instead of silently creating a duplicate.
+  Future<bool?> isNameTaken(String formattedName) async {
+    if (formattedName.isEmpty) return null;
+
+    try {
+      final snapshot = await FirebaseDatabase.instance
+          .ref()
+          .child("users")
+          .orderByChild("formatted_name")
+          .equalTo(formattedName)
+          // One extra entry so our own account never hides a real conflict.
+          .limitToFirst(2)
+          .get()
+          .timeout(_writeTimeout);
+
+      if (!snapshot.exists) return false;
+
+      final data = Map<String, dynamic>.from(
+        jsonDecode(jsonEncode(snapshot.value)),
       );
-      usersRepository.updateUserName(UserService.uid, name);
-      FirebaseAuth.instance.currentUser?.updateDisplayName(name).catchError((e) {
-        // Best-effort: ignore network errors (timeout, offline, etc.)
-        // The display name is stored in Firestore; a Firebase Auth sync failure
-        // is non-critical and must not crash the app.
-        debugPrint("⚠️ updateDisplayName failed (ignored): $e");
-      });
+
+      return data.keys.any((id) => id != UserService.uid);
+    } catch (e) {
+      debugPrint("⚠️ isNameTaken('$formattedName') failed: $e");
+      return null;
     }
+  }
+
+  /// Derives a free name from [base] by suffixing a number when needed. Used
+  /// for the initial seeding only — a player-initiated rename must fail loudly
+  /// rather than silently rename someone to "Alex2".
+  Future<String> _findAvailableName(String base) async {
+    var root = sanitizeName(base);
+
+    if (!isNameValid(root)) {
+      root = sanitizeName(GamicoGlobalService.getRandomPlayerName());
+    }
+
+    for (var attempt = 0; attempt < 8; attempt++) {
+      final suffix = attempt == 0
+          ? ""
+          : "${GamicoGlobalService.random.nextInt(900) + 100}";
+
+      // Keep room for the suffix rather than overflowing the max length.
+      final trimmed = root.length + suffix.length > nameMaxLength
+          ? root.substring(0, nameMaxLength - suffix.length)
+          : root;
+
+      final candidate = "$trimmed$suffix";
+
+      if (await isNameTaken(formatName(candidate)) == false) return candidate;
+    }
+
+    return root;
+  }
+
+  /// Called by the Game Center / Play Games player stream.
+  ///
+  /// Always refreshes `social_name`, and seeds `name` only while the player
+  /// has none — after that the platform name is purely informative.
+  bool get _canWriteUser =>
+      UserService.authenticated &&
+      UserService.uid.isNotEmpty &&
+      state.loaded &&
+      state.user != null;
+
+  void setUserSocialName(String name) async {
+    final sanitized = sanitizeName(name);
+
+    if (sanitized.isEmpty) return;
+
+    // The game services stream usually fires before the account finished
+    // loading, and writing then would keep a ghost node alive (see
+    // manageUserChanges). Wait for a real user — but give up instead of
+    // looping forever when the sign-in never completes.
+    for (var attempt = 0; attempt < 40 && !_canWriteUser; attempt++) {
+      await Future.delayed(const Duration(milliseconds: 250));
+    }
+
+    if (!_canWriteUser) return;
+
+    final user = state.user!;
+
+    if (user.socialName != sanitized) {
+      // Best-effort: `social_name` is informative, a failure must not block
+      // the seeding below.
+      usersRepository
+          .updateUserSocialName(UserService.uid, sanitized)
+          .catchError((e) => debugPrint("⚠️ updateUserSocialName failed: $e"));
+    }
+
+    if (sanitizeName(user.name ?? "").isNotEmpty) return;
+
+    final seed = await _findAvailableName(sanitized);
+
+    debugPrint("ℹ️ seeding name from game services: '$seed'");
+
+    await _writeName(seed);
+  }
+
+  /// Called right after a brand-new account is created: its `name` was
+  /// resolved locally (game services display name, or a random one) without
+  /// knowing what the other players use. Make it unique before it shows up in
+  /// a lobby.
+  Future<void> ensureUniqueName() async {
+    if (UserService.uid.isEmpty) return;
+
+    final current = sanitizeName(state.user?.name ?? "");
+
+    if (current.isEmpty) return;
+    if (await isNameTaken(formatName(current)) != true) return;
+
+    final available = await _findAvailableName(current);
+
+    debugPrint("ℹ️ '$current' already taken, falling back to '$available'");
+
+    await _writeName(available);
+  }
+
+  /// Player-initiated rename. Only touches `name`/`formatted_name`.
+  Future<GamicoNameUpdateResult> updateUserName(String name) async {
+    if (!UserService.authenticated || UserService.uid.isEmpty) {
+      return GamicoNameUpdateResult.unauthenticated;
+    }
+
+    final sanitized = sanitizeName(name);
+
+    if (!isNameValid(sanitized)) return GamicoNameUpdateResult.invalid;
+
+    // Same name (possibly re-cased): nothing to check, nothing to conflict on.
+    if (sanitized == sanitizeName(state.user?.name ?? "")) {
+      return GamicoNameUpdateResult.success;
+    }
+
+    final formatted = formatName(sanitized);
+    final taken = await isNameTaken(formatted);
+
+    if (taken == null) return GamicoNameUpdateResult.failure;
+    if (taken) return GamicoNameUpdateResult.taken;
+
+    return await _writeName(sanitized)
+        ? GamicoNameUpdateResult.success
+        : GamicoNameUpdateResult.failure;
+  }
+
+  /// Writes the name to the SERVER and reports whether it actually landed.
+  ///
+  /// A name that only changed locally would break every player looking this
+  /// one up, so the caller must be able to tell the player it failed. RTDB
+  /// keeps a write pending forever while offline instead of failing, hence the
+  /// explicit timeout.
+  Future<bool> _writeName(String name) async {
+    try {
+      await usersRepository
+          .updateUserName(UserService.uid, name, formatName(name))
+          .timeout(_writeTimeout);
+    } catch (e) {
+      debugPrint("⚠️ updateUserName failed: $e");
+      return false;
+    }
+
+    // Best-effort mirror: the game reads the name from RTDB, an Auth sync
+    // failure is not critical.
+    FirebaseAuth.instance.currentUser?.updateDisplayName(name).catchError((e) {
+      debugPrint("⚠️ updateDisplayName failed (ignored): $e");
+    });
+
+    return true;
   }
 
   void setUserToken(String? token) async {
@@ -416,7 +627,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
   void manageUserChanges(DatabaseEvent event) async {
     if (event.snapshot.value != null) {
-      final value = Gamico.instance.userFromJson(
+      final json = Map<String, dynamic>.from(
         jsonDecode(jsonEncode(event.snapshot.value)),
       );
 
@@ -427,26 +638,48 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
       // _pendingSignOutTimer = null;
 
       // [GAMICO-FIX] name/level-loss investigation.
-      // A genuine user record always carries an identity: social_id, firebase_id
-      // or at least a name. A payload where ALL of these are null is a corrupted
-      // / ghost node (typically reduced to just {updated_at}). Applying it would
-      // (1) overwrite the good in-memory user and (2) persist the garbage to
-      // local storage via setUser -> UserService.setUser, so it resurfaces
-      // all-null on the next restart. Refuse it, and do NOT start disconnection
-      // management on it (that write would keep the ghost node alive).
-      final looksEmpty =
-          value == null ||
-          (value.socialId == null &&
-              value.firebaseId == null &&
-              value.name == null);
+      // A genuine user node always carries an identity — social_id /
+      // firebase_id — or at least the created_at stamped at creation. A
+      // payload with NONE of them is not a full user: it is either a
+      // corrupted/ghost node (reduced to {updated_at}), or RTDB's latency
+      // compensation echoing back one of the app's OWN partial writes on a
+      // cold cache (renaming writes {name, formatted_name, updated_at}).
+      //
+      // Applying such a payload as-is would wipe the loaded user — coins,
+      // level, everything — and persist the stub locally, so it resurfaces
+      // all-null on the next restart.
+      final partial =
+          json["social_id"] == null &&
+          json["firebase_id"] == null &&
+          json["created_at"] == null;
 
-      if (looksEmpty) {
-        debugPrint(
-          "⚠️ manageUserChanges: ignoring empty/corrupted user payload for "
-          "users/${UserService.uid}: ${event.snapshot.value}",
-        );
+      if (partial) {
+        final current = state.user;
+
+        if (current == null) {
+          debugPrint(
+            "⚠️ manageUserChanges: ignoring partial/corrupted user payload for "
+            "users/${UserService.uid}: ${event.snapshot.value}",
+          );
+          return;
+        }
+
+        // Keep the loaded user and apply only the fields that changed: the
+        // rename must still show up immediately.
+        final merged = Map<String, dynamic>.from(
+          Gamico.instance.userToJson(current),
+        )..addAll(json);
+
+        setUser(Gamico.instance.userFromJson(merged), loaded: true);
+
+        // Deliberately no _manageDisconnection() here: that write would keep
+        // a ghost node alive if this payload really is a corrupted one.
         return;
       }
+
+      final value = Gamico.instance.userFromJson(json);
+
+      if (value == null) return;
 
       setUser(value, loaded: true);
 

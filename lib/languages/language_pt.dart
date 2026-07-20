@@ -121,6 +121,11 @@ abstract class GamicoLanguagePt extends GamicoLanguages {
   @override
   String get homeNotificationsAllow => "Permitir";
   @override
+  String get homeNotificationsReminderTitle => "Ativar notificações";
+  @override
+  String get homeNotificationsReminderDescription =>
+      "As notificações são importantes para uma melhor experiência de jogo. Deseja ativá-las agora?";
+  @override
   String get homeUpdateTitle => "Atualização disponível!";
   @override
   String get homeUpdateForceDescription =>
