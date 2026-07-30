@@ -38,7 +38,8 @@ class NavigationService {
     popupsContexts.remove(context);
 
     if (context.mounted) {
-      Navigator.pop(context, result);
+      final nav = Navigator.maybeOf(context);
+      nav?.pop(result);
     }
   }
 
@@ -56,6 +57,8 @@ class NavigationService {
     final navigator = Navigator.of(context);
 
     await Future.delayed(AnimationService.animationDuration);
+
+    if (!navigator.mounted) return null;
 
     return await navigator.push<T>(
       PageRouteBuilder(
@@ -85,6 +88,12 @@ class NavigationService {
 
     await Future.delayed(AnimationService.animationDuration);
 
+    if (!navigator.mounted) return;
+
+    if (previousRoute != null && !previousRoute.isActive) {
+      return;
+    }
+
     final route = PageRouteBuilder(
       pageBuilder: (_, _, _) => page,
       transitionDuration: Duration.zero,
@@ -97,7 +106,11 @@ class NavigationService {
     }
 
     final result = navigator.push(route);
-    navigator.removeRoute(previousRoute);
+    if (previousRoute.isActive) {
+      try {
+        navigator.removeRoute(previousRoute);
+      } catch (_) {}
+    }
     await result;
   }
 

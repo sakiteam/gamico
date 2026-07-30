@@ -244,10 +244,12 @@ class AdventureModeSettings implements GameModeSettings {
     final userInitialLevel = context.select(
       (GamicoAdventureGameCubit userCubit) => userCubit.state.userInitialLevel,
     );
-    final userLevel = context.select(
-      (GamicoUserCubit userCubit) =>
-          adventureUtility.getUserLevel(userCubit.state.user),
+    final user = context.select(
+      (GamicoUserCubit userCubit) => userCubit.state.user,
     );
+    if (user == null) return false;
+
+    final userLevel = adventureUtility.getUserLevel(user);
 
     return userLevel == level + 1 && userInitialLevel == level;
   }

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -98,11 +99,56 @@ class Gamico {
 
     // Initialize Crashlytics early because error could occur just after this line
     if (kReleaseMode) {
+      bool isIgnoredError(dynamic exception, String? library) {
+        final errorStr = exception.toString();
+        if (errorStr.contains("Loading interrupted")) return true;
+
+        final isNetworkOrSocket =
+            exception is SocketException ||
+            exception is HttpException ||
+            exception is HandshakeException ||
+            errorStr.contains("SocketException") ||
+            errorStr.contains("HttpException") ||
+            errorStr.contains("HandshakeException") ||
+            errorStr.contains("Software caused connection abort") ||
+            errorStr.contains("Connection reset by peer") ||
+            errorStr.contains("Connection refused") ||
+            errorStr.contains("Host lookup failed") ||
+            errorStr.contains("Connection closed") ||
+            errorStr.contains("Network is unreachable") ||
+            errorStr.contains("Operation not permitted");
+
+        if (isNetworkOrSocket &&
+            (library == 'image resource service' ||
+                errorStr.contains('googleusercontent.com') ||
+                errorStr.contains('image_stream.dart') ||
+                errorStr.contains('LanBeacon') ||
+                errorStr.contains('LanDiscovery') ||
+                errorStr.contains('lan_discovery.dart'))) {
+          debugPrint("Crashlytics: Ignored network socket/http error");
+          return true;
+        }
+
+        return false;
+      }
+
+      bool isNetworkException(dynamic exception) {
+        return exception is SocketException ||
+            exception is HttpException ||
+            exception is HandshakeException;
+      }
+
       // Replace default Flutter error manager
       FlutterError.onError = (details) {
-        final errorStr = details.exception.toString();
-        if (errorStr.contains("Loading interrupted")) {
-          debugPrint("Crashlytics: Ignored loading interrupted error");
+        if (isIgnoredError(details.exception, details.library)) {
+          return;
+        }
+        if (isNetworkException(details.exception)) {
+          FirebaseCrashlytics.instance.recordError(
+            details.exception,
+            details.stack,
+            fatal: false,
+          );
           return;
         }
         FirebaseCrashlytics.instance.recordFlutterFatalError(details);
@@ -110,9 +156,11 @@ class Gamico {
 
       // Replace default Flutter platform dispatcher error manager
       PlatformDispatcher.instance.onError = (error, stack) {
-        final errorStr = error.toString();
-        if (errorStr.contains("Loading interrupted")) {
-          debugPrint("PlatformDispatcher: Ignored loading interrupted error");
+        if (isIgnoredError(error, null)) {
+          return true;
+        }
+        if (isNetworkException(error)) {
+          FirebaseCrashlytics.instance.recordError(error, stack, fatal: false);
           return true;
         }
         // Send error to Crashlytics
@@ -132,12 +180,12 @@ class Gamico {
     // calling SDK methods that require initialisation.
     mobileAdsInitFuture = MobileAds.instance.initialize();
 
-    // Enable data persistence
-    try {
-      FirebaseDatabase.instance.setPersistenceEnabled(true);
-    } catch (e) {
-      debugPrint(e.toString());
-    }
+    // Note: FirebaseDatabase persistence is intentionally disabled.
+    // On low-end devices (128–192 MB heap limit) the in-memory cache maintained
+    // by the RTDB persistence layer can trigger an OOM when a large game
+    // payload arrives via WebSocket (HashMap.resize inside JSONObject.<init>).
+    // Persistence only avoids a network round-trip on app restart, which is
+    // not a meaningful benefit for a real-time multiplayer game.
 
     // Notifications
     try {

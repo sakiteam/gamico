@@ -17,6 +17,7 @@ class MatchmakingSettings<T extends GamicoUserModel> {
   final List<String>? modes;
 
   final int? maxPlayers;
+  final bool isInfinite;
 
   const MatchmakingSettings({
     required this.minLevel,
@@ -26,6 +27,7 @@ class MatchmakingSettings<T extends GamicoUserModel> {
     this.mode,
     this.modes,
     this.maxPlayers,
+    this.isInfinite = false,
   });
 
   /// Copy of these settings pinned to a single resolved [mode] — what the
@@ -38,6 +40,7 @@ class MatchmakingSettings<T extends GamicoUserModel> {
       increment: increment,
       mode: mode,
       maxPlayers: maxPlayers,
+      isInfinite: isInfinite,
     );
   }
 }

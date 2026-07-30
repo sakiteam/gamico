@@ -57,6 +57,12 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   final _firePlayer = AudioPlayer();
   final _voicePlayer = AudioPlayer();
 
+  // Fixed pool of 2 players for one-shot bruitages (click, lock, move, etc.).
+  // Reusing a pool avoids creating a new ExoPlayer pipeline on every call,
+  // which would cause OOM on low-end devices (128 MB heap).
+  final _oneShotPool = [AudioPlayer(), AudioPlayer()];
+  int _oneShotIndex = 0;
+
   // Bruitage players list
   List<AudioPlayer> get _bruitagePlayers => [
     _winPlayer,
@@ -65,6 +71,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     _voicePlayer,
     _clockPlayer,
     _firePlayer,
+    ..._oneShotPool,
   ];
 
   // All players list
@@ -76,6 +83,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     _voicePlayer,
     _clockPlayer,
     _firePlayer,
+    ..._oneShotPool,
   ];
 
   double _currentVolume = 1;
@@ -237,29 +245,24 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   // Play bruitage
   Future<void> playBruitage(String source, [bool force = false]) async {
     if (!state.mute || force) {
-      final tmpPlayer = AudioPlayer();
+      // Reuse a player from the fixed pool instead of allocating a new
+      // ExoPlayer pipeline each time (prevents OOM on low-end devices).
+      final player = _oneShotPool[_oneShotIndex % _oneShotPool.length];
+      _oneShotIndex++;
 
       try {
-        await tmpPlayer.safelySetAsset(source);
+        // Stop any previous sound still playing on this slot.
+        await player.stop();
+        await player.safelySetAsset(source);
         // One-shot effects follow the voice-chat ducking too.
         if (_bruitageDuck < 1) {
-          await tmpPlayer.setVolume(_bruitageDuck);
+          await player.setVolume(_currentVolume * _bruitageDuck);
+        } else {
+          await player.setVolume(_currentVolume);
         }
-        await tmpPlayer.safelyPlay(force);
-
-        // Avoid disposing immediately to prevent native crashes (e.g., _setPlatformActive)
-        // We wait for the audio to finish or for a reasonable timeout before disposing
-        tmpPlayer.processingStateStream
-            .firstWhere((s) => s == ProcessingState.completed)
-            .timeout(
-              const Duration(seconds: 10),
-              onTimeout: () => ProcessingState.completed,
-            )
-            .then((_) => tmpPlayer.dispose())
-            .catchError((_) => tmpPlayer.dispose());
+        await player.safelyPlay(force);
       } catch (e) {
         debugPrint("Error playing bruitage ($source): $e");
-        tmpPlayer.dispose();
       }
     }
   }
@@ -419,26 +422,8 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   // Close cubit
   @override
   Future<void> close() async {
-    await Future.wait([
-      _mainPlayer.stop(),
-      _winPlayer.stop(),
-      _drawPlayer.stop(),
-      _losePlayer.stop(),
-      _voicePlayer.stop(),
-      _clockPlayer.stop(),
-      _firePlayer.stop(),
-    ]);
-
-    await Future.wait([
-      _mainPlayer.dispose(),
-      _winPlayer.dispose(),
-      _drawPlayer.dispose(),
-      _losePlayer.dispose(),
-      _voicePlayer.dispose(),
-      _clockPlayer.dispose(),
-      _firePlayer.dispose(),
-    ]);
-
+    await Future.wait(_allPlayers.map((p) => p.stop()));
+    await Future.wait(_allPlayers.map((p) => p.dispose()));
     return super.close();
   }
 

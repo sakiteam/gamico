@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:bloc/bloc.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -81,12 +80,33 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   final Set<String> _readyPlayerIds = {};
   final Set<String> _exitedPlayerIds = {};
   Set<String> _expectedPlayerIds = {};
+  Timer? _readinessFallbackTimer;
+
+  void _startReadinessFallbackTimer() {
+    _readinessFallbackTimer?.cancel();
+    _readinessFallbackTimer = Timer(const Duration(seconds: 15), () {
+      if (isClosed || gameCubit.state.ready) return;
+
+      final unready = _expectedPlayerIds
+          .difference(_readyPlayerIds)
+          .difference(_exitedPlayerIds);
+
+      if (unready.isNotEmpty) {
+        for (final uid in unready) {
+          _exitedPlayerIds.add(uid);
+          gameCubit.settings?.onRemoteUserDisconnectedDuringGame(uid);
+        }
+      }
+      _checkReadiness();
+    });
+  }
 
   void _checkReadiness() {
     if (gameCubit.state.ready) return;
     final expected = _expectedPlayerIds.difference(_exitedPlayerIds);
     if (expected.isEmpty) return;
     if (_readyPlayerIds.containsAll(expected)) {
+      _readinessFallbackTimer?.cancel();
       gameCubit.startGame();
     }
   }
@@ -265,7 +285,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
             .listen((event) {
               if (event.snapshot.exists) {
                 final rawData = event.snapshot.value;
-                final validData = jsonDecode(jsonEncode(rawData));
+                final validData = _deepCastMap(rawData);
 
                 var finalOpponent = Gamico.instance.userFromJson(
                   Map<String, dynamic>.from(validData),
@@ -294,7 +314,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
               .listen((event) {
                 if (event.snapshot.exists) {
                   final rawData = event.snapshot.value;
-                  final validData = jsonDecode(jsonEncode(rawData));
+                  final validData = _deepCastMap(rawData);
 
                   var finalOpponent = Gamico.instance.userFromJson(
                     Map<String, dynamic>.from(validData),
@@ -353,7 +373,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
             .listen((event) async {
               if (event.snapshot.exists) {
                 final rawData = event.snapshot.value;
-                final validData = jsonDecode(jsonEncode(rawData));
+                final validData = _deepCastMap(rawData);
                 final currentGameEvent = GamicoGameEventModel.fromJson(
                   validData,
                 );
@@ -517,7 +537,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       // opponent profile must not strand the whole table on the loader
       // forever (our READINESS would never be sent) — names and avatars all
       // have their own fallbacks downstream.
-      final profilesDeadline = DateTime.now().add(const Duration(seconds: 20));
+      final profilesDeadline = DateTime.now().add(const Duration(seconds: 2));
       await GamicoGlobalService.waitWhile(
         () =>
             DateTime.now().isBefore(profilesDeadline) &&
@@ -534,6 +554,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
           gameId,
           GamicoGameEventModel(type: "READINESS", userId: UserService.uid),
         );
+        _startReadinessFallbackTimer();
       }
     };
 
@@ -608,6 +629,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
   @override
   Future<void> close() {
+    _readinessFallbackTimer?.cancel();
     // Cancel all usual streams
     newGameStreamSubscription?.cancel();
     opponentStreamSubscription?.cancel();
@@ -620,4 +642,20 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
     return super.close();
   }
+}
+
+Map<String, dynamic> _deepCastMap(dynamic map) {
+  if (map is! Map) return {};
+  return map.map(
+    (key, value) => MapEntry(key.toString(), _deepCastValue(value)),
+  );
+}
+
+dynamic _deepCastValue(dynamic value) {
+  if (value is Map) {
+    return _deepCastMap(value);
+  } else if (value is List) {
+    return value.map(_deepCastValue).toList();
+  }
+  return value;
 }

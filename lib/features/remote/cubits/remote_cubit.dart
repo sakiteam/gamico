@@ -139,6 +139,14 @@ class RemoteCubit extends Cubit<RemoteState> {
   /// silently kick the player out of matchmaking.
   StreamSubscription<DatabaseEvent>? _connectedSubscription;
 
+  /// Estimated offset between local clock and Firebase server time.
+  int _serverTimeOffset = 0;
+  StreamSubscription<DatabaseEvent>? _serverTimeOffsetSubscription;
+
+  /// Current time synchronized across all devices using Firebase server time.
+  int get _serverNowMs =>
+      DateTime.now().millisecondsSinceEpoch + _serverTimeOffset;
+
   /// The subscription above replays the current state on attach; only the
   /// events after that first `true` are actual reconnections.
   bool _sawInitialConnected = false;
@@ -189,6 +197,12 @@ class RemoteCubit extends Cubit<RemoteState> {
     emit(state.copyWith(animated: animated));
   }
 
+  @override
+  void emit(RemoteState state) {
+    if (isClosed) return;
+    super.emit(state);
+  }
+
   /// Set whether the game has already been started or not
   void setFinalized(bool finalized) {
     emit(state.copyWith(finalized: finalized));
@@ -214,6 +228,7 @@ class RemoteCubit extends Cubit<RemoteState> {
     }
     _attempts.clear();
     _connectedSubscription?.cancel();
+    _serverTimeOffsetSubscription?.cancel();
 
     gameId = "";
     matchedMode = null;
@@ -310,6 +325,16 @@ class RemoteCubit extends Cubit<RemoteState> {
           _restoreLobbySlots();
         });
 
+    _serverTimeOffsetSubscription?.cancel();
+    _serverTimeOffsetSubscription = FirebaseDatabase.instance
+        .ref(".info/serverTimeOffset")
+        .onValue
+        .listen((event) {
+          if (event.snapshot.value is int) {
+            _serverTimeOffset = event.snapshot.value as int;
+          }
+        });
+
     // 2-player pools fall back to a bot if nobody shows up in time.
     if (!remoteUtility.isDeveloper &&
         !appScreenshots &&
@@ -318,13 +343,92 @@ class RemoteCubit extends Cubit<RemoteState> {
     }
   }
 
+  Timer? _countdownTimer;
+
+  void _stopCountdownTimer() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+    if (!isClosed && state.countdownRemaining != null) {
+      emit(state.copyWith(countdownRemaining: () => null));
+    }
+  }
+
+  void _handleInfiniteCountdown(
+    _LobbyAttempt attempt,
+    DatabaseReference roomRef,
+    Map<String, dynamic> data,
+  ) {
+    final countdownEndAt = data["countdown_end_at"] as int?;
+    final players = Map<String, dynamic>.from(
+      data["players"] as Map? ?? <String, dynamic>{},
+    );
+
+    if (countdownEndAt == null || players.length < 2) {
+      _stopCountdownTimer();
+      if (countdownEndAt != null && players.length < 2) {
+        roomRef.child("countdown_end_at").remove();
+      }
+      return;
+    }
+
+    _startCountdownTicker(attempt, roomRef, countdownEndAt);
+  }
+
+  void _startCountdownTicker(
+    _LobbyAttempt attempt,
+    DatabaseReference roomRef,
+    int countdownEndAt,
+  ) {
+    _countdownTimer?.cancel();
+
+    Future<void> updateTicker() async {
+      if (isClosed || _committed) {
+        _stopCountdownTimer();
+        return;
+      }
+
+      final now = _serverNowMs;
+      final diffMs = countdownEndAt - now;
+      final remaining = (diffMs / 1000).ceil();
+
+      if (remaining <= 0) {
+        _stopCountdownTimer();
+        try {
+          await roomRef.runTransaction((current) {
+            if (current == null) return Transaction.abort();
+            final room = Map<String, dynamic>.from(current as Map);
+            if (room["status"]?.toString() != "PENDING") {
+              return Transaction.abort();
+            }
+            final currentPlayers = Map<String, dynamic>.from(
+              room["players"] as Map? ?? <String, dynamic>{},
+            );
+            if (currentPlayers.length < 2) return Transaction.abort();
+            room["status"] = "STARTED";
+            return Transaction.success(room);
+          });
+        } catch (_) {}
+      } else {
+        if (state.countdownRemaining != remaining) {
+          emit(state.copyWith(countdownRemaining: () => remaining));
+        }
+      }
+    }
+
+    updateTicker();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      updateTicker();
+    });
+  }
+
   /// Creates-or-joins the lobby room for [mode] and wires its listeners.
   Future<void> _joinLobby(String? mode) async {
     if (isClosed || _committed) return;
 
     final db = FirebaseDatabase.instance;
     final settings = remoteUtility.matchmakingSettings;
-    final required = settings.maxPlayers ?? 2;
+    final isInfinite = settings.isInfinite || settings.maxPlayers == 0;
+    final required = isInfinite ? 12 : (settings.maxPlayers ?? 2);
 
     final attempt = _LobbyAttempt(mode);
     attempt.roomKey = _buildRoomKey(mode);
@@ -333,6 +437,7 @@ class RemoteCubit extends Cubit<RemoteState> {
     attempt.playerKey = db.ref().push().key ?? "";
     // Pre-generated id of the real game this lobby will graduate into.
     final freshGameId = db.ref("games").push().key ?? "";
+    _attempts.add(attempt);
 
     final now = DateTime.now().toString();
     Map<String, dynamic> buildMyPlayer() => <String, dynamic>{
@@ -369,6 +474,10 @@ class RemoteCubit extends Cubit<RemoteState> {
           room["players"] as Map? ?? <String, dynamic>{},
         );
 
+        // Remove any stale slot previously held by this user in this room
+        players.removeWhere((k, p) =>
+            p is Map && p["user_id"]?.toString() == UserService.uid);
+
         // Defensive: a full-but-not-yet-flipped room shouldn't exist, but if it
         // does, don't overflow it — start a fresh batch instead.
         if (players.length >= required) {
@@ -377,17 +486,34 @@ class RemoteCubit extends Cubit<RemoteState> {
 
         players[attempt.playerKey] = buildMyPlayer();
         room["players"] = players;
-        if (players.length >= required) {
-          room["status"] = "STARTED";
+        if (isInfinite) {
+          if (players.length >= 12) {
+            room["status"] = "STARTED";
+            room.remove("countdown_end_at");
+          } else if (players.length >= 2) {
+            final durationSeconds = players.length >= 3 ? 5 : 10;
+            room["countdown_end_at"] =
+                _serverNowMs + (durationSeconds * 1000);
+          }
+        } else {
+          if (players.length >= required) {
+            room["status"] = "STARTED";
+          }
         }
         return Transaction.success(room);
       }, applyLocally: false);
     } catch (e) {
-      if (isClosed || _committed) return;
+      if (isClosed || _committed) {
+        await _withdraw(attempt);
+        return;
+      }
       return _joinLobby(mode);
     }
 
-    if (isClosed || _committed) return;
+    if (isClosed || _committed) {
+      await _withdraw(attempt);
+      return;
+    }
 
     if (result.committed != true || result.snapshot.value == null) {
       // Transient contention / abort: retry this room from scratch.
@@ -399,7 +525,6 @@ class RemoteCubit extends Cubit<RemoteState> {
     );
     attempt.gameId = room["next_game_id"]?.toString() ?? freshGameId;
     createdGameStatus = room["status"]?.toString() ?? "PENDING";
-    _attempts.add(attempt);
 
     // Leave only our own slot behind on disconnect — for every player, creator
     // included — so one player quitting the lobby never ends it for the others.
@@ -429,7 +554,10 @@ class RemoteCubit extends Cubit<RemoteState> {
       _refreshPlayersFound();
 
       if (data["status"]?.toString() == "STARTED") {
+        _stopCountdownTimer();
         _onRoomStarted(attempt, data);
+      } else if (isInfinite) {
+        _handleInfiniteCountdown(attempt, roomRef, data);
       }
     });
 
@@ -456,7 +584,8 @@ class RemoteCubit extends Cubit<RemoteState> {
         creator =
             orderedKeys.isNotEmpty && orderedKeys.first == attempt.playerKey;
 
-        _launchWith(attempt, fakeOpponent: realIds.length < required);
+        final minRequired = isInfinite ? 2 : required;
+        _launchWith(attempt, fakeOpponent: realIds.length < minRequired);
       },
     );
 
@@ -479,13 +608,13 @@ class RemoteCubit extends Cubit<RemoteState> {
   }
 
   /// Launches the game the winning [attempt] graduated into.
-  void _launchWith(_LobbyAttempt attempt, {required bool fakeOpponent}) {
+  Future<void> _launchWith(_LobbyAttempt attempt, {required bool fakeOpponent}) async {
     if (isClosed || _launching) return;
     if (_chosen == null) {
       // The game node went STARTED without us ever seeing the room flip (the
       // batch moved on): commit to it now and leave the other rooms.
       _chosen = attempt;
-      _withdrawOthers(attempt);
+      await _withdrawOthers(attempt);
     } else if (!identical(_chosen, attempt)) {
       // Already committed to another room; _withdrawOthers told this game we
       // are not coming.
@@ -518,15 +647,23 @@ class RemoteCubit extends Cubit<RemoteState> {
       "updated_at": DateTime.now().toString(),
       "players": players,
     });
+
+    if (attempt.roomKey.isNotEmpty) {
+      try {
+        await FirebaseDatabase.instance
+            .ref("matchmakings/${attempt.roomKey}")
+            .remove();
+      } catch (_) {}
+    }
   }
 
   /// Leaves every room except [winner]. Kept losing rooms would keep counting
   /// us towards their batches and could start a second game with a ghost.
-  void _withdrawOthers(_LobbyAttempt winner) {
+  Future<void> _withdrawOthers(_LobbyAttempt winner) async {
     for (final attempt in List<_LobbyAttempt>.from(_attempts)) {
       if (identical(attempt, winner)) continue;
       _attempts.remove(attempt);
-      _withdraw(attempt);
+      await _withdraw(attempt);
     }
   }
 
@@ -541,49 +678,45 @@ class RemoteCubit extends Cubit<RemoteState> {
 
     final db = FirebaseDatabase.instance;
     try {
-      final result = await db
+      await db
           .ref("matchmakings/${attempt.roomKey}")
           .runTransaction((current) {
             if (current == null) return Transaction.abort();
             final room = Map<String, dynamic>.from(current as Map);
-            if (room["next_game_id"]?.toString() != attempt.gameId) {
-              // The batch moved on and the room was reused: our slot is gone.
-              return Transaction.abort();
-            }
-            if (room["status"]?.toString() != "PENDING") {
-              return Transaction.abort();
-            }
             final players = Map<String, dynamic>.from(
               room["players"] as Map? ?? <String, dynamic>{},
             );
-            if (players.remove(attempt.playerKey) == null) {
+            final initialLength = players.length;
+            players.removeWhere((k, p) =>
+                k == attempt.playerKey ||
+                (p is Map && p["user_id"]?.toString() == UserService.uid));
+            if (players.length == initialLength) {
               return Transaction.abort();
             }
+            if (players.isEmpty) {
+              return Transaction.success(null);
+            }
             room["players"] = players;
+            final settings = remoteUtility.matchmakingSettings;
+            final isInfinite = settings.isInfinite || settings.maxPlayers == 0;
+            if (isInfinite && players.length < 2) {
+              room.remove("countdown_end_at");
+            }
             return Transaction.success(room);
           }, applyLocally: false);
-      if (result.committed == true) return;
     } catch (_) {}
 
-    // Best effort: if that batch graduated with our slot already seated, tell
-    // the game we are not coming.
-    try {
-      final snapshot = await db
-          .ref("games/${attempt.gameId}/players")
-          .get();
-      final gamePlayers = snapshot.value;
-      final seated =
-          gamePlayers is Map &&
-          gamePlayers.values.any(
-            (p) => p is Map && p["user_id"]?.toString() == UserService.uid,
-          );
-      if (seated) {
-        gamesRepository.addGameEvent(
+    attempt.disconnectionReference?.cancel();
+    attempt.disconnectionReference = null;
+
+    if (attempt.gameId.isNotEmpty) {
+      try {
+        await gamesRepository.addGameEvent(
           attempt.gameId,
           GamicoGameEventModel(type: "EXIT", userId: UserService.uid),
         );
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
   }
 
   /// Puts our lobby slots back after a connection loss, one room at a time.
@@ -622,7 +755,9 @@ class RemoteCubit extends Cubit<RemoteState> {
     await attempt.disconnectionReference?.remove();
     if (isClosed || _committed) return;
 
-    final required = remoteUtility.matchmakingSettings.maxPlayers ?? 2;
+    final settings = remoteUtility.matchmakingSettings;
+    final isInfinite = settings.isInfinite || settings.maxPlayers == 0;
+    final required = isInfinite ? 12 : (settings.maxPlayers ?? 2);
     final now = DateTime.now().toString();
 
     TransactionResult result;
@@ -654,8 +789,19 @@ class RemoteCubit extends Cubit<RemoteState> {
           "updated_at": now,
         };
         room["players"] = players;
-        if (players.length >= required) {
-          room["status"] = "STARTED";
+        if (isInfinite) {
+          if (players.length >= 12) {
+            room["status"] = "STARTED";
+            room.remove("countdown_end_at");
+          } else if (players.length >= 2 && room["countdown_end_at"] == null) {
+            final durationSeconds = players.length >= 3 ? 5 : 10;
+            room["countdown_end_at"] =
+                _serverNowMs + (durationSeconds * 1000);
+          }
+        } else {
+          if (players.length >= required) {
+            room["status"] = "STARTED";
+          }
         }
         return Transaction.success(room);
       }, applyLocally: false);
@@ -802,9 +948,9 @@ class RemoteCubit extends Cubit<RemoteState> {
   /// game, so one is picked at random for variety.
   void _manageFakeGame() async {
     final required = remoteUtility.matchmakingSettings.maxPlayers ?? 2;
-    if (required > 2) return;
+    if (required > 2 && !remoteUtility.matchmakingSettings.isInfinite) return;
 
-    await Future.delayed(5.seconds);
+    await Future.delayed(10.seconds);
 
     if (isClosed) return;
     if (state.status == RemoteGameStatus.success) return;
@@ -860,6 +1006,7 @@ class RemoteCubit extends Cubit<RemoteState> {
   void launchGame({bool fakeOpponent = false}) {
     if (isClosed || _launching) return;
     _launching = true;
+    _stopCountdownTimer();
 
     for (final attempt in _attempts) {
       attempt.cancelSubscriptions();
@@ -876,37 +1023,32 @@ class RemoteCubit extends Cubit<RemoteState> {
     );
   }
 
-  void abortGame() {
-    // Leaving the lobby before the game starts removes only our own slots — for
-    // every player alike, creator included — so the others stay in their rooms.
-    // Once the match has started (or is launching) the lobby rooms are no
-    // longer ours to touch; the in-game cubit owns disconnection from there on.
-    final inLobby = state.status != RemoteGameStatus.success && !_launching;
-
+  Future<void> abortGame() async {
     for (final attempt in List<_LobbyAttempt>.from(_attempts)) {
-      attempt.disconnectionReference?.cancel();
-      attempt.disconnectionReference = null;
+      _attempts.remove(attempt);
+      await _withdraw(attempt);
 
-      if (inLobby) {
-        // Withdraw transactionally: a blind slot remove could race the room
-        // filling at this exact instant, leaving a graduated game waiting
-        // forever on a seat we vacated. _withdraw only removes the slot while
-        // the batch is still gathering, and otherwise tells the graduated
-        // game we are not coming (an EXIT event), so nobody waits on a ghost.
-        _attempts.remove(attempt);
-        _withdraw(attempt);
+      if (attempt.gameId.isNotEmpty) {
+        try {
+          await gamesRepository.addGameEvent(
+            attempt.gameId,
+            GamicoGameEventModel(type: "EXIT", userId: UserService.uid),
+          );
+        } catch (_) {}
       }
     }
   }
 
   @override
-  Future<void> close() {
-    abortGame();
+  Future<void> close() async {
+    _stopCountdownTimer();
+    await abortGame();
 
     for (final attempt in _attempts) {
       attempt.cancelSubscriptions();
     }
     _connectedSubscription?.cancel();
+    _serverTimeOffsetSubscription?.cancel();
 
     return super.close();
   }

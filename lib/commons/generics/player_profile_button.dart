@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/services/navigation.dart';
@@ -52,9 +53,14 @@ class GamicoPlayerProfileButton extends StatelessWidget {
               size: iconSize ?? 16,
               color: Colors.white,
             )
-          : Image.network(
-              user.photo!,
+          : CachedNetworkImage(
+              imageUrl: user.photo!,
               fit: BoxFit.fill,
+              errorWidget: (_, _, _) => Icon(
+                ai ? Icons.android : Icons.person,
+                size: iconSize ?? 16,
+                color: Colors.white,
+              ),
             ),
       () {
         NavigationService.showPopup(

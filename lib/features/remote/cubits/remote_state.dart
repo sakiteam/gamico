@@ -23,6 +23,7 @@ class RemoteState {
   final int playersFound;
   final List<String> playerNames;
   final List<String> playerPhotos;
+  final int? countdownRemaining;
 
   const RemoteState({
     this.status = RemoteGameStatus.initial,
@@ -39,6 +40,7 @@ class RemoteState {
     this.playersFound = 0,
     this.playerNames = const [],
     this.playerPhotos = const [],
+    this.countdownRemaining,
   });
 
   RemoteState copyWith({
@@ -56,6 +58,7 @@ class RemoteState {
     int? playersFound,
     List<String>? playerNames,
     List<String>? playerPhotos,
+    int? Function()? countdownRemaining,
   }) {
     return RemoteState(
       level: level != null ? level() : this.level,
@@ -72,6 +75,9 @@ class RemoteState {
       playersFound: playersFound ?? this.playersFound,
       playerNames: playerNames ?? this.playerNames,
       playerPhotos: playerPhotos ?? this.playerPhotos,
+      countdownRemaining: countdownRemaining != null
+          ? countdownRemaining()
+          : this.countdownRemaining,
     );
   }
 }

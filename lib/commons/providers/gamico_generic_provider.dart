@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 class GamicoGenericProvider {
@@ -42,11 +43,15 @@ class GamicoGenericProvider {
     String id,
     Map<String, dynamic> doc,
   ) async {
-    doc = Map<String, dynamic>.from(doc);
-    doc.remove("id");
-    doc.remove("created_at");
-    doc["updated_at"] = DateTime.now().toString();
-    return await ref.child("$col/$id").update(doc);
+    try {
+      doc = Map<String, dynamic>.from(doc);
+      doc.remove("id");
+      doc.remove("created_at");
+      doc["updated_at"] = DateTime.now().toString();
+      await ref.child("$col/$id").update(doc);
+    } catch (e) {
+      debugPrint("Error updating data $col/$id: $e");
+    }
   }
 
   Future<void> deleteData(

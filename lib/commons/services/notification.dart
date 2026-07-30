@@ -125,7 +125,7 @@ class NotificationService {
     try {
       if (!(await allowed())) return;
 
-      AwesomeNotifications().createNotification(
+      await AwesomeNotifications().createNotification(
         content: NotificationContent(
           id: 1,
           channelKey: "default",
@@ -293,31 +293,35 @@ class NotificationService {
   }) async {
     if (!(await allowed())) return;
 
-    await AwesomeNotifications().createNotification(
-      content: NotificationContent(
-        // hashCode can be negative, which awesome_notifications rejects.
-        id: invitationId.hashCode & 0x7fffffff,
-        channelKey: 'invitations',
-        title: title,
-        body: body,
-        payload: {'invitation_id': invitationId},
-        notificationLayout: NotificationLayout.Default,
-        wakeUpScreen: true,
-        displayOnForeground: true,
-      ),
-      actionButtons: [
-        NotificationActionButton(
-          key: "ACCEPT",
-          label: _acceptLabel,
-          color: Colors.green,
+    try {
+      await AwesomeNotifications().createNotification(
+        content: NotificationContent(
+          // hashCode can be negative, which awesome_notifications rejects.
+          id: invitationId.hashCode & 0x7fffffff,
+          channelKey: 'invitations',
+          title: title,
+          body: body,
+          payload: {'invitation_id': invitationId},
+          notificationLayout: NotificationLayout.Default,
+          wakeUpScreen: true,
+          displayOnForeground: true,
         ),
-        NotificationActionButton(
-          key: "REJECT",
-          label: _rejectLabel,
-          color: Colors.red,
-        ),
-      ],
-    );
+        actionButtons: [
+          NotificationActionButton(
+            key: "ACCEPT",
+            label: _acceptLabel,
+            color: Colors.green,
+          ),
+          NotificationActionButton(
+            key: "REJECT",
+            label: _rejectLabel,
+            color: Colors.red,
+          ),
+        ],
+      );
+    } catch (e) {
+      debugPrint("Error creating invitation notification: $e");
+    }
   }
 
   /// Dismisses a previously shown invitation notification (same id derivation

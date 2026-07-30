@@ -126,15 +126,19 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
                         adventureUtility: widget.adventureGameUtility,
                         creatorOfCurrentGame: remoteState.creator!,
                         onBackButtonPressed: () async {
-                          if (widget.remoteUtility.adventure) {
-                            remoteCubit.setForcePop(true);
-                            NavigationService.pop(context);
-                          } else {
-                            // Pop the matchmaking page too: the user should
-                            // return to wherever they came from, not get stuck
-                            // on the "finding opponent" screen.
-                            if (context.mounted) Navigator.of(context).pop();
-                          }
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (!context.mounted) return;
+                            if (widget.remoteUtility.adventure) {
+                              remoteCubit.setForcePop(true);
+                              NavigationService.pop(context);
+                            } else {
+                              // Pop the matchmaking page too: the user should
+                              // return to wherever they came from, not get stuck
+                              // on the "finding opponent" screen.
+                              final nav = Navigator.maybeOf(context);
+                              nav?.pop();
+                            }
+                          });
                         },
                       ),
                     ),
@@ -143,9 +147,12 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
 
                 await Future.delayed(AnimationService.animationDuration);
 
+                if (!mounted) return;
                 notifyPlayers();
 
-                remoteCubit.setFinalized(true);
+                if (!remoteCubit.isClosed) {
+                  remoteCubit.setFinalized(true);
+                }
               }
             },
             listenWhen: (oldState, newState) {
@@ -194,20 +201,25 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
   }
 
   void notifyPlayers() async {
+    if (!mounted) return;
     final l = GamicoLanguages.of(context);
 
     if (await NotificationService.allowed()) {
-      AwesomeNotifications().createNotification(
-        content: NotificationContent(
-          id: 2,
-          channelKey: "default",
-          title: l.remoteInvitationTitle,
-          body: l.remoteInvitationDescription,
-          wakeUpScreen: true,
-          displayOnForeground: false,
-          category: NotificationCategory.Alarm,
-        ),
-      );
+      try {
+        await AwesomeNotifications().createNotification(
+          content: NotificationContent(
+            id: 2,
+            channelKey: "default",
+            title: l.remoteInvitationTitle,
+            body: l.remoteInvitationDescription,
+            wakeUpScreen: true,
+            displayOnForeground: false,
+            category: NotificationCategory.Alarm,
+          ),
+        );
+      } catch (e) {
+        debugPrint("Error notifying players: $e");
+      }
     }
   }
 }

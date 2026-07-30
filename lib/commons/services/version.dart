@@ -5,7 +5,7 @@ import 'package:new_version_plus/new_version_plus.dart';
 import 'package:simple_connection_checker/simple_connection_checker.dart';
 
 class VersionService {
-  static late String versionString;
+  static String versionString = "";
 
   static String get storeVersion =>
       LocalStorageService.getString("store_version") ?? "";
@@ -46,7 +46,7 @@ class VersionService {
   }
 
   static bool localVersionDeprecated() {
-    if (storeVersion.isNotEmpty) {
+    if (storeVersion.isNotEmpty && versionString.isNotEmpty) {
       final localParts = formatVersion(
         versionString,
       ).split(".").map((e) => int.tryParse(e) ?? 0).toList();

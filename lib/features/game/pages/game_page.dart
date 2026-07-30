@@ -116,6 +116,18 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
           final pageUserCubit = context.read<GamicoUserCubit>();
           final pageMusicCubit = context.read<GamicoMusicCubit>();
           final pageCharacterCubit = context.read<CharacterCubit>();
+          final pageAdventureCubit = gameType == GameType.adventure
+              ? context.read<GamicoAdventureGameCubit>()
+              : null;
+          final pageRemoteCubit = gameType == GameType.remote
+              ? context.read<GamicoRemoteGameCubit>()
+              : null;
+          final pagePassAndPlayCubit = gameType == GameType.passAndPlay
+              ? context.read<GamicoPassAndPlayGameCubit>()
+              : null;
+          final pageTutorialCubit = gameType == GameType.tutorial
+              ? context.read<GamicoTutorialGameCubit>()
+              : null;
 
           final finalChild = MultiBlocListener(
             listeners: [
@@ -134,19 +146,19 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
 
                         return switch (gameType) {
                           GameType.adventure => BlocProvider.value(
-                            value: context.read<GamicoAdventureGameCubit>(),
+                            value: pageAdventureCubit!,
                             child: finalPopup,
                           ),
                           GameType.remote => BlocProvider.value(
-                            value: context.read<GamicoRemoteGameCubit>(),
+                            value: pageRemoteCubit!,
                             child: finalPopup,
                           ),
                           GameType.passAndPlay => BlocProvider.value(
-                            value: context.read<GamicoPassAndPlayGameCubit>(),
+                            value: pagePassAndPlayCubit!,
                             child: finalPopup,
                           ),
                           GameType.tutorial => BlocProvider.value(
-                            value: context.read<GamicoTutorialGameCubit>(),
+                            value: pageTutorialCubit!,
                             child: finalPopup,
                           ),
                         };
