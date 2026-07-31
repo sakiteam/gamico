@@ -9,6 +9,7 @@ import 'package:gamico/commons/services/locale.dart';
 import 'package:gamico/commons/services/music.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:gamico/commons/services/local_storage.dart';
+import 'package:audio_session/audio_session.dart';
 
 part 'music_state.dart';
 
@@ -28,6 +29,9 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     // Set ads mute mode once the SDK is ready (non-blocking for the
     // constructor — runs asynchronously in the background).
     _initAdsMuteState();
+
+    // Configure AudioSession for iOS interruption handling
+    _initAudioSession();
   }
 
   /// Waits for the MobileAds SDK to finish initialising, then applies
@@ -42,9 +46,48 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     }
   }
 
+  /// Configures the iOS AVAudioSession and handles audio interruptions (calls, Siri, etc.).
+  Future<void> _initAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+
+      _interruptionSub?.cancel();
+      _interruptionSub = session.interruptionEventStream.listen((event) {
+        if (_isDisposed) return;
+        if (event.begin) {
+          switch (event.type) {
+            case AudioInterruptionType.duck:
+              _mainPlayer.setVolume(_currentVolume * 0.5);
+              break;
+            case AudioInterruptionType.pause:
+            case AudioInterruptionType.unknown:
+              pause();
+              break;
+          }
+        } else {
+          switch (event.type) {
+            case AudioInterruptionType.duck:
+              _mainPlayer.setVolume(_currentVolume * _musicDuck);
+              break;
+            case AudioInterruptionType.pause:
+              resume();
+              break;
+            case AudioInterruptionType.unknown:
+              break;
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint('AudioSession configuration failed: $e');
+    }
+  }
+
   // Initialization states
   bool musicInitialized = false;
   bool bruitagesInitialized = false;
+  bool _isDisposed = false;
+  StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
 
   // Music player
   final _mainPlayer = AudioPlayer();
@@ -226,6 +269,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   // Play music
   Future<void> _playMusic() async {
     await GamicoGlobalService.waitWhile(() => !musicInitialized);
+    if (_isDisposed) return;
 
     await _mainPlayer.setVolume(_currentVolume);
 
@@ -234,7 +278,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
       await _mainPlayer.seek(Duration.zero);
     }
 
-    await _mainPlayer.safelyPlay();
+    await _mainPlayer.safelyPlay(false, _isDisposed);
   }
 
   // Pause music
@@ -242,8 +286,8 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     await _mainPlayer.pause();
   }
 
-  // Play bruitage
   Future<void> playBruitage(String source, [bool force = false]) async {
+    if (_isDisposed) return;
     if (!state.mute || force) {
       // Reuse a player from the fixed pool instead of allocating a new
       // ExoPlayer pipeline each time (prevents OOM on low-end devices).
@@ -260,7 +304,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
         } else {
           await player.setVolume(_currentVolume);
         }
-        await player.safelyPlay(force);
+        await player.safelyPlay(force, _isDisposed);
       } catch (e) {
         debugPrint("Error playing bruitage ($source): $e");
       }
@@ -270,10 +314,11 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   Future<void> _playBruitageDirectly(AudioPlayer bruitagePlayer) async {
     if (!state.mute) {
       await GamicoGlobalService.waitWhile(() => !bruitagesInitialized);
+      if (_isDisposed) return;
 
       await bruitagePlayer.stop();
       await bruitagePlayer.seek(Duration.zero);
-      await bruitagePlayer.safelyPlay();
+      await bruitagePlayer.safelyPlay(false, _isDisposed);
     }
   }
 
@@ -422,8 +467,22 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   // Close cubit
   @override
   Future<void> close() async {
-    await Future.wait(_allPlayers.map((p) => p.stop()));
-    await Future.wait(_allPlayers.map((p) => p.dispose()));
+    _isDisposed = true;
+    await _interruptionSub?.cancel();
+    _interruptionSub = null;
+
+    for (final player in _allPlayers) {
+      try {
+        await player.stop();
+      } catch (_) {}
+    }
+
+    for (final player in _allPlayers) {
+      try {
+        await player.dispose();
+      } catch (_) {}
+    }
+
     return super.close();
   }
 
@@ -452,14 +511,15 @@ extension on AudioPlayer {
     }
   }
 
-  Future<void> safelyPlay([bool force = false]) async {
+  Future<void> safelyPlay([bool force = false, bool isDisposed = false]) async {
     await GamicoGlobalService.waitWhile(() => MusicService.pausedByAd);
+    if (isDisposed) return;
 
     if (!MusicService.mute || force) {
       try {
         await play();
       } catch (e) {
-        debugPrint(e.toString());
+        debugPrint("AudioPlayer.play error caught safely: $e");
       }
     }
   }

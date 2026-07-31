@@ -536,30 +536,35 @@ class RemoteCubit extends Cubit<RemoteState> {
     // Keep the live "players found" count fresh, and graduate once the room
     // fills. A room whose next_game_id changed has already graduated and been
     // replaced by a new batch — the game-node listener drives our launch then.
-    attempt.roomSubscription = roomRef.onValue.listen((event) {
-      final value = event.snapshot.value;
-      if (value == null) return;
-      final data = Map<String, dynamic>.from(
-        jsonDecode(jsonEncode(value)) as Map,
-      );
-      if (data["next_game_id"]?.toString() != attempt.gameId) return;
+    attempt.roomSubscription = roomRef.onValue.listen(
+      (event) {
+        final value = event.snapshot.value;
+        if (value == null) return;
+        final data = Map<String, dynamic>.from(
+          jsonDecode(jsonEncode(value)) as Map,
+        );
+        if (data["next_game_id"]?.toString() != attempt.gameId) return;
 
-      final players = Map<String, dynamic>.from(
-        data["players"] as Map? ?? <String, dynamic>{},
-      );
-      attempt.playerIds = players.values
-          .map((p) => (p as Map)["user_id"]?.toString())
-          .whereType<String>()
-          .toSet();
-      _refreshPlayersFound();
+        final players = Map<String, dynamic>.from(
+          data["players"] as Map? ?? <String, dynamic>{},
+        );
+        attempt.playerIds = players.values
+            .map((p) => (p as Map)["user_id"]?.toString())
+            .whereType<String>()
+            .toSet();
+        _refreshPlayersFound();
 
-      if (data["status"]?.toString() == "STARTED") {
-        _stopCountdownTimer();
-        _onRoomStarted(attempt, data);
-      } else if (isInfinite) {
-        _handleInfiniteCountdown(attempt, roomRef, data);
-      }
-    });
+        if (data["status"]?.toString() == "STARTED") {
+          _stopCountdownTimer();
+          _onRoomStarted(attempt, data);
+        } else if (isInfinite) {
+          _handleInfiniteCountdown(attempt, roomRef, data);
+        }
+      },
+      onError: (error, stackTrace) {
+        debugPrint("⚠️ RemoteCubit roomSubscription error: $error");
+      },
+    );
 
     // The single authoritative launch signal: the graduated game node going
     // STARTED. Never races, and is never overwritten by later batches.
@@ -586,6 +591,9 @@ class RemoteCubit extends Cubit<RemoteState> {
 
         final minRequired = isInfinite ? 2 : required;
         _launchWith(attempt, fakeOpponent: realIds.length < minRequired);
+      },
+      onError: (error, stackTrace) {
+        debugPrint("⚠️ RemoteCubit gameSubscription error: $error");
       },
     );
 

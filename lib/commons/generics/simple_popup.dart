@@ -243,12 +243,17 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
                                                         color: ColorService
                                                             .accentColor,
                                                         iconData: Icons.mail,
-                                                        onPressed: () {
-                                                          launchUrl(
-                                                            Uri.parse(
-                                                              "mailto:sakihub@gmail.com",
-                                                            ),
-                                                          );
+                                                        onPressed: () async {
+                                                          try {
+                                                            await launchUrl(
+                                                              Uri.parse(
+                                                                "mailto:sakihub@gmail.com",
+                                                              ),
+                                                              mode: LaunchMode.externalApplication,
+                                                            );
+                                                          } catch (e) {
+                                                            debugPrint("Failed to launch mailto: $e");
+                                                          }
                                                         },
                                                       ),
                                                     ),

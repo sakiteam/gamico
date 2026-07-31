@@ -128,7 +128,12 @@ class NavigationService {
     bool draggable = true,
     bool dismissible = true,
   }) async {
-    final musicCubit = context.read<GamicoMusicCubit>();
+    if (!context.mounted) return;
+
+    GamicoMusicCubit? musicCubit;
+    try {
+      musicCubit = context.read<GamicoMusicCubit>();
+    } catch (_) {}
 
     closePopups();
 
@@ -136,7 +141,7 @@ class NavigationService {
 
     currentPopupContext = context;
 
-    musicCubit.playPopupOpenBruitage();
+    musicCubit?.playPopupOpenBruitage();
 
     await showModalBottomSheet(
       context: context,
@@ -149,12 +154,10 @@ class NavigationService {
     );
 
     if (currentPopupContext == context) {
-      musicCubit.playPopupCloseBruitage();
+      musicCubit?.playPopupCloseBruitage();
     }
 
     popupsContexts.remove(context);
-
-    // removeContextFromStack(currentPopupContext!);
   }
 
   // static void removeContextFromStack(BuildContext context) {

@@ -104,7 +104,11 @@ class GamicoGlobalService {
         draggable: false,
         builder: (_) {
           return GamicoAuthenticationPopup(
-            onSuccess: () => function(),
+            onSuccess: () {
+              if (context.mounted) {
+                function();
+              }
+            },
           );
         },
       );

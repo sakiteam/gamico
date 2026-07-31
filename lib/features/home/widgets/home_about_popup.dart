@@ -20,6 +20,17 @@ import 'package:url_launcher/url_launcher.dart';
 class HomeAboutPopup extends StatelessWidget {
   const HomeAboutPopup({super.key});
 
+  Future<void> _safeLaunchUrl(String url) async {
+    try {
+      await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (e) {
+      debugPrint("Failed to launch $url: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = GamicoLanguages.of(context);
@@ -92,7 +103,7 @@ class HomeAboutPopup extends StatelessWidget {
               iconColor: ColorService.aboutIconColor,
               text: l.homeAboutPopupVisitWebstie,
               onPressed: () {
-                launchUrl(Uri.parse("https://saki-hub.web.app"));
+                _safeLaunchUrl("https://saki-hub.web.app");
               },
             ),
             GamicoIconTextButton(
@@ -102,16 +113,12 @@ class HomeAboutPopup extends StatelessWidget {
               iconColor: ColorService.aboutIconColor,
               onPressed: () {
                 if (Platform.isAndroid) {
-                  launchUrl(
-                    Uri.parse(
-                      "https://play.google.com/store/apps/dev?id=8434106479316779165",
-                    ),
+                  _safeLaunchUrl(
+                    "https://play.google.com/store/apps/dev?id=8434106479316779165",
                   );
                 } else {
-                  launchUrl(
-                    Uri.parse(
-                      "itms-apps://itunes.apple.com/developer/id1628421324",
-                    ),
+                  _safeLaunchUrl(
+                    "itms-apps://itunes.apple.com/developer/id1628421324",
                   );
                 }
               },

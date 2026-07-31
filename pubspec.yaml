@@ -46,6 +46,7 @@ dependencies:
   basic_utils:
   flutter_svg:
   just_audio:
+  audio_session:
   draw_on_path:
   defer_pointer:
   url_launcher:

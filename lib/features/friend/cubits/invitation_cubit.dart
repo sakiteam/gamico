@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/material.dart';
 import 'package:gamico/commons/models/gamico_game_model.dart';
 import 'package:gamico/commons/services/notification.dart';
 import 'package:gamico/features/friend/models/invitation_model.dart';
@@ -29,25 +30,28 @@ class InvitationCubit extends Cubit<InvitationState> {
         // recent ones (push keys are chronological) instead of the full history.
         .limitToLast(30)
         .onValue
-        .listen((event) {
-          if (event.snapshot.value != null) {
-            final Map<dynamic, dynamic> values =
-                event.snapshot.value as Map<dynamic, dynamic>;
-            final invitations =
-                values.entries
-                    .map(
-                      (e) => InvitationModel.fromJson({
-                        ...Map<String, dynamic>.from(e.value as Map),
-                        'id': e.key,
-                      }),
-                    )
-                    .where((inv) => inv.status == InvitationStatus.pending)
-                    .toList();
-            emit(state.copyWith(pendingInvitations: invitations));
-          } else {
-            emit(state.copyWith(pendingInvitations: []));
-          }
-        });
+        .listen(
+          (event) {
+            if (event.snapshot.value != null) {
+              final Map<dynamic, dynamic> values =
+                  event.snapshot.value as Map<dynamic, dynamic>;
+              final invitations = values.entries
+                  .map(
+                    (e) => InvitationModel.fromJson({
+                      ...Map<String, dynamic>.from(e.value as Map),
+                      'id': e.key,
+                    }),
+                  )
+                  .where((inv) => inv.status == InvitationStatus.pending)
+                  .toList();
+              emit(state.copyWith(pendingInvitations: invitations));
+            } else {
+              emit(state.copyWith(pendingInvitations: []));
+            }
+          },
+          onError: (e) =>
+              debugPrint("⚠️ _receivedInvitationSubscription error => $e"),
+        );
 
     // Écoute des invitations envoyées
     _sentInvitationSubscription = _database
@@ -59,39 +63,44 @@ class InvitationCubit extends Cubit<InvitationState> {
         // recent ones (push keys are chronological) instead of the full history.
         .limitToLast(30)
         .onValue
-        .listen((event) {
-          if (event.snapshot.value != null) {
-            final Map<dynamic, dynamic> values =
-                event.snapshot.value as Map<dynamic, dynamic>;
-            final invitations =
-                values.entries
-                    .map(
-                      (e) => InvitationModel.fromJson({
-                        ...Map<String, dynamic>.from(e.value as Map),
-                        'id': e.key,
-                      }),
-                    )
-                    .toList();
+        .listen(
+          (event) {
+            if (event.snapshot.value != null) {
+              final Map<dynamic, dynamic> values =
+                  event.snapshot.value as Map<dynamic, dynamic>;
+              final invitations = values.entries
+                  .map(
+                    (e) => InvitationModel.fromJson({
+                      ...Map<String, dynamic>.from(e.value as Map),
+                      'id': e.key,
+                    }),
+                  )
+                  .toList();
 
-            // Update sent invitations list
-            emit(state.copyWith(sentInvitations: invitations));
+              // Update sent invitations list
+              emit(state.copyWith(sentInvitations: invitations));
 
-            // If we have a current invitation, check its status
-            if (state.currentInvitation != null) {
-              final currentInvitation = invitations.firstWhere(
-                (inv) => inv.id == state.currentInvitation!.id,
-                orElse: () => state.currentInvitation!,
-              );
+              // If we have a current invitation, check its status
+              if (state.currentInvitation != null) {
+                final currentInvitation = invitations.firstWhere(
+                  (inv) => inv.id == state.currentInvitation!.id,
+                  orElse: () => state.currentInvitation!,
+                );
 
-              if (currentInvitation.status != InvitationStatus.pending) {
-                // Update current invitation status
-                emit(state.copyWith(currentInvitation: currentInvitation));
+                if (currentInvitation.status != InvitationStatus.pending) {
+                  // Update current invitation status
+                  emit(state.copyWith(currentInvitation: currentInvitation));
+                }
               }
+            } else {
+              emit(
+                state.copyWith(sentInvitations: [], currentInvitation: null),
+              );
             }
-          } else {
-            emit(state.copyWith(sentInvitations: [], currentInvitation: null));
-          }
-        });
+          },
+          onError: (e) =>
+              debugPrint("⚠️ _sentInvitationSubscription error => $e"),
+        );
   }
 
   Future<InvitationModel> sendInvitation(
@@ -260,23 +269,29 @@ class InvitationCubit extends Cubit<InvitationState> {
         .child('invitations')
         .child(invitationId)
         .onValue
-        .listen((event) {
-          if (event.snapshot.value != null) {
-            final data = Map<String, dynamic>.from(event.snapshot.value as Map);
-            final invitation = InvitationModel.fromJson({
-              ...data,
-              'id': invitationId,
-            });
+        .listen(
+          (event) {
+            if (event.snapshot.value != null) {
+              final data = Map<String, dynamic>.from(
+                event.snapshot.value as Map,
+              );
+              final invitation = InvitationModel.fromJson({
+                ...data,
+                'id': invitationId,
+              });
 
-            if (invitation.status != InvitationStatus.pending) {
-              // Update current invitation status
-              emit(state.copyWith(currentInvitation: invitation));
-              // Stop listening since the invitation is no longer pending
-              _currentInvitationSubscription?.cancel();
-              _currentInvitationSubscription = null;
+              if (invitation.status != InvitationStatus.pending) {
+                // Update current invitation status
+                emit(state.copyWith(currentInvitation: invitation));
+                // Stop listening since the invitation is no longer pending
+                _currentInvitationSubscription?.cancel();
+                _currentInvitationSubscription = null;
+              }
             }
-          }
-        });
+          },
+          onError: (e) =>
+              debugPrint("⚠️ _currentInvitationSubscription error => $e"),
+        );
   }
 
   @override

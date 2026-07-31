@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/features/friend/models/invitation_model.dart';
@@ -91,43 +92,47 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
           NotificationService.cancelGameInvitationNotification(invitation.id);
         }
       }
-    });
+    }, onError: (e) => debugPrint("⚠️ _invitationSubscription error => $e"));
 
     // Écouter les changements de statut
     // [GAMICO-FIX] Store the subscription so it can be cancelled.
-    _invitationChangedSubscription = invitationsRef.onChildChanged.listen((
-      event,
-    ) {
-      if (event.snapshot.value != null) {
-        final invitationData = Map<String, dynamic>.from(
-          event.snapshot.value as Map,
-        );
-        final invitation = InvitationModel.fromJson({
-          ...invitationData,
-          'id': event.snapshot.key!,
-        });
-        _invitations[event.snapshot.key!] = invitation;
-        _updatePendingState();
+    _invitationChangedSubscription = invitationsRef.onChildChanged.listen(
+      (event) {
+        if (event.snapshot.value != null) {
+          final invitationData = Map<String, dynamic>.from(
+            event.snapshot.value as Map,
+          );
+          final invitation = InvitationModel.fromJson({
+            ...invitationData,
+            'id': event.snapshot.key!,
+          });
+          _invitations[event.snapshot.key!] = invitation;
+          _updatePendingState();
 
-        // Multi-device: every device signed in as the receiver gets this
-        // child-changed event via the RTDB sync. When the invitation leaves
-        // PENDING — because it was answered here, on another device, or
-        // withdrawn by the host — drop its (now stale) tray notification on
-        // this device too, without needing a server-side push.
-        if (invitation.status != InvitationStatus.pending) {
-          NotificationService.cancelGameInvitationNotification(invitation.id);
+          // Multi-device: every device signed in as the receiver gets this
+          // child-changed event via the RTDB sync. When the invitation leaves
+          // PENDING — because it was answered here, on another device, or
+          // withdrawn by the host — drop its (now stale) tray notification on
+          // this device too, without needing a server-side push.
+          if (invitation.status != InvitationStatus.pending) {
+            NotificationService.cancelGameInvitationNotification(invitation.id);
+          }
         }
-      }
-    });
+      },
+      onError: (e) =>
+          debugPrint("⚠️ _invitationChangedSubscription error => $e"),
+    );
 
     // Écouter les suppressions d'invitations
     // [GAMICO-FIX] Store the subscription so it can be cancelled.
-    _invitationRemovedSubscription = invitationsRef.onChildRemoved.listen((
-      event,
-    ) {
-      _invitations.remove(event.snapshot.key!);
-      _updatePendingState();
-    });
+    _invitationRemovedSubscription = invitationsRef.onChildRemoved.listen(
+      (event) {
+        _invitations.remove(event.snapshot.key!);
+        _updatePendingState();
+      },
+      onError: (e) =>
+          debugPrint("⚠️ _invitationRemovedSubscription error => $e"),
+    );
   }
 
   void _updatePendingState() {

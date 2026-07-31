@@ -9,33 +9,48 @@ class GamicoGenericProvider {
     String col,
     Map<String, dynamic> doc,
   ) async {
-    final pushRef = ref.child(col).push();
-    final now = DateTime.now().toString();
+    try {
+      final pushRef = ref.child(col).push();
+      final now = DateTime.now().toString();
 
-    doc = Map<String, dynamic>.from(doc);
-    doc.remove("id");
-    doc["created_at"] = now;
-    doc["updated_at"] = now;
-    await pushRef.set(doc);
+      doc = Map<String, dynamic>.from(doc);
+      doc.remove("id");
+      doc["created_at"] = now;
+      doc["updated_at"] = now;
 
-    return pushRef.key ?? "";
+      final jsonDoc = jsonDecode(jsonEncode(doc, toEncodable: (dynamic item) {
+        return item?.toString();
+      }));
+
+      await pushRef.set(jsonDoc);
+
+      return pushRef.key ?? "";
+    } catch (e) {
+      debugPrint("Error creating data $col: $e");
+      return "";
+    }
   }
 
   Future<Map<String, dynamic>> readData(
     String col,
     String id,
   ) async {
-    final snapshot = await ref.child("$col/$id").get();
-    final value = snapshot.value;
-    if (value == null) {
-      return <String, dynamic>{"id": snapshot.key};
+    try {
+      final snapshot = await ref.child("$col/$id").get();
+      final value = snapshot.value;
+      if (value == null) {
+        return <String, dynamic>{"id": snapshot.key};
+      }
+
+      final data =
+          Map<String, dynamic>.from(jsonDecode(jsonEncode(value)));
+      data["id"] = snapshot.key;
+
+      return data;
+    } catch (e) {
+      debugPrint("Error reading data $col/$id: $e");
+      return <String, dynamic>{"id": id};
     }
-
-    final data =
-        Map<String, dynamic>.from(jsonDecode(jsonEncode(value)));
-    data["id"] = snapshot.key;
-
-    return data;
   }
 
   Future<void> updateData(
@@ -48,7 +63,10 @@ class GamicoGenericProvider {
       doc.remove("id");
       doc.remove("created_at");
       doc["updated_at"] = DateTime.now().toString();
-      await ref.child("$col/$id").update(doc);
+      final jsonDoc = jsonDecode(jsonEncode(doc, toEncodable: (dynamic item) {
+        return item?.toString();
+      }));
+      await ref.child("$col/$id").update(jsonDoc);
     } catch (e) {
       debugPrint("Error updating data $col/$id: $e");
     }
@@ -58,6 +76,10 @@ class GamicoGenericProvider {
     String col,
     String id,
   ) async {
-    return await ref.child("$col/$id").remove();
+    try {
+      await ref.child("$col/$id").remove();
+    } catch (e) {
+      debugPrint("Error deleting data $col/$id: $e");
+    }
   }
 }

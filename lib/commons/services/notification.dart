@@ -49,6 +49,11 @@ class NotificationService {
   static set notificationsReminderShown(bool value) =>
       LocalStorageService.setBool("notifications_reminder_shown", value);
 
+  static bool get defaultTopicSubscribed =>
+      LocalStorageService.getBool("default_topic_subscribed") ?? false;
+  static set defaultTopicSubscribed(bool value) =>
+      LocalStorageService.setBool("default_topic_subscribed", value);
+
   /// Debug-only switch: when `true`, the home page shows the notification
   /// reminder popup on every launch regardless of the stored permission state,
   /// so its appearance can be inspected. Guarded by [kDebugMode] on the call
@@ -78,6 +83,7 @@ class NotificationService {
   static Future<bool> Function(ReceivedAction action)? invitationActionHandler;
 
   static bool _initialized = false;
+  static bool _subscribingToDefaultTopic = false;
 
   static void init() async {
     if (!(await allowed())) return;
@@ -105,20 +111,47 @@ class NotificationService {
     NotificationService.scheduleReminder();
   }
 
-  static Future<void> subscribeToDefaultTopic() async {
-    // if (!(await AwesomeNotifications().isNotificationAllowed())) return;
+  static Future<void> subscribeToDefaultTopic({
+    int maxRetries = 5,
+    Duration initialDelay = const Duration(seconds: 5),
+  }) async {
+    if (defaultTopicSubscribed) return;
+    if (_subscribingToDefaultTopic) return;
+    _subscribingToDefaultTopic = true;
 
-    if (Platform.isIOS) {
-      String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+    try {
+      int attempt = 0;
+      while (attempt < maxRetries && !defaultTopicSubscribed) {
+        attempt++;
+        try {
+          if (Platform.isIOS) {
+            String? apnsToken =
+                await FirebaseMessaging.instance.getAPNSToken();
 
-      if (apnsToken == null) {
-        await Future.delayed(const Duration(minutes: 1));
-        subscribeToDefaultTopic();
-        return;
+            if (apnsToken == null) {
+              await Future.delayed(initialDelay * attempt);
+              continue;
+            }
+          }
+
+          await FirebaseMessaging.instance.subscribeToTopic("default");
+          defaultTopicSubscribed = true;
+          debugPrint(
+            "Successfully subscribed to default topic on attempt $attempt",
+          );
+          break;
+        } catch (e) {
+          debugPrint(
+            "Attempt $attempt failed to subscribe to default topic: $e",
+          );
+          if (attempt < maxRetries) {
+            await Future.delayed(initialDelay * attempt);
+          }
+        }
       }
+    } finally {
+      _subscribingToDefaultTopic = false;
     }
-
-    FirebaseMessaging.instance.subscribeToTopic("default");
   }
 
   static void scheduleNotification() async {

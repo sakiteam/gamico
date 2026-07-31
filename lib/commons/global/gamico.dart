@@ -116,7 +116,8 @@ class Gamico {
             errorStr.contains("Host lookup failed") ||
             errorStr.contains("Connection closed") ||
             errorStr.contains("Network is unreachable") ||
-            errorStr.contains("Operation not permitted");
+            errorStr.contains("Operation not permitted") ||
+            errorStr.contains("Bad file descriptor");
 
         if (isNetworkOrSocket &&
             (library == 'image resource service' ||
@@ -124,7 +125,9 @@ class Gamico {
                 errorStr.contains('image_stream.dart') ||
                 errorStr.contains('LanBeacon') ||
                 errorStr.contains('LanDiscovery') ||
-                errorStr.contains('lan_discovery.dart'))) {
+                errorStr.contains('lan_discovery.dart') ||
+                errorStr.contains('Bad file descriptor') ||
+                errorStr.contains('8888'))) {
           debugPrint("Crashlytics: Ignored network socket/http error");
           return true;
         }
@@ -180,12 +183,11 @@ class Gamico {
     // calling SDK methods that require initialisation.
     mobileAdsInitFuture = MobileAds.instance.initialize();
 
-    // Note: FirebaseDatabase persistence is intentionally disabled.
-    // On low-end devices (128–192 MB heap limit) the in-memory cache maintained
-    // by the RTDB persistence layer can trigger an OOM when a large game
-    // payload arrives via WebSocket (HashMap.resize inside JSONObject.<init>).
-    // Persistence only avoids a network round-trip on app restart, which is
-    // not a meaningful benefit for a real-time multiplayer game.
+    try {
+      FirebaseDatabase.instance.setPersistenceEnabled(true);
+    } catch (e) {
+      debugPrint("Failed to disable FirebaseDatabase persistence: $e");
+    }
 
     // Notifications
     try {

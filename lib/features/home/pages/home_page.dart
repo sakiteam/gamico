@@ -42,13 +42,7 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
 
   /// Init the current page.
   void _init() async {
-    // if (!ShowcaseService.shown) {
-    //   final showcaseCubit = context.read<ShowcaseCubit>();
-
-    //   ShowcaseService.show(context);
-
-    //   await GlobalService.waitWhile(() => showcaseCubit.state.active);
-    // }
+    if (!mounted) return;
 
     // Debug helper: force the reminder popup so its layout can be reviewed
     // without having to reproduce a real refusal. No effect in release.
@@ -63,6 +57,8 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
       _showNotificationsPopup();
     } else if (!NotificationService.notificationsReminderShown &&
         !(await NotificationService.allowed())) {
+      if (!mounted) return;
+
       // The player already went through the flow but notifications are still
       // disabled — either they declined our first prompt, denied the native
       // permission, or revoked it later. Encourage them to enable it, but only
@@ -70,6 +66,8 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
       NotificationService.notificationsReminderShown = true;
       _showNotificationsReminderPopup();
     } else {
+      if (!mounted) return;
+
       // Notifications are enabled: proceed with the normal home flow.
       // Display a popup that asks the player to update the current game.
       _showUpdatePopup();
@@ -83,6 +81,7 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
     if (GameService.gameSkipped) {
       // Wait for 1 second to let the animations complete
       await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
 
       // Remove due coins
       context.read<GamicoUserCubit>().decrementCowries(
@@ -96,6 +95,7 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
 
   /// Display a popup that asks to enable or disable notifications.
   void _showNotificationsPopup() {
+    if (!mounted) return;
     final l = GamicoLanguages.of(context);
 
     NavigationService.showPopup(
@@ -149,6 +149,7 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
   ///  - if the native dialog was already shown and denied, the OS won't show
   ///    it again, so send the player to the app's notification settings.
   void _showNotificationsReminderPopup() {
+    if (!mounted) return;
     final l = GamicoLanguages.of(context);
 
     NavigationService.showPopup(
@@ -194,6 +195,7 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
 
   /// Display a popup that asks the player to update the current game.
   void _showUpdatePopup() {
+    if (!mounted) return;
     final l = GamicoLanguages.of(context);
 
     final status = VersionService.status;
