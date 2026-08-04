@@ -10,6 +10,8 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 part 'admob_state.dart';
 
 class AdmobCubit extends Cubit<AdmobState> {
+  static const Duration _retryDelay = Duration(seconds: 30);
+
   AdmobCubit() : super(const AdmobState()) {
     loadRewardedAd();
     loadInterstitialAd();
@@ -76,6 +78,11 @@ class AdmobCubit extends Cubit<AdmobState> {
   }
 
   Future<void> loadRewardedAd() async {
+    try {
+      await MobileAds.instance.initialize();
+    } catch (_) {}
+
+    if (isClosed) return;
     emit(state.copyWith(rewardedAdStatus: AdmobRewardedAdStatus.loading));
 
     await RewardedAd.load(
@@ -83,6 +90,10 @@ class AdmobCubit extends Cubit<AdmobState> {
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
+          if (isClosed) {
+            ad.dispose();
+            return;
+          }
           _rewardedAd = ad;
 
           ad.fullScreenContentCallback = FullScreenContentCallback(
@@ -103,15 +114,28 @@ class AdmobCubit extends Cubit<AdmobState> {
           emit(state.copyWith(rewardedAdStatus: AdmobRewardedAdStatus.success));
         },
         onAdFailedToLoad: (error) {
-          debugPrint(error.toString());
+          debugPrint("⚠️ Gamico Rewarded ad failed to load: $error");
+          if (isClosed) return;
 
           emit(state.copyWith(rewardedAdStatus: AdmobRewardedAdStatus.failure));
+
+          Timer(_retryDelay, () {
+            if (!isClosed &&
+                state.rewardedAdStatus == AdmobRewardedAdStatus.failure) {
+              loadRewardedAd();
+            }
+          });
         },
       ),
     );
   }
 
   Future<void> loadInterstitialAd() async {
+    try {
+      await MobileAds.instance.initialize();
+    } catch (_) {}
+
+    if (isClosed) return;
     emit(
       state.copyWith(interstitialAdStatus: AdmobInterstitialAdStatus.loading),
     );
@@ -121,6 +145,10 @@ class AdmobCubit extends Cubit<AdmobState> {
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
+          if (isClosed) {
+            ad.dispose();
+            return;
+          }
           _interstitialAd = ad;
 
           ad.fullScreenContentCallback = FullScreenContentCallback(
@@ -145,13 +173,22 @@ class AdmobCubit extends Cubit<AdmobState> {
           );
         },
         onAdFailedToLoad: (error) {
-          debugPrint(error.toString());
+          debugPrint("⚠️ Gamico Interstitial ad failed to load: $error");
+          if (isClosed) return;
 
           emit(
             state.copyWith(
               interstitialAdStatus: AdmobInterstitialAdStatus.failure,
             ),
           );
+
+          Timer(_retryDelay, () {
+            if (!isClosed &&
+                state.interstitialAdStatus ==
+                    AdmobInterstitialAdStatus.failure) {
+              loadInterstitialAd();
+            }
+          });
         },
       ),
     );

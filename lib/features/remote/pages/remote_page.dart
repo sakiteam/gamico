@@ -212,6 +212,7 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
             channelKey: "default",
             title: l.remoteInvitationTitle,
             body: l.remoteInvitationDescription,
+            notificationLayout: NotificationLayout.BigText,
             wakeUpScreen: true,
             displayOnForeground: false,
             category: NotificationCategory.Alarm,

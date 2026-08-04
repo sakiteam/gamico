@@ -14,6 +14,8 @@ class PlayService {
   static void initGameServices([int exponent = 0]) async {
     if (await enableGameServices()) return;
 
+    if (exponent >= 10) return;
+
     await Future.delayed(pow(2, exponent).seconds);
 
     initGameServices(exponent + 1);
