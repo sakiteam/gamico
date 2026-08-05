@@ -89,13 +89,18 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
       }
     });
 
-    _playerSubscription = GameAuth.player.listen((player) async {
-      gameServicesPlayer = player;
-      // Writes `social_name` only. The player-facing `name` is seeded from it
-      // once (first sign-in) and then belongs to the player, who can rename
-      // themselves from the profile popup.
-      userCubit.setUserSocialName(gameServicesPlayer?.displayName ?? "");
-    });
+    _playerSubscription = GameAuth.player.listen(
+      (player) async {
+        gameServicesPlayer = player;
+        // Writes `social_name` only. The player-facing `name` is seeded from it
+        // once (first sign-in) and then belongs to the player, who can rename
+        // themselves from the profile popup.
+        userCubit.setUserSocialName(gameServicesPlayer?.displayName ?? "");
+      },
+      onError: (error, stackTrace) {
+        debugPrint("⚠️ GameAuth.player stream error: $error");
+      },
+    );
   }
 
   Future<void> signIn() async {

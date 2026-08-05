@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gamico/commons/global/gamico.dart';
 
 /// Abstract class containing translations.
 abstract class GamicoLanguages {
@@ -29,7 +30,13 @@ abstract class GamicoLanguages {
 
   /// Retrieve the closest [GamicoLanguages] class to the given [context]
   static GamicoLanguages of(BuildContext context) {
-    return Localizations.of<GamicoLanguages>(context, GamicoLanguages)!;
+    final lang = Localizations.of<GamicoLanguages>(context, GamicoLanguages);
+    if (lang != null) return lang;
+    try {
+      return GamicoLanguages.instance;
+    } catch (_) {
+      return Gamico.instance.languagesSettings.en;
+    }
   }
 
   /* GLOBAL */

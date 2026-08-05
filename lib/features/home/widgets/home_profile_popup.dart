@@ -102,23 +102,28 @@ class HomeProfilePopup extends StatelessWidget {
                   text: l.homeProfilePopupBestTacticians,
                   iconColor: Colors.white.withAlpha(75),
                   onPressed: () async {
-                    await GamicoGlobalService.waitWhile(
-                      () => !PlayService.gameServicesEnabled,
-                    );
-                    await Leaderboards.showLeaderboards(
-                      androidLeaderboardID:
-                          Gamico
-                              .instance
-                              .playSettings
-                              ?.activePlayersLeaderboardId ??
-                          "",
-                      iOSLeaderboardID:
-                          Gamico
-                              .instance
-                              .playSettings
-                              ?.activePlayersLeaderboardId ??
-                          "",
-                    );
+                    try {
+                      await GamicoGlobalService.waitWhile(
+                        () => !PlayService.gameServicesEnabled,
+                      );
+
+                      await Leaderboards.showLeaderboards(
+                        androidLeaderboardID:
+                            Gamico
+                                .instance
+                                .playSettings
+                                ?.activePlayersLeaderboardId ??
+                            "",
+                        iOSLeaderboardID:
+                            Gamico
+                                .instance
+                                .playSettings
+                                ?.activePlayersLeaderboardId ??
+                            "",
+                      );
+                    } catch (e) {
+                      debugPrint("⚠️ Leaderboards error: $e");
+                    }
                   },
                 ),
                 GamicoIconTextButton(
@@ -130,24 +135,28 @@ class HomeProfilePopup extends StatelessWidget {
                   ),
                   text: l.homeProfilePopupBestCollectors,
                   onPressed: () async {
-                    await GamicoGlobalService.waitWhile(
-                      () => !PlayService.gameServicesEnabled,
-                    );
+                    try {
+                      await GamicoGlobalService.waitWhile(
+                        () => !PlayService.gameServicesEnabled,
+                      );
 
-                    await Leaderboards.showLeaderboards(
-                      androidLeaderboardID:
-                          Gamico
-                              .instance
-                              .playSettings
-                              ?.inactivePlayersLeaderboardId ??
-                          "",
-                      iOSLeaderboardID:
-                          Gamico
-                              .instance
-                              .playSettings
-                              ?.inactivePlayersLeaderboardId ??
-                          "",
-                    );
+                      await Leaderboards.showLeaderboards(
+                        androidLeaderboardID:
+                            Gamico
+                                .instance
+                                .playSettings
+                                ?.inactivePlayersLeaderboardId ??
+                            "",
+                        iOSLeaderboardID:
+                            Gamico
+                                .instance
+                                .playSettings
+                                ?.inactivePlayersLeaderboardId ??
+                            "",
+                      );
+                    } catch (e) {
+                      debugPrint("⚠️ Leaderboards error: $e");
+                    }
                   },
                 ),
                 GamicoIconTextButton(
@@ -156,10 +165,14 @@ class HomeProfilePopup extends StatelessWidget {
                   iconData: Icons.star,
                   text: l.homeProfilePopupCheckAchievements,
                   onPressed: () async {
-                    await GamicoGlobalService.waitWhile(
-                      () => !PlayService.gameServicesEnabled,
-                    );
-                    await Achievements.showAchievements();
+                    try {
+                      await GamicoGlobalService.waitWhile(
+                        () => !PlayService.gameServicesEnabled,
+                      );
+                      await Achievements.showAchievements();
+                    } catch (e) {
+                      debugPrint("⚠️ Achievements error: $e");
+                    }
                   },
                 ),
               ],
