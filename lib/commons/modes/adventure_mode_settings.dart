@@ -268,19 +268,21 @@ class AdventureModeSettings implements GameModeSettings {
   String gamePageClosingPopupDescription(BuildContext context) {
     final l = GamicoLanguages.of(context);
 
-    final adventureGameCubit = context.read<GamicoAdventureGameCubit>();
-    final userCubit = context.read<GamicoUserCubit>();
+    try {
+      final adventureGameCubit = context.read<GamicoAdventureGameCubit>();
+      final userCubit = context.read<GamicoUserCubit>();
 
-    final adventureUtility = adventureGameCubit.state.adventureUtility;
+      final adventureUtility = adventureGameCubit.state.adventureUtility;
 
-    if (adventureGameCubit.state.level ==
-        adventureUtility.getUserLevel(userCubit.state.user)) {
-      return l.adventureComplexCloseDescription(
-        Gamico.instance.gameSettings.playMinimumCoins,
-      );
-    } else {
-      return l.adventureSimpleCloseDescription;
-    }
+      if (adventureGameCubit.state.level ==
+          adventureUtility.getUserLevel(userCubit.state.user)) {
+        return l.adventureComplexCloseDescription(
+          Gamico.instance.gameSettings.playMinimumCoins,
+        );
+      }
+    } catch (_) {}
+
+    return l.adventureSimpleCloseDescription;
   }
 
   @override

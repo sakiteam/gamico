@@ -357,7 +357,7 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
             acceptationText: l.closeClose,
             acceptationIcon: Icons.arrow_back,
             description: gameState.gameMode.gamePageClosingPopupDescription(
-              innerContext,
+              context,
             ),
             automaticClose: false,
             onAccepted: () async {
