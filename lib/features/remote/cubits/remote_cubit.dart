@@ -376,7 +376,9 @@ class RemoteCubit extends Cubit<RemoteState> {
 
   /// Checks `users/{uid}/online` in Firebase Realtime Database for all players in [playersMap]
   /// and returns a set of user_ids that are confirmed offline (`online == false`).
-  Future<Set<String>> _findOfflineUserIds(Map<String, dynamic> playersMap) async {
+  Future<Set<String>> _findOfflineUserIds(
+    Map<String, dynamic> playersMap,
+  ) async {
     final offlineUids = <String>{};
     final currentUid = UserService.uid;
 
@@ -444,19 +446,31 @@ class RemoteCubit extends Cubit<RemoteState> {
             }
           }
 
+          String? matchedGameId;
+          Map<String, dynamic>? matchedPlayers;
+
           await roomRef.runTransaction((current) {
             if (current == null) return Transaction.abort();
             final room = Map<String, dynamic>.from(current as Map);
-            if (room["status"]?.toString() != "PENDING") {
-              return Transaction.abort();
-            }
             final currentPlayers = Map<String, dynamic>.from(
               room["players"] as Map? ?? <String, dynamic>{},
             );
             if (currentPlayers.length < 2) return Transaction.abort();
-            room["status"] = "STARTED";
+
+            matchedGameId = room["next_game_id"]?.toString() ?? attempt.gameId;
+            matchedPlayers = Map<String, dynamic>.from(currentPlayers);
+            room["players"] = <String, dynamic>{};
+            room["next_game_id"] =
+                FirebaseDatabase.instance.ref("games").push().key ?? "";
+            room.remove("countdown_end_at");
             return Transaction.success(room);
           });
+
+          if (matchedGameId != null &&
+              matchedPlayers != null &&
+              matchedPlayers!.length >= 2) {
+            await _graduateBatch(attempt, matchedGameId!, matchedPlayers!);
+          }
         } catch (_) {}
       } else {
         if (state.countdownRemaining != remaining) {
@@ -496,60 +510,80 @@ class RemoteCubit extends Cubit<RemoteState> {
       "created_at": now,
       "updated_at": now,
     };
-    Map<String, dynamic> buildFreshRoom() => <String, dynamic>{
-      "status": "PENDING",
-      "created_at": now,
-      "next_game_id": freshGameId,
-      "players": <String, dynamic>{attempt.playerKey: buildMyPlayer()},
-    };
+    // Map<String, dynamic> buildFreshRoom() => <String, dynamic>{
+    //   "status": "PENDING",
+    //   "created_at": now,
+    //   "next_game_id": freshGameId,
+    //   "players": <String, dynamic>{attempt.playerKey: buildMyPlayer()},
+    // };
+
+    String? matchedGameId;
+    Map<String, dynamic>? matchedPlayersMap;
 
     // Atomic create-or-join. Because Firebase serialises transactions on a
     // node, simultaneous searchers can never split into separate games.
     TransactionResult result;
     try {
       result = await roomRef.runTransaction((current) {
-        if (current == null) {
-          return Transaction.success(buildFreshRoom());
-        }
+        final nowStr = DateTime.now().toString();
 
-        final room = Map<String, dynamic>.from(current as Map);
-        final status = room["status"]?.toString() ?? "";
+        final room = current == null
+            ? <String, dynamic>{
+                "status": "PENDING",
+                "created_at": nowStr,
+                "next_game_id": freshGameId,
+                "players": <String, dynamic>{},
+              }
+            : Map<String, dynamic>.from(current as Map);
 
-        // A previous batch already started here: open a fresh room for a new one.
-        if (status != "PENDING") {
-          return Transaction.success(buildFreshRoom());
-        }
+        // Keep room status PENDING so the room acts as a permanent buffer queue.
+        room["status"] = "PENDING";
 
         final players = Map<String, dynamic>.from(
           room["players"] as Map? ?? <String, dynamic>{},
         );
 
         // Remove any stale slot previously held by this user in this room
-        players.removeWhere((k, p) =>
-            p is Map && p["user_id"]?.toString() == UserService.uid);
-
-        // Defensive: a full-but-not-yet-flipped room shouldn't exist, but if it
-        // does, don't overflow it — start a fresh batch instead.
-        if (players.length >= required) {
-          return Transaction.success(buildFreshRoom());
-        }
+        players.removeWhere(
+          (k, p) => p is Map && p["user_id"]?.toString() == UserService.uid,
+        );
 
         players[attempt.playerKey] = buildMyPlayer();
-        room["players"] = players;
+
+        final currentGameId = room["next_game_id"]?.toString() ?? freshGameId;
+
         if (isInfinite) {
           if (players.length >= 12) {
-            room["status"] = "STARTED";
+            matchedPlayersMap = Map<String, dynamic>.from(players);
+            matchedGameId = currentGameId;
+            players.clear();
+            room["next_game_id"] = db.ref("games").push().key ?? "";
             room.remove("countdown_end_at");
           } else if (players.length >= 2) {
             final durationSeconds = players.length >= 3 ? 5 : 10;
-            room["countdown_end_at"] =
-                _serverNowMs + (durationSeconds * 1000);
+            room["countdown_end_at"] = _serverNowMs + (durationSeconds * 1000);
           }
         } else {
           if (players.length >= required) {
-            room["status"] = "STARTED";
+            final sortedEntries = players.entries.toList()
+              ..sort((a, b) {
+                final aTime = (a.value as Map)["created_at"]?.toString() ?? "";
+                final bTime = (b.value as Map)["created_at"]?.toString() ?? "";
+                return aTime.compareTo(bTime);
+              });
+
+            final matchBatch = sortedEntries.take(required).toList();
+            matchedPlayersMap = <String, dynamic>{};
+            for (final entry in matchBatch) {
+              matchedPlayersMap![entry.key] = entry.value;
+              players.remove(entry.key);
+            }
+            matchedGameId = currentGameId;
+            room["next_game_id"] = db.ref("games").push().key ?? "";
           }
         }
+
+        room["players"] = players;
         return Transaction.success(room);
       }, applyLocally: false);
     } catch (e) {
@@ -583,9 +617,14 @@ class RemoteCubit extends Cubit<RemoteState> {
         .onDisconnect();
     await attempt.disconnectionReference?.remove();
 
-    // Keep the live "players found" count fresh, and graduate once the room
-    // fills. A room whose next_game_id changed has already graduated and been
-    // replaced by a new batch — the game-node listener drives our launch then.
+    // If our transaction extracted a full match batch, process the graduation to games/{gameId}.
+    if (matchedGameId != null &&
+        matchedPlayersMap != null &&
+        matchedPlayersMap!.isNotEmpty) {
+      await _graduateBatch(attempt, matchedGameId!, matchedPlayersMap!);
+    }
+
+    // Keep the live "players found" count fresh.
     attempt.roomSubscription = roomRef.onValue.listen(
       (event) {
         final value = event.snapshot.value;
@@ -618,34 +657,38 @@ class RemoteCubit extends Cubit<RemoteState> {
 
     // The single authoritative launch signal: the graduated game node going
     // STARTED. Never races, and is never overwritten by later batches.
-    attempt.gameSubscription = db.ref("games/${attempt.gameId}").onValue.listen(
-      (event) {
-        final value = event.snapshot.value;
-        if (value == null) return;
-        final data = Map<String, dynamic>.from(
-          jsonDecode(jsonEncode(value)) as Map,
-        );
-        if (data["status"]?.toString() != "STARTED") return;
+    attempt.gameSubscription = db
+        .ref("games/${attempt.gameId}")
+        .onValue
+        .listen(
+          (event) {
+            final value = event.snapshot.value;
+            if (value == null) return;
+            final data = Map<String, dynamic>.from(
+              jsonDecode(jsonEncode(value)) as Map,
+            );
+            if (data["status"]?.toString() != "STARTED") return;
 
-        final players = Map<String, dynamic>.from(
-          data["players"] as Map? ?? <String, dynamic>{},
-        );
-        final realIds = players.values
-            .map((p) => (p as Map)["user_id"]?.toString())
-            .whereType<String>()
-            .toSet();
-        // The host is the chronologically first player still present.
-        final orderedKeys = players.keys.toList()..sort();
-        creator =
-            orderedKeys.isNotEmpty && orderedKeys.first == attempt.playerKey;
+            final players = Map<String, dynamic>.from(
+              data["players"] as Map? ?? <String, dynamic>{},
+            );
+            final realIds = players.values
+                .map((p) => (p as Map)["user_id"]?.toString())
+                .whereType<String>()
+                .toSet();
+            // The host is the chronologically first player still present.
+            final orderedKeys = players.keys.toList()..sort();
+            creator =
+                orderedKeys.isNotEmpty &&
+                orderedKeys.first == attempt.playerKey;
 
-        final minRequired = isInfinite ? 2 : required;
-        _launchWith(attempt, fakeOpponent: realIds.length < minRequired);
-      },
-      onError: (error, stackTrace) {
-        debugPrint("⚠️ RemoteCubit gameSubscription error: $error");
-      },
-    );
+            final minRequired = isInfinite ? 2 : required;
+            _launchWith(attempt, fakeOpponent: realIds.length < minRequired);
+          },
+          onError: (error, stackTrace) {
+            debugPrint("⚠️ RemoteCubit gameSubscription error: $error");
+          },
+        );
 
     // Our own join may have already filled the room: commit right away.
     if (createdGameStatus == "STARTED") {
@@ -662,7 +705,10 @@ class RemoteCubit extends Cubit<RemoteState> {
   }
 
   /// Launches the game the winning [attempt] graduated into.
-  Future<void> _launchWith(_LobbyAttempt attempt, {required bool fakeOpponent}) async {
+  Future<void> _launchWith(
+    _LobbyAttempt attempt, {
+    required bool fakeOpponent,
+  }) async {
     if (isClosed || _launching) return;
     if (_chosen == null) {
       // The game node went STARTED without us ever seeing the room flip (the
@@ -684,12 +730,26 @@ class RemoteCubit extends Cubit<RemoteState> {
   /// finishing client writes the same authoritative data idempotently, so the
   /// game exists even if the player who filled the room drops out in the same
   /// instant. The launch itself is driven uniformly by the game-node listener.
-  Future<void> _graduate(_LobbyAttempt attempt, Map<String, dynamic> room) async {
-    if (_graduated) return;
-
+  Future<void> _graduate(
+    _LobbyAttempt attempt,
+    Map<String, dynamic> room,
+  ) async {
+    final gid = room["next_game_id"]?.toString() ?? attempt.gameId;
     final players = Map<String, dynamic>.from(
       room["players"] as Map? ?? <String, dynamic>{},
     );
+    await _graduateBatch(attempt, gid, players);
+  }
+
+  /// Copies a matched batch of players into its real (graduated) game node.
+  Future<void> _graduateBatch(
+    _LobbyAttempt attempt,
+    String targetGameId,
+    Map<String, dynamic> candidatePlayers,
+  ) async {
+    if (_graduated) return;
+
+    final players = Map<String, dynamic>.from(candidatePlayers);
 
     // Verify online presence of players before graduating to a real game node.
     final offlineIds = await _findOfflineUserIds(players);
@@ -711,7 +771,9 @@ class RemoteCubit extends Cubit<RemoteState> {
                 if (entry.value is Map &&
                     entry.value["user_id"]?.toString() == id) {
                   await FirebaseDatabase.instance
-                      .ref("matchmakings/${attempt.roomKey}/players/${entry.key}")
+                      .ref(
+                        "matchmakings/${attempt.roomKey}/players/${entry.key}",
+                      )
                       .remove();
                 }
               }
@@ -727,20 +789,8 @@ class RemoteCubit extends Cubit<RemoteState> {
     final minRequired = isInfinite ? 2 : required;
 
     if (players.length < minRequired) {
-      // Not enough online players to start: revert room status to PENDING and stay in lobby.
       _chosen = null;
       _graduated = false;
-      if (attempt.roomKey.isNotEmpty) {
-        try {
-          final updates = <String, dynamic>{"status": "PENDING"};
-          if (isInfinite && players.length < 2) {
-            updates["countdown_end_at"] = null;
-          }
-          await FirebaseDatabase.instance
-              .ref("matchmakings/${attempt.roomKey}")
-              .update(updates);
-        } catch (_) {}
-      }
       return;
     }
 
@@ -748,24 +798,16 @@ class RemoteCubit extends Cubit<RemoteState> {
     _chosen = attempt;
     await _withdrawOthers(attempt);
 
-    final gid = room["next_game_id"]?.toString() ?? attempt.gameId;
-    final createdAt =
-        room["created_at"]?.toString() ?? DateTime.now().toString();
+    final createdAt = DateTime.now().toString();
 
-    await FirebaseDatabase.instance.ref("games/$gid").update(<String, dynamic>{
-      "status": "STARTED",
-      "created_at": createdAt,
-      "updated_at": DateTime.now().toString(),
-      "players": players,
-    });
-
-    if (attempt.roomKey.isNotEmpty) {
-      try {
-        await FirebaseDatabase.instance
-            .ref("matchmakings/${attempt.roomKey}")
-            .remove();
-      } catch (_) {}
-    }
+    await FirebaseDatabase.instance
+        .ref("games/$targetGameId")
+        .update(<String, dynamic>{
+          "status": "STARTED",
+          "created_at": createdAt,
+          "updated_at": createdAt,
+          "players": players,
+        });
   }
 
   /// Leaves every room except [winner]. Kept losing rooms would keep counting
@@ -873,8 +915,7 @@ class RemoteCubit extends Cubit<RemoteState> {
             room.remove("countdown_end_at");
           } else if (players.length >= 2 && room["countdown_end_at"] == null) {
             final durationSeconds = players.length >= 3 ? 5 : 10;
-            room["countdown_end_at"] =
-                _serverNowMs + (durationSeconds * 1000);
+            room["countdown_end_at"] = _serverNowMs + (durationSeconds * 1000);
           }
         } else {
           if (players.length >= required) {
@@ -993,10 +1034,7 @@ class RemoteCubit extends Cubit<RemoteState> {
   /// The room's uids ordered with the local user first.
   List<String> _orderedIds(Set<String?> ids) {
     final myUid = UserService.uid;
-    return [
-      myUid,
-      ...ids.whereType<String>().where((id) => id != myUid),
-    ];
+    return [myUid, ...ids.whereType<String>().where((id) => id != myUid)];
   }
 
   /// Profile for [uid] available without touching the network: the local
@@ -1058,8 +1096,7 @@ class RemoteCubit extends Cubit<RemoteState> {
             room["players"] as Map? ?? <String, dynamic>{},
           );
           // Only fall back to a bot while we are genuinely alone.
-          if (players.length != 1 ||
-              !players.containsKey(attempt.playerKey)) {
+          if (players.length != 1 || !players.containsKey(attempt.playerKey)) {
             return Transaction.abort();
           }
 

@@ -84,7 +84,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
   void _startReadinessFallbackTimer() {
     _readinessFallbackTimer?.cancel();
-    _readinessFallbackTimer = Timer(const Duration(seconds: 15), () {
+    _readinessFallbackTimer = Timer(const Duration(seconds: 10), () {
       if (isClosed || gameCubit.state.ready) return;
 
       final unready = _expectedPlayerIds
