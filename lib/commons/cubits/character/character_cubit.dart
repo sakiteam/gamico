@@ -38,36 +38,46 @@ class CharacterCubit extends Cubit<CharacterState> {
   }
 
   void init() async {
-    await Future.wait([
-      _fillList(sadList, "sad"),
-      _fillList(happyList, "happy"),
-      _fillList(normalList, "normal"),
-      _fillList(anxiousList, "anxious"),
-    ]);
+    try {
+      await Future.wait([
+        _fillList(sadList, "sad"),
+        _fillList(happyList, "happy"),
+        _fillList(normalList, "normal"),
+        _fillList(anxiousList, "anxious"),
+      ]);
 
-    sadSpriteAnimation = flame_components.SpriteAnimation.spriteList(
-      sadList,
-      stepTime: 0.125,
-    );
-    happySpriteAnimation = flame_components.SpriteAnimation.spriteList(
-      happyList,
-      stepTime: 0.125,
-    );
-    normalSpriteAnimation = flame_components.SpriteAnimation.spriteList(
-      normalList,
-      stepTime: 0.125,
-    );
-    anxiousSpriteAnimation = flame_components.SpriteAnimation.spriteList(
-      anxiousList,
-      stepTime: 0.125,
-    );
+      if (sadList.isNotEmpty) {
+        sadSpriteAnimation = flame_components.SpriteAnimation.spriteList(
+          sadList,
+          stepTime: 0.125,
+        );
+      }
+      if (happyList.isNotEmpty) {
+        happySpriteAnimation = flame_components.SpriteAnimation.spriteList(
+          happyList,
+          stepTime: 0.125,
+        );
+      }
+      if (normalList.isNotEmpty) {
+        normalSpriteAnimation = flame_components.SpriteAnimation.spriteList(
+          normalList,
+          stepTime: 0.125,
+        );
+      }
+      if (anxiousList.isNotEmpty) {
+        anxiousSpriteAnimation = flame_components.SpriteAnimation.spriteList(
+          anxiousList,
+          stepTime: 0.125,
+        );
+      }
 
-    emit(
-      state.copyWith(
-        position: state.position,
-        animation: normalSpriteAnimation,
-      ),
-    );
+      emit(
+        state.copyWith(
+          position: state.position,
+          animation: normalSpriteAnimation,
+        ),
+      );
+    } catch (_) {}
 
     _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (!_blocking) {
@@ -120,11 +130,13 @@ class CharacterCubit extends Cubit<CharacterState> {
     for (int i = 1; i <= 30; i++) {
       int index = i <= 26 ? ((i == 10 || i == 20) ? 10 : (i % 10)) : i - 16;
       String n = index < 10 ? "0$index" : "$index";
-      spritesList.add(
-        await flame_components.Sprite.load(
-          "${Gamico.instance.characterSettings?.name}/$name/$n.png",
-        ),
-      );
+      try {
+        spritesList.add(
+          await flame_components.Sprite.load(
+            "${Gamico.instance.characterSettings?.name}/$name/$n.png",
+          ),
+        );
+      } catch (_) {}
     }
   }
 

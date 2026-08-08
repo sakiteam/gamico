@@ -17,6 +17,8 @@ class GamicoPopupButton extends StatelessWidget {
   final IconData? icon;
   final bool loading;
   final String? iconText;
+  final Color? disabledForegroundColor;
+  final Color? disabledBackgroundColor;
 
   static Color defaultForegroundColor = Colors.blue;
   static Color defaultBackgroundColor = Colors.brown;
@@ -42,6 +44,8 @@ class GamicoPopupButton extends StatelessWidget {
     this.icon,
     this.loading = false,
     this.iconText,
+    this.disabledForegroundColor,
+    this.disabledBackgroundColor,
   });
 
   @override
@@ -55,7 +59,8 @@ class GamicoPopupButton extends StatelessWidget {
       onPressed: loading ? null : onPressed,
       width: defaultWidth,
       height: height ?? defaultHeight,
-
+      disabledForegroundColor: disabledForegroundColor,
+      disabledBackgroundColor: disabledBackgroundColor,
       child: Padding(
         padding: padding ?? defaultPadding,
         child: Center(
@@ -103,9 +108,9 @@ class GamicoPopupButton extends StatelessWidget {
                     GamicoOutlinedText(
                       text ?? "",
                       // textAlign: TextAlign.center,
-                      strokeWidth: 0.125,
+                      strokeWidth: 1 / 100, // 0.125,
                       style: const TextStyle(
-                        fontSize: 16 * 450 / 400,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),

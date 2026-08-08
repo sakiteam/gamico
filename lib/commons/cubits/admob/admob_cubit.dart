@@ -98,16 +98,18 @@ class AdmobCubit extends Cubit<AdmobState> {
 
           ad.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (ad) {
-              _rewardedAd = null;
-              ad.dispose();
-
-              loadRewardedAd();
+              Future.microtask(() {
+                _rewardedAd = null;
+                ad.dispose();
+                loadRewardedAd();
+              });
             },
             onAdFailedToShowFullScreenContent: (ad, error) {
-              _rewardedAd = null;
-              ad.dispose();
-
-              loadRewardedAd();
+              Future.microtask(() {
+                _rewardedAd = null;
+                ad.dispose();
+                loadRewardedAd();
+              });
             },
           );
 
@@ -153,16 +155,18 @@ class AdmobCubit extends Cubit<AdmobState> {
 
           ad.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (ad) {
-              _interstitialAd = null;
-              ad.dispose();
-
-              loadInterstitialAd();
+              Future.microtask(() {
+                _interstitialAd = null;
+                ad.dispose();
+                loadInterstitialAd();
+              });
             },
             onAdFailedToShowFullScreenContent: (ad, error) {
-              _interstitialAd = null;
-              ad.dispose();
-
-              loadInterstitialAd();
+              Future.microtask(() {
+                _interstitialAd = null;
+                ad.dispose();
+                loadInterstitialAd();
+              });
             },
           );
 

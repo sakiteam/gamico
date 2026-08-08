@@ -101,6 +101,14 @@ class Gamico {
     if (kReleaseMode) {
       bool isIgnoredError(dynamic exception, String? library) {
         final errorStr = exception.toString();
+        if (exception is TickerCanceled ||
+            errorStr.contains("This ticker was canceled") ||
+            errorStr.contains("TickerCanceled") ||
+            errorStr.contains("ProxyBillingActivity") ||
+            errorStr.contains("GamesResolutionActivity")) {
+          return true;
+        }
+
         if (errorStr.contains("Loading interrupted")) return true;
 
         final isNetworkOrSocket =

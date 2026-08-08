@@ -112,46 +112,54 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
 
                 NavigationService.closePopups();
 
-                NavigationService.pushPageWithAnimation(
-                  context,
-                  BlocProvider.value(
-                    value: remoteCubit,
-                    child: Gamico.instance.pagesSettings.gamePage(
-                      context,
-                      RemoteGameUtility(
-                        level: remoteState.level,
-                        gameId: remoteState.gameId,
-                        fakeOpponent: remoteState.fakeOpponent,
-                        remoteUtility: remoteUtility,
-                        adventureUtility: widget.adventureGameUtility,
-                        creatorOfCurrentGame: remoteState.creator!,
-                        onBackButtonPressed: () async {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!context.mounted) return;
-                            if (widget.remoteUtility.adventure) {
-                              remoteCubit.setForcePop(true);
-                              NavigationService.pop(context);
-                            } else {
-                              // Pop the matchmaking page too: the user should
-                              // return to wherever they came from, not get stuck
-                              // on the "finding opponent" screen.
-                              final nav = Navigator.maybeOf(context);
-                              nav?.pop();
-                            }
-                          });
-                        },
+                try {
+                  await NavigationService.pushPageWithAnimation(
+                    context,
+                    BlocProvider.value(
+                      value: remoteCubit,
+                      child: Gamico.instance.pagesSettings.gamePage(
+                        context,
+                        RemoteGameUtility(
+                          level: remoteState.level,
+                          gameId: remoteState.gameId,
+                          fakeOpponent: remoteState.fakeOpponent,
+                          remoteUtility: remoteUtility,
+                          adventureUtility: widget.adventureGameUtility,
+                          creatorOfCurrentGame: remoteState.creator ?? false,
+                          onBackButtonPressed: () async {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!context.mounted) return;
+                              if (widget.remoteUtility.adventure) {
+                                remoteCubit.setForcePop(true);
+                                NavigationService.pop(context);
+                              } else {
+                                // Pop the matchmaking page too: the user should
+                                // return to wherever they came from, not get stuck
+                                // on the "finding opponent" screen.
+                                final nav = Navigator.maybeOf(context);
+                                nav?.pop();
+                              }
+                            });
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                );
+                  );
 
-                await Future.delayed(AnimationService.animationDuration);
+                  await Future.delayed(AnimationService.animationDuration);
 
-                if (!mounted) return;
-                notifyPlayers();
+                  if (!mounted) return;
+                  notifyPlayers();
 
-                if (!remoteCubit.isClosed) {
-                  remoteCubit.setFinalized(true);
+                  if (!remoteCubit.isClosed) {
+                    remoteCubit.setFinalized(true);
+                  }
+                } catch (e, stack) {
+                  debugPrint("⚠️ Exception launching remote game page: $e\n$stack");
+                  if (!mounted) return;
+                  remoteCubit.setAnimGame(false);
+                  remoteCubit.setAnimated(false);
+                  remoteCubit.setInternetError(true);
                 }
               }
             },
@@ -169,6 +177,8 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
 
                 final enabled = remoteCubit.state.enabled;
                 final forcePop = remoteCubit.state.forcePop;
+                final animGame = remoteCubit.state.animGame;
+                final finalized = remoteCubit.state.finalized;
 
                 if (forcePop) return true;
 
@@ -186,6 +196,17 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
                   remoteCubit.setAnimated(false);
 
                   // Enable back
+                  return true;
+                }
+
+                // If transition to game started but game failed to finalize/mount,
+                // allow user to escape back safely when pressing back button.
+                if (animGame && !finalized) {
+                  remoteCubit.setAnimGame(false);
+                  remoteCubit.setAnimated(false);
+                  try {
+                    remoteCubit.abortGame();
+                  } catch (_) {}
                   return true;
                 }
 

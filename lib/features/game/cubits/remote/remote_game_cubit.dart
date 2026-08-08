@@ -356,16 +356,18 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                       ),
                     );
 
-                    if (!state.fakeOpponent &&
-                        gameCubit.state.over &&
-                        !(finalOpponent.online ?? true)) {
-                      gamesRepository.addGameEvent(
-                        gameId,
-                        GamicoGameEventModel(
-                          type: "DISCONNECTION",
-                          userId: opponentId,
-                        ),
-                      );
+                    if (!state.fakeOpponent && !(finalOpponent.online ?? true)) {
+                      if (!gameCubit.state.over) {
+                        _manageRemoteExit(opponentId);
+                      } else {
+                        gamesRepository.addGameEvent(
+                          gameId,
+                          GamicoGameEventModel(
+                            type: "DISCONNECTION",
+                            userId: opponentId,
+                          ),
+                        );
+                      }
                     }
                   }
                 },

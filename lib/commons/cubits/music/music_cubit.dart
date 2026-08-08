@@ -158,6 +158,12 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     _musicDuck = 1;
     _bruitageDuck = 1;
     await _applyDucking();
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+    } catch (e) {
+      debugPrint('AudioSession restoreAfterVoiceChat failed: $e');
+    }
   }
 
   Future<void> _applyDucking() async {
@@ -512,15 +518,15 @@ extension on AudioPlayer {
   }
 
   Future<void> safelyPlay([bool force = false, bool isDisposed = false]) async {
-    await GamicoGlobalService.waitWhile(() => MusicService.pausedByAd);
-    if (isDisposed) return;
+    try {
+      await GamicoGlobalService.waitWhile(() => MusicService.pausedByAd);
+      if (isDisposed) return;
 
-    if (!MusicService.mute || force) {
-      try {
+      if (!MusicService.mute || force) {
         await play();
-      } catch (e) {
-        debugPrint("AudioPlayer.play error caught safely: $e");
       }
+    } catch (e) {
+      debugPrint("AudioPlayer.play error caught safely: $e");
     }
   }
 }

@@ -46,11 +46,20 @@ class _LobbyAttempt {
   /// signal that the match has started, for every player alike.
   StreamSubscription<DatabaseEvent>? gameSubscription;
 
+  /// Active countdown timer for infinite mode batch graduation.
+  Timer? countdownTimer;
+
+  /// Timestamp (ms) when the countdown timer for this attempt ends.
+  int? countdownEndAt;
+
   /// Removes only our own slot from this room if we disconnect while still
   /// waiting.
   OnDisconnect? disconnectionReference;
 
   void cancelSubscriptions() {
+    countdownTimer?.cancel();
+    countdownTimer = null;
+    countdownEndAt = null;
     roomSubscription?.cancel();
     gameSubscription?.cancel();
     disconnectionReference?.cancel();
@@ -343,11 +352,18 @@ class RemoteCubit extends Cubit<RemoteState> {
     }
   }
 
-  Timer? _countdownTimer;
-
-  void _stopCountdownTimer() {
-    _countdownTimer?.cancel();
-    _countdownTimer = null;
+  void _stopCountdownTimer([_LobbyAttempt? attempt]) {
+    if (attempt != null) {
+      attempt.countdownTimer?.cancel();
+      attempt.countdownTimer = null;
+      attempt.countdownEndAt = null;
+    } else {
+      for (final a in _attempts) {
+        a.countdownTimer?.cancel();
+        a.countdownTimer = null;
+        a.countdownEndAt = null;
+      }
+    }
     if (!isClosed && state.countdownRemaining != null) {
       emit(state.copyWith(countdownRemaining: () => null));
     }
@@ -364,7 +380,7 @@ class RemoteCubit extends Cubit<RemoteState> {
     );
 
     if (countdownEndAt == null || players.length < 2) {
-      _stopCountdownTimer();
+      _stopCountdownTimer(attempt);
       if (countdownEndAt != null && players.length < 2) {
         roomRef.child("countdown_end_at").remove();
       }
@@ -374,50 +390,22 @@ class RemoteCubit extends Cubit<RemoteState> {
     _startCountdownTicker(attempt, roomRef, countdownEndAt);
   }
 
-  /// Checks `users/{uid}/online` in Firebase Realtime Database for all players in [playersMap]
-  /// and returns a set of user_ids that are confirmed offline (`online == false`).
-  Future<Set<String>> _findOfflineUserIds(
-    Map<String, dynamic> playersMap,
-  ) async {
-    final offlineUids = <String>{};
-    final currentUid = UserService.uid;
-
-    final uids = playersMap.values
-        .whereType<Map>()
-        .map((p) => p["user_id"]?.toString())
-        .whereType<String>()
-        .where((uid) => uid.isNotEmpty && uid != currentUid)
-        .toSet();
-
-    if (uids.isEmpty) return offlineUids;
-
-    await Future.wait(
-      uids.map((uid) async {
-        try {
-          final snap = await FirebaseDatabase.instance
-              .ref("users/$uid/online")
-              .get()
-              .timeout(const Duration(seconds: 2));
-          if (snap.exists && snap.value == false) {
-            offlineUids.add(uid);
-          }
-        } catch (_) {}
-      }),
-    );
-
-    return offlineUids;
-  }
-
   void _startCountdownTicker(
     _LobbyAttempt attempt,
     DatabaseReference roomRef,
     int countdownEndAt,
   ) {
-    _countdownTimer?.cancel();
+    if (attempt.countdownEndAt == countdownEndAt &&
+        attempt.countdownTimer != null) {
+      return;
+    }
+
+    attempt.countdownTimer?.cancel();
+    attempt.countdownEndAt = countdownEndAt;
 
     Future<void> updateTicker() async {
       if (isClosed || _committed) {
-        _stopCountdownTimer();
+        _stopCountdownTimer(attempt);
         return;
       }
 
@@ -426,26 +414,8 @@ class RemoteCubit extends Cubit<RemoteState> {
       final remaining = (diffMs / 1000).ceil();
 
       if (remaining <= 0) {
-        _stopCountdownTimer();
+        _stopCountdownTimer(attempt);
         try {
-          // Pre-check players in room for offline status
-          final roomSnap = await roomRef.get();
-          if (roomSnap.value is Map) {
-            final roomData = Map<String, dynamic>.from(roomSnap.value as Map);
-            final currentPlayers = Map<String, dynamic>.from(
-              roomData["players"] as Map? ?? <String, dynamic>{},
-            );
-            final offlineIds = await _findOfflineUserIds(currentPlayers);
-            if (offlineIds.isNotEmpty) {
-              for (final entry in currentPlayers.entries) {
-                if (entry.value is Map &&
-                    offlineIds.contains(entry.value["user_id"]?.toString())) {
-                  await roomRef.child("players/${entry.key}").remove();
-                }
-              }
-            }
-          }
-
           String? matchedGameId;
           Map<String, dynamic>? matchedPlayers;
 
@@ -480,7 +450,7 @@ class RemoteCubit extends Cubit<RemoteState> {
     }
 
     updateTicker();
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    attempt.countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       updateTicker();
     });
   }
@@ -519,6 +489,7 @@ class RemoteCubit extends Cubit<RemoteState> {
 
     String? matchedGameId;
     Map<String, dynamic>? matchedPlayersMap;
+    String? joinedGameId;
 
     // Atomic create-or-join. Because Firebase serialises transactions on a
     // node, simultaneous searchers can never split into separate games.
@@ -551,6 +522,7 @@ class RemoteCubit extends Cubit<RemoteState> {
         players[attempt.playerKey] = buildMyPlayer();
 
         final currentGameId = room["next_game_id"]?.toString() ?? freshGameId;
+        joinedGameId = currentGameId;
 
         if (isInfinite) {
           if (players.length >= 12) {
@@ -561,7 +533,9 @@ class RemoteCubit extends Cubit<RemoteState> {
             room.remove("countdown_end_at");
           } else if (players.length >= 2) {
             final durationSeconds = players.length >= 3 ? 5 : 10;
-            room["countdown_end_at"] = _serverNowMs + (durationSeconds * 1000);
+            if (room["countdown_end_at"] == null || players.length >= 3) {
+              room["countdown_end_at"] = _serverNowMs + (durationSeconds * 1000);
+            }
           }
         } else {
           if (players.length >= required) {
@@ -607,7 +581,7 @@ class RemoteCubit extends Cubit<RemoteState> {
     final room = Map<String, dynamic>.from(
       jsonDecode(jsonEncode(result.snapshot.value)) as Map,
     );
-    attempt.gameId = room["next_game_id"]?.toString() ?? freshGameId;
+    attempt.gameId = matchedGameId ?? joinedGameId ?? freshGameId;
     createdGameStatus = room["status"]?.toString() ?? "PENDING";
 
     // Leave only our own slot behind on disconnect — for every player, creator
@@ -734,7 +708,9 @@ class RemoteCubit extends Cubit<RemoteState> {
     _LobbyAttempt attempt,
     Map<String, dynamic> room,
   ) async {
-    final gid = room["next_game_id"]?.toString() ?? attempt.gameId;
+    final gid = attempt.gameId.isNotEmpty
+        ? attempt.gameId
+        : (room["next_game_id"]?.toString() ?? attempt.gameId);
     final players = Map<String, dynamic>.from(
       room["players"] as Map? ?? <String, dynamic>{},
     );
@@ -750,38 +726,6 @@ class RemoteCubit extends Cubit<RemoteState> {
     if (_graduated) return;
 
     final players = Map<String, dynamic>.from(candidatePlayers);
-
-    // Verify online presence of players before graduating to a real game node.
-    final offlineIds = await _findOfflineUserIds(players);
-    if (offlineIds.isNotEmpty) {
-      players.removeWhere(
-        (k, p) => p is Map && offlineIds.contains(p["user_id"]?.toString()),
-      );
-
-      // Clean up offline players from the matchmaking room node in Firebase.
-      if (attempt.roomKey.isNotEmpty) {
-        for (final id in offlineIds) {
-          try {
-            final snap = await FirebaseDatabase.instance
-                .ref("matchmakings/${attempt.roomKey}/players")
-                .get();
-            if (snap.value is Map) {
-              final rawMap = Map<String, dynamic>.from(snap.value as Map);
-              for (final entry in rawMap.entries) {
-                if (entry.value is Map &&
-                    entry.value["user_id"]?.toString() == id) {
-                  await FirebaseDatabase.instance
-                      .ref(
-                        "matchmakings/${attempt.roomKey}/players/${entry.key}",
-                      )
-                      .remove();
-                }
-              }
-            }
-          } catch (_) {}
-        }
-      }
-    }
 
     final settings = remoteUtility.matchmakingSettings;
     final isInfinite = settings.isInfinite || settings.maxPlayers == 0;

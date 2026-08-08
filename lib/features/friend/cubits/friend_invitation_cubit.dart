@@ -152,22 +152,32 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
     String invitationId,
     InvitationStatus status,
   ) async {
-    final ref = FirebaseDatabase.instance
-        .ref()
-        .child('invitations')
-        .child(invitationId);
+    if (invitationId.trim().isEmpty) return;
 
-    await ref.update({
-      'status': status.name.toUpperCase(),
-      'updated_at': DateTime.now().toIso8601String(),
-    });
+    try {
+      final ref = FirebaseDatabase.instance
+          .ref()
+          .child('invitations')
+          .child(invitationId);
+
+      await ref.update({
+        'status': status.name.toUpperCase(),
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint("⚠️ FriendInvitationCubit.updateInvitationStatus error => $e");
+    }
 
     // The invitation just left PENDING (accepted/rejected), so its tray
     // notification — with its ACCEPT/REJECT buttons — is now stale. Drop it so
     // it can't be acted on a second time. Idempotent: cancelling an already
     // dismissed notification is a no-op.
     if (status != InvitationStatus.pending) {
-      await NotificationService.cancelGameInvitationNotification(invitationId);
+      try {
+        await NotificationService.cancelGameInvitationNotification(invitationId);
+      } catch (e) {
+        debugPrint("⚠️ FriendInvitationCubit cancelNotification error => $e");
+      }
     }
   }
 
