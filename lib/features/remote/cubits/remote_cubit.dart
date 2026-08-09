@@ -374,7 +374,8 @@ class RemoteCubit extends Cubit<RemoteState> {
     DatabaseReference roomRef,
     Map<String, dynamic> data,
   ) {
-    final countdownEndAt = data["countdown_end_at"] as int?;
+    final rawEndAt = data["countdown_end_at"];
+    final countdownEndAt = (rawEndAt as num?)?.toInt();
     final players = Map<String, dynamic>.from(
       data["players"] as Map? ?? <String, dynamic>{},
     );
@@ -480,6 +481,7 @@ class RemoteCubit extends Cubit<RemoteState> {
       "created_at": now,
       "updated_at": now,
     };
+
     // Map<String, dynamic> buildFreshRoom() => <String, dynamic>{
     //   "status": "PENDING",
     //   "created_at": now,
@@ -534,7 +536,8 @@ class RemoteCubit extends Cubit<RemoteState> {
           } else if (players.length >= 2) {
             final durationSeconds = players.length >= 3 ? 5 : 10;
             if (room["countdown_end_at"] == null || players.length >= 3) {
-              room["countdown_end_at"] = _serverNowMs + (durationSeconds * 1000);
+              room["countdown_end_at"] =
+                  _serverNowMs + (durationSeconds * 1000);
             }
           }
         } else {
@@ -606,7 +609,8 @@ class RemoteCubit extends Cubit<RemoteState> {
         final data = Map<String, dynamic>.from(
           jsonDecode(jsonEncode(value)) as Map,
         );
-        if (data["next_game_id"]?.toString() != attempt.gameId) return;
+        final roomNextGameId = data["next_game_id"]?.toString();
+        if (roomNextGameId != attempt.gameId && !isInfinite) return;
 
         final players = Map<String, dynamic>.from(
           data["players"] as Map? ?? <String, dynamic>{},
