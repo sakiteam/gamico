@@ -149,7 +149,7 @@ class PurchasesCubit extends Cubit<PurchasesState> {
     final premiumId = Gamico.instance.purchasesSettings?.premiumProductId;
     Set<String> ids = {
       ...Gamico.instance.purchasesSettings?.packsIds.toSet() ?? {},
-      if (premiumId != null) premiumId,
+      ?premiumId,
     };
     ProductDetailsResponse response = await _iap.queryProductDetails(ids);
 
