@@ -256,9 +256,12 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
                   if (!context.mounted) return;
 
                   NavigationService.closePopups();
+                  if (!context.mounted) return;
+
                   gameMode.gamePageManageGamePopup(context);
 
-                  if (GameService.tutorialPassed &&
+                  if (context.mounted &&
+                      GameService.tutorialPassed &&
                       gameMode.shouldShowAds(context) &&
                       userCubit.state.user?.premium != true) {
                     try {

@@ -26,7 +26,8 @@ class UserService {
     // user were cached and waits for the real server node.
     //
     // `name` is NOT an identity marker: a rename write carries one.
-    final looksEmpty = userMap["social_id"] == null &&
+    final looksEmpty =
+        userMap["social_id"] == null &&
         userMap["firebase_id"] == null &&
         userMap["created_at"] == null;
     if (looksEmpty) {

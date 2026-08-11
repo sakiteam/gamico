@@ -63,6 +63,20 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   // Remote game user disconnection manager
   OnDisconnect? userDisconnectionReference;
 
+  /// Watches `.info/connected` while the disconnection penalty above is armed:
+  /// Android drops the database connection almost as soon as the app is
+  /// backgrounded (answering a message is enough), which fires the
+  /// `onDisconnect` and docks coins/defeats before the game's own (properly
+  /// grace-period-guarded) abandonment logic gets a chance to run. On every
+  /// reconnection while the match is still active, the penalty is refunded and
+  /// re-armed, so a quick app switch doesn't score a defeat.
+  StreamSubscription<DatabaseEvent>? _disconnectionPenaltySubscription;
+  bool _sawInitialConnected = false;
+
+  /// Field path → increment applied by the armed disconnection penalty (e.g.
+  /// `-5` on `coins`), so a reconnection can write back the exact opposite.
+  Map<String, num>? _armedDisconnectionPenalty;
+
   // Remote game id
   final String gameId;
 
@@ -356,18 +370,25 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                       ),
                     );
 
-                    if (!state.fakeOpponent && !(finalOpponent.online ?? true)) {
-                      if (!gameCubit.state.over) {
-                        _manageRemoteExit(opponentId);
-                      } else {
-                        gamesRepository.addGameEvent(
-                          gameId,
-                          GamicoGameEventModel(
-                            type: "DISCONNECTION",
-                            userId: opponentId,
-                          ),
-                        );
-                      }
+                    // A dropped `online` flag (backgrounding, flaky network,
+                    // even an app kill) is NOT treated as an exit here: it
+                    // would race the game's own turn-timeout cascade, which
+                    // already auto-plays/skips the absent player's turns and
+                    // only eliminates them after repeated misses. A real
+                    // departure still reaches _manageRemoteExit through the
+                    // explicit "EXIT" game event sent on quit. Presence loss
+                    // is only recorded once the game is already over, purely
+                    // for analytics.
+                    if (!state.fakeOpponent &&
+                        !(finalOpponent.online ?? true) &&
+                        gameCubit.state.over) {
+                      gamesRepository.addGameEvent(
+                        gameId,
+                        GamicoGameEventModel(
+                          type: "DISCONNECTION",
+                          userId: opponentId,
+                        ),
+                      );
                     }
                   }
                 },
@@ -551,25 +572,42 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         // top-level stats. Coins stay a single shared wallet.
         final mode = state.remoteUtility.matchmakingSettings.mode;
 
+        _armedDisconnectionPenalty = {
+          "coins": -Gamico.instance.gameSettings.playMinimumCoins,
+          if (mode == null) "defeats": 1,
+          if (mode == null) "trophies": -1,
+          if (mode != null) "progression/$mode/defeats": 1,
+          if (mode != null) "progression/$mode/trophies": -1,
+        };
+
         try {
-          await userDisconnectionReference?.update({
-            "coins": ServerValue.increment(
-              -Gamico.instance.gameSettings.playMinimumCoins,
-            ),
-            if (mode == null) "defeats": ServerValue.increment(1),
-            if (mode == null) "trophies": ServerValue.increment(-1),
-            if (mode != null)
-              "progression/$mode/defeats": ServerValue.increment(1),
-            if (mode != null)
-              "progression/$mode/trophies": ServerValue.increment(-1),
-            "updated_at": DateTime.now().toString(),
-          });
+          await userDisconnectionReference?.update(
+            _disconnectionPenaltyPayload(_armedDisconnectionPenalty!),
+          );
         } catch (e) {
           // onDisconnect().update() peut échouer si l'utilisateur est
           // hors-ligne ou si les règles Firebase bloquent l'écriture.
           // Non-fatal : on continue l'initialisation de la partie.
           debugPrint('[GamicoRemoteGameCubit] onDisconnect update failed: $e');
         }
+
+        // Self-healing: a brief background trip drops the database connection
+        // (see field doc above) and fires the penalty above almost instantly.
+        // Refund and re-arm on every genuine reconnection while the match is
+        // still active, so only a real, lasting abandonment is ever scored.
+        _sawInitialConnected = false;
+        _disconnectionPenaltySubscription?.cancel();
+        _disconnectionPenaltySubscription = FirebaseDatabase.instance
+            .ref(".info/connected")
+            .onValue
+            .listen((event) {
+              if (event.snapshot.value != true) return;
+              if (!_sawInitialConnected) {
+                _sawInitialConnected = true;
+                return;
+              }
+              _refundAndRearmDisconnectionPenalty();
+            });
       }
 
       // Declare game as ready when really ready. The wait is bounded:
@@ -644,6 +682,48 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     // Do not punish the player if he/her leaves the game after its end
     userDisconnectionReference?.cancel();
     userDisconnectionReference = null;
+    _disconnectionPenaltySubscription?.cancel();
+    _disconnectionPenaltySubscription = null;
+    _armedDisconnectionPenalty = null;
+  }
+
+  Map<String, dynamic> _disconnectionPenaltyPayload(Map<String, num> deltas) =>
+      {
+        for (final entry in deltas.entries)
+          entry.key: ServerValue.increment(entry.value),
+        "updated_at": DateTime.now().toString(),
+      };
+
+  Future<void> _refundAndRearmDisconnectionPenalty() async {
+    final deltas = _armedDisconnectionPenalty;
+    if (deltas == null || gameCubit.state.over) return;
+
+    try {
+      await FirebaseDatabase.instance
+          .ref("users")
+          .child(UserService.uid)
+          .update(
+            _disconnectionPenaltyPayload(
+              deltas.map((key, value) => MapEntry(key, -value)),
+            ),
+          );
+    } catch (e) {
+      debugPrint(
+        '[GamicoRemoteGameCubit] disconnection penalty refund failed: $e',
+      );
+    }
+
+    try {
+      userDisconnectionReference = FirebaseDatabase.instance
+          .ref("users")
+          .child(UserService.uid)
+          .onDisconnect();
+      await userDisconnectionReference?.update(
+        _disconnectionPenaltyPayload(deltas),
+      );
+    } catch (e) {
+      debugPrint('[GamicoRemoteGameCubit] onDisconnect re-arm failed: $e');
+    }
   }
 
   void _manageRemoteExit(String userId) {

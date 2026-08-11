@@ -16,10 +16,12 @@ class GamicoDisabler extends StatelessWidget {
   Widget build(BuildContext context) {
     return AbsorbPointer(
       absorbing: disabled,
-      child: Opacity(
-        opacity: disabled ? opacity : 1,
-        child: child,
-      ),
+      child: disabled
+          ? Opacity(
+              opacity: opacity,
+              child: child,
+            )
+          : child,
     );
   }
 }

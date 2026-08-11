@@ -42,7 +42,7 @@ class GamicoCard extends StatelessWidget {
         width: width,
         child: Card(
           elevation: elevation,
-          clipBehavior: clipBehavior ?? Clip.antiAlias,
+          clipBehavior: clipBehavior ?? Clip.none,
           margin: EdgeInsets.zero,
           color: color ?? Colors.white,
           shape: border ??

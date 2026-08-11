@@ -149,7 +149,7 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
                   await Future.delayed(AnimationService.animationDuration);
 
                   if (!mounted) return;
-                  notifyPlayers();
+                  notifyPlayers(l);
 
                   if (!remoteCubit.isClosed) {
                     remoteCubit.setFinalized(true);
@@ -221,10 +221,7 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
     );
   }
 
-  void notifyPlayers() async {
-    if (!mounted) return;
-    final l = GamicoLanguages.of(context);
-
+  void notifyPlayers(GamicoLanguages l) async {
     if (await NotificationService.allowed()) {
       try {
         await AwesomeNotifications().createNotification(

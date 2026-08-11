@@ -323,7 +323,12 @@ class AdventureModeSettings implements GameModeSettings {
 
   @override
   void gamePageManageGamePopup(BuildContext context) {
-    context.read<GamicoGameCubit>().setDisplayGamePopup(true);
+    if (!context.mounted) return;
+    try {
+      context.read<GamicoGameCubit>().setDisplayGamePopup(true);
+    } catch (e) {
+      debugPrint('gamePageManageGamePopup error: $e');
+    }
   }
 
   @override

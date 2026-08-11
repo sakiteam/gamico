@@ -82,6 +82,29 @@ class NotificationService {
   /// own game flow instead of the generic game page.
   static Future<bool> Function(ReceivedAction action)? invitationActionHandler;
 
+  /// App-level handler for friend-request notification actions (a distinct
+  /// domain from game invitations above, gated by the `friend_request_id`
+  /// payload key instead of `invitation_id`). Unlike [invitationActionHandler]
+  /// there is no generic fallback handling here — gamico has no built-in
+  /// notion of a "friend request", so this must be set by the app for the
+  /// notification to do anything when tapped.
+  static Future<bool> Function(ReceivedAction action)?
+  friendRequestActionHandler;
+
+  /// App-level hook for the iOS side of the ambient "whose turn" indicator
+  /// (a `turn_notification` / `turn_notification_end` data push — see
+  /// [showTurnNotification]). The Android tray entry is handled generically
+  /// below via [AwesomeNotifications], already a gamico dependency; iOS's
+  /// equivalent surface is a Live Activity, which needs a game-specific
+  /// plugin gamico doesn't depend on, so the game sets this at startup.
+  /// Reliable while the app's main isolate is alive (foreground or briefly
+  /// backgrounded); not guaranteed once the OS fully suspends the app — see
+  /// [firebaseMessagingBackgroundHandler].
+  static Future<void> Function(Map<String, dynamic> data)?
+  turnNotificationHandler;
+  static Future<void> Function(Map<String, dynamic> data)?
+  turnNotificationEndHandler;
+
   static bool _initialized = false;
   static bool _subscribingToDefaultTopic = false;
 
@@ -125,8 +148,7 @@ class NotificationService {
         attempt++;
         try {
           if (Platform.isIOS) {
-            String? apnsToken =
-                await FirebaseMessaging.instance.getAPNSToken();
+            String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
 
             if (apnsToken == null) {
               await Future.delayed(initialDelay * attempt);
@@ -199,8 +221,14 @@ class NotificationService {
   static Future<void> onActionReceivedMethod(
     ReceivedAction receivedAction,
   ) async {
-    if (receivedAction.payload == null ||
-        !receivedAction.payload!.containsKey('invitation_id')) {
+    final payload = receivedAction.payload;
+
+    if (payload != null && payload.containsKey('friend_request_id')) {
+      await friendRequestActionHandler?.call(receivedAction);
+      return;
+    }
+
+    if (payload == null || !payload.containsKey('invitation_id')) {
       return;
     }
 
@@ -297,6 +325,31 @@ class NotificationService {
     }
   }
 
+  /// App-level providers for friend-request notification text. gamico has no
+  /// built-in notion of a "friend request" (unlike game invitations above,
+  /// which have first-class [invitationTitle]/[invitationBodyFrom] backed by
+  /// [GamicoLanguages]), so the app must supply these for the Android
+  /// data-only notification path to show localized text.
+  static String Function()? friendRequestTitleProvider;
+  static String Function(String senderName)? friendRequestBodyProvider;
+
+  static String get friendRequestTitle {
+    try {
+      return friendRequestTitleProvider?.call() ?? "New Friend Request";
+    } catch (_) {
+      return "New Friend Request";
+    }
+  }
+
+  static String friendRequestBodyFrom(String senderName) {
+    try {
+      return friendRequestBodyProvider?.call(senderName) ??
+          "$senderName sent you a friend request";
+    } catch (_) {
+      return "$senderName sent you a friend request";
+    }
+  }
+
   static String get invitationTitle {
     try {
       return GamicoLanguages.instance.friendPageGameInvitation;
@@ -368,6 +421,108 @@ class NotificationService {
     await AwesomeNotifications().cancel(invitationId.hashCode & 0x7fffffff);
   }
 
+  static Future<void> showFriendRequestNotification({
+    required String title,
+    required String body,
+    required String friendRequestId,
+  }) async {
+    if (!(await allowed())) return;
+
+    try {
+      await AwesomeNotifications().createNotification(
+        content: NotificationContent(
+          // hashCode can be negative, which awesome_notifications rejects.
+          id: friendRequestId.hashCode & 0x7fffffff,
+          channelKey: 'invitations',
+          title: title,
+          body: body,
+          payload: {'friend_request_id': friendRequestId},
+          notificationLayout: NotificationLayout.BigText,
+          wakeUpScreen: true,
+          displayOnForeground: true,
+        ),
+        actionButtons: [
+          NotificationActionButton(
+            key: "ACCEPT_FRIEND",
+            label: _acceptLabel,
+            color: Colors.green,
+          ),
+          NotificationActionButton(
+            key: "REJECT_FRIEND",
+            label: _rejectLabel,
+            color: Colors.red,
+          ),
+        ],
+      );
+    } catch (e) {
+      debugPrint("Error creating friend request notification: $e");
+    }
+  }
+
+  /// Dismisses a previously shown friend-request notification (same id
+  /// derivation as [showFriendRequestNotification]).
+  static Future<void> cancelFriendRequestNotification(
+    String friendRequestId,
+  ) async {
+    await AwesomeNotifications().cancel(friendRequestId.hashCode & 0x7fffffff);
+  }
+
+  /// Generic ambient "whose turn" indicator for any turn-based gamico game,
+  /// driven entirely by the payload the backend already localized and
+  /// formatted (gamico has no notion of the game itself, just renders what
+  /// it's given). Android only here — see [turnNotificationHandler] for iOS.
+  static Future<void> showTurnNotification(Map<String, dynamic> data) async {
+    if (!Platform.isAndroid) {
+      await turnNotificationHandler?.call(data);
+      return;
+    }
+
+    final idStr = data['notification_id'] as String?;
+    final title = data['title'] as String?;
+    final body = data['body'] as String?;
+    if (idStr == null || title == null || body == null) return;
+    final id = int.tryParse(idStr) ?? (idStr.hashCode & 0x7fffffff);
+
+    try {
+      if (await allowed()) {
+        await AwesomeNotifications().createNotification(
+          content: NotificationContent(
+            id: id,
+            channelKey: 'default',
+            title: title,
+            body: body,
+            notificationLayout: NotificationLayout.Default,
+            wakeUpScreen: false,
+            locked: false,
+            autoDismissible: true,
+            displayOnForeground: false,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error showing turn notification: $e");
+    }
+
+    await turnNotificationHandler?.call(data);
+  }
+
+  /// Dismisses a previously shown [showTurnNotification] entry (same id
+  /// derivation) once the game is over or a fresher push moves past it.
+  static Future<void> cancelTurnNotificationById(
+    Map<String, dynamic> data,
+  ) async {
+    final idStr = data['notification_id'] as String?;
+    if (idStr != null && Platform.isAndroid) {
+      final id = int.tryParse(idStr) ?? (idStr.hashCode & 0x7fffffff);
+      try {
+        await AwesomeNotifications().cancel(id);
+      } catch (e) {
+        debugPrint("Error cancelling turn notification: $e");
+      }
+    }
+    await turnNotificationEndHandler?.call(data);
+  }
+
   static Future<void> updateUserToken(String userId) async {
     if (!(await allowed())) return;
 
@@ -396,6 +551,13 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Initialize Firebase if needed (in background)
   await Firebase.initializeApp();
 
+  // On iOS, if the message has a notification payload (APNs alert), the OS
+  // already displays it natively in the system tray.
+  // Creating a local notification via AwesomeNotifications in background isolates
+  // races with applicationDidBecomeActive lifecycle events in native Swift code,
+  // causing _dictionaryUpCast / ScheduleManager crashes.
+  if (Platform.isIOS && message.notification != null) return;
+
   // Convert Firebase message to local notification
   if (message.data['type'] == 'invitation') {
     final senderName = message.data['sender_name'] as String?;
@@ -412,6 +574,24 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await NotificationService.cancelGameInvitationNotification(
       message.data['invitation_id'],
     );
+  } else if (message.data['type'] == 'friend_request') {
+    final senderName = message.data['sender_name'] as String?;
+    await NotificationService.showFriendRequestNotification(
+      title:
+          message.notification?.title ?? NotificationService.friendRequestTitle,
+      body:
+          message.notification?.body ??
+          NotificationService.friendRequestBodyFrom(senderName ?? ''),
+      friendRequestId: message.data['friend_request_id'],
+    );
+  } else if (message.data['type'] == 'friend_request_cancelled') {
+    await NotificationService.cancelFriendRequestNotification(
+      message.data['friend_request_id'],
+    );
+  } else if (message.data['type'] == 'turn_notification') {
+    await NotificationService.showTurnNotification(message.data);
+  } else if (message.data['type'] == 'turn_notification_end') {
+    await NotificationService.cancelTurnNotificationById(message.data);
   }
 }
 
@@ -431,6 +611,24 @@ Future<void> handleForegroundMessage(RemoteMessage message) async {
     await NotificationService.cancelGameInvitationNotification(
       message.data['invitation_id'],
     );
+  } else if (message.data['type'] == 'friend_request') {
+    final senderName = message.data['sender_name'] as String?;
+    await NotificationService.showFriendRequestNotification(
+      title:
+          message.notification?.title ?? NotificationService.friendRequestTitle,
+      body:
+          message.notification?.body ??
+          NotificationService.friendRequestBodyFrom(senderName ?? ''),
+      friendRequestId: message.data['friend_request_id'],
+    );
+  } else if (message.data['type'] == 'friend_request_cancelled') {
+    await NotificationService.cancelFriendRequestNotification(
+      message.data['friend_request_id'],
+    );
+  } else if (message.data['type'] == 'turn_notification') {
+    await NotificationService.showTurnNotification(message.data);
+  } else if (message.data['type'] == 'turn_notification_end') {
+    await NotificationService.cancelTurnNotificationById(message.data);
   }
 }
 

@@ -206,9 +206,7 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
         VersionService.storeVersion = status.storeVersion;
       }
 
-      final forceUpdate = VersionService.forceUpdate(
-        VersionService.storeVersion,
-      );
+      final forceUpdate = VersionService.forceUpdate();
 
       NavigationService.showPopup(
         context: context,

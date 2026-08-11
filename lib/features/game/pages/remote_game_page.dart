@@ -5,7 +5,6 @@ import 'package:gamico/commons/services/game.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
-import 'package:gamico/commons/cubits/internet/internet_cubit.dart';
 import 'package:gamico/features/game/cubits/remote/remote_game_cubit.dart';
 import 'package:gamico/features/remote/cubits/remote_cubit.dart';
 
@@ -23,21 +22,6 @@ class GamicoRemoteGamePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocListener(
       listeners: [
-        BlocListener<InternetCubit, InternetState>(
-          listener: (context, state) async {
-            final gameCubit = context.read<GamicoGameCubit>();
-
-            if (!gameCubit.state.over) {
-              context.read<GamicoRemoteGameCubit>().setRemoteGameInternetError(
-                true,
-              );
-              NavigationService.maybePop(context);
-            }
-          },
-          listenWhen: (previous, current) {
-            return previous.connected && !current.connected;
-          },
-        ),
         BlocListener<GamicoRemoteGameCubit, GamicoRemoteGameState>(
           listener: (context, state) {
             NavigationService.maybePop(context);

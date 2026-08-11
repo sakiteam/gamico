@@ -16,6 +16,11 @@ class VersionService {
   static final NewVersionPlus version = NewVersionPlus();
   static VersionStatus? status;
 
+  /// Version defined in remote_config below which the update popup must be
+  /// shown as non-dismissible. Set from app startup once remote_config has
+  /// been fetched (e.g. `VersionService.urgentVersion = remoteConfig.getString('urgent_version')`).
+  static String urgentVersion = "";
+
   static Future<void> init() async {
     try {
       if (await SimpleConnectionChecker.isConnectedToInternet()) {
@@ -27,8 +32,10 @@ class VersionService {
     }
   }
 
-  static bool forceUpdate(String storeVersion) {
-    return formatVersion(storeVersion).split(".").last == "9";
+  static bool forceUpdate() {
+    return urgentVersion.isNotEmpty &&
+        versionString.isNotEmpty &&
+        compareVersions(versionString, urgentVersion) < 0;
   }
 
   static String formatVersion(String version) {
@@ -45,30 +52,27 @@ class VersionService {
     return version;
   }
 
+  /// Returns negative if [a] < [b], 0 if equal, positive if [a] > [b].
+  static int compareVersions(String a, String b) {
+    final partsA = formatVersion(
+      a,
+    ).split(".").map((e) => int.tryParse(e) ?? 0).toList();
+    final partsB = formatVersion(
+      b,
+    ).split(".").map((e) => int.tryParse(e) ?? 0).toList();
+
+    for (var i = 0; i < 3; i++) {
+      if (partsA[i] != partsB[i]) {
+        return partsA[i] - partsB[i];
+      }
+    }
+
+    return 0;
+  }
+
   static bool localVersionDeprecated() {
     if (storeVersion.isNotEmpty && versionString.isNotEmpty) {
-      final localParts = formatVersion(
-        versionString,
-      ).split(".").map((e) => int.tryParse(e) ?? 0).toList();
-      final storeParts = formatVersion(
-        storeVersion,
-      ).split(".").map((e) => int.tryParse(e) ?? 0).toList();
-
-      if (storeParts[0] > localParts[0]) {
-        return true;
-      }
-
-      if (storeParts[0] == localParts[0]) {
-        if (storeParts[1] > localParts[1]) {
-          return true;
-        }
-
-        if (storeParts[1] == localParts[1]) {
-          if (storeParts[2] > localParts[2]) {
-            return true;
-          }
-        }
-      }
+      return compareVersions(versionString, storeVersion) < 0;
     }
 
     return false;
