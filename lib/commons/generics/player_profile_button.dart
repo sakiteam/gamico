@@ -56,6 +56,7 @@ class GamicoPlayerProfileButton extends StatelessWidget {
           : CachedNetworkImage(
               imageUrl: user.photo!,
               fit: BoxFit.fill,
+              errorListener: (_) {},
               errorWidget: (_, _, _) => Icon(
                 ai ? Icons.android : Icons.person,
                 size: iconSize ?? 16,

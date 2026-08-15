@@ -79,7 +79,7 @@ class AdmobCubit extends Cubit<AdmobState> {
 
   Future<void> loadRewardedAd() async {
     try {
-      await MobileAds.instance.initialize();
+      await Gamico.mobileAdsInitFuture;
     } catch (_) {}
 
     if (isClosed) return;
@@ -134,7 +134,7 @@ class AdmobCubit extends Cubit<AdmobState> {
 
   Future<void> loadInterstitialAd() async {
     try {
-      await MobileAds.instance.initialize();
+      await Gamico.mobileAdsInitFuture;
     } catch (_) {}
 
     if (isClosed) return;

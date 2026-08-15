@@ -5,8 +5,8 @@ import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/version.dart';
 import 'package:gamico/commons/utilities/couple/couple_utility.dart';
+import 'package:gamico/commons/utilities/share/gamico_share_utility.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:gamico/commons/services/store.dart';
 import 'package:gamico/commons/cubits/referral/referral_cubit.dart';
 import 'package:gamico/commons/generics/poster.dart';
@@ -47,32 +47,37 @@ class HomeAboutPopup extends StatelessWidget {
     return GamicoPopup(
       topLeftWidget: BlocBuilder<ReferralCubit, ReferralState>(
         builder: (context, state) {
-          return IconButton(
-            onPressed: () {
-              try {
-                context.read<GamicoMusicCubit>().playClickBruitage();
-              } catch (_) {}
+          return Builder(
+            builder: (btnContext) {
+              return IconButton(
+                onPressed: () {
+                  try {
+                    btnContext.read<GamicoMusicCubit>().playClickBruitage();
+                  } catch (_) {}
 
-              String link = ""; // state.link;
+                  String link = ""; // state.link;
 
-              if (link.isEmpty) {
-                if (Platform.isAndroid) {
-                  link = Gamico.instance.storeSettings?.androidLink ?? "";
-                } else {
-                  link = Gamico.instance.storeSettings?.iOSLink ?? "";
-                }
-              }
+                  if (link.isEmpty) {
+                    if (Platform.isAndroid) {
+                      link = Gamico.instance.storeSettings?.androidLink ?? "";
+                    } else {
+                      link = Gamico.instance.storeSettings?.iOSLink ?? "";
+                    }
+                  }
 
-              Share.share(
-                l.homeAboutPopupShareText(link),
-                subject: l.globalAppName,
+                  GamicoShareUtility.share(
+                    context: btnContext,
+                    text: l.homeAboutPopupShareText(link),
+                    subject: l.globalAppName,
+                  );
+                },
+                icon: const GamicoOutlinedIcon(
+                  Icons.share,
+                  size: 32,
+                  color: Colors.blue,
+                ),
               );
             },
-            icon: const GamicoOutlinedIcon(
-              Icons.share,
-              size: 32,
-              color: Colors.blue,
-            ),
           );
         },
       ),

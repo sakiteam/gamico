@@ -13,6 +13,7 @@ class NavigationService {
   static List<BuildContext> popupsContexts = [];
 
   static Future<void> push(BuildContext context, Widget page) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -24,6 +25,7 @@ class NavigationService {
   }
 
   static Future<void> replace(BuildContext context, Widget page) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     await Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -35,6 +37,7 @@ class NavigationService {
   }
 
   static void pop<T>(BuildContext context, [T? result]) {
+    FocusManager.instance.primaryFocus?.unfocus();
     popupsContexts.remove(context);
 
     if (context.mounted) {
@@ -44,6 +47,7 @@ class NavigationService {
   }
 
   static Future<void> maybePop(BuildContext context) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     await Navigator.maybePop(context);
   }
 
@@ -51,6 +55,7 @@ class NavigationService {
     BuildContext context,
     Widget page,
   ) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     // Resolve the navigator before the delay: the caller's context may be
     // deactivated while the exit animation plays (e.g. its subtree is
     // rebuilt), which would make Navigator.of(context) throw.
@@ -73,6 +78,7 @@ class NavigationService {
     BuildContext context,
     Widget page,
   ) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final navigator = Navigator.of(context);
 
     // Capture the caller's own route now. A popup (e.g. the game-over popup
@@ -128,6 +134,7 @@ class NavigationService {
     bool draggable = true,
     bool dismissible = true,
   }) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     if (!context.mounted) return;
 
     GamicoMusicCubit? musicCubit;

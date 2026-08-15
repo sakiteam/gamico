@@ -32,6 +32,7 @@ class GamicoImage extends StatelessWidget {
             width: width,
             height: height,
             fit: fit,
+            errorListener: (_) {},
             progressIndicatorBuilder: (_, _, _) {
               return Center(
                 child: SizedBox(

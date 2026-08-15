@@ -32,9 +32,12 @@ class Gamico {
   /// Reference to the current global Gamico instance.
   static late final Gamico instance;
 
+  static Future<InitializationStatus>? _mobileAdsInitFuture;
+
   /// Completes when `MobileAds.instance.initialize()` finishes.
   /// Await this before calling any SDK method that requires initialisation.
-  static late final Future<InitializationStatus> mobileAdsInitFuture;
+  static Future<InitializationStatus> get mobileAdsInitFuture =>
+      _mobileAdsInitFuture ??= MobileAds.instance.initialize();
 
   final String title;
 
@@ -187,9 +190,8 @@ class Gamico {
     Animate.defaultDuration = AnimationService.duration;
 
     // Initialize Admob without blocking app startup. Downstream code
-    // (e.g. MusicCubit.setAppMuted) must await this future before
-    // calling SDK methods that require initialisation.
-    mobileAdsInitFuture = MobileAds.instance.initialize();
+    // (e.g. MusicCubit, AdmobCubit) can await Gamico.mobileAdsInitFuture.
+    Gamico.mobileAdsInitFuture;
 
     try {
       FirebaseDatabase.instance.setPersistenceEnabled(true);
