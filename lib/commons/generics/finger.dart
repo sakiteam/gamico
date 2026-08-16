@@ -1,14 +1,8 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:gamico/commons/services/gif.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
-enum GamicoFingerType {
-  click,
-  clickAndClick,
-  clickAndRelease,
-}
+enum GamicoFingerType { click, clickAndClick, clickAndRelease }
 
 class GamicoFinger extends StatefulWidget {
   final Offset beginOffset;
@@ -57,8 +51,10 @@ class _GamicoFingerState extends State<GamicoFinger>
     super.initState();
 
     _gifController = GifController(vsync: this);
-    _animationController =
-        AnimationController(vsync: this, duration: moveDuration);
+    _animationController = AnimationController(
+      vsync: this,
+      duration: moveDuration,
+    );
     _fadeController = AnimationController(vsync: this, duration: fadeDuration);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -85,29 +81,30 @@ class _GamicoFingerState extends State<GamicoFinger>
     final fingerHeight = widget.fingerSize.height;
 
     return IgnorePointer(
-      child: Container(
-        width: widget.containerSize.width,
-        height: widget.containerSize.height,
-        alignment: Alignment.center,
-        child: SizedBox(
-          width: fingerWidth,
-          height: fingerHeight,
-          child: Container(
-            transform: widget.transform,
-            child: Gif(
-              autostart: Autostart.no,
-              controller: _gifController,
-              image: Image.asset("assets/images/finger.gif").image,
-              width: fingerWidth,
-              height: fingerHeight,
-            ),
-          ),
-        ),
-      )
-          .animate(autoPlay: false, controller: _animationController)
-          .move(begin: widget.beginOffset, end: widget.endOffset)
-          .animate(autoPlay: false, controller: _fadeController)
-          .fadeIn(),
+      child:
+          Container(
+                width: widget.containerSize.width,
+                height: widget.containerSize.height,
+                alignment: Alignment.center,
+                child: SizedBox(
+                  width: fingerWidth,
+                  height: fingerHeight,
+                  child: Container(
+                    transform: widget.transform,
+                    child: Gif(
+                      autostart: Autostart.no,
+                      controller: _gifController,
+                      image: Image.asset("assets/images/finger.gif").image,
+                      width: fingerWidth,
+                      height: fingerHeight,
+                    ),
+                  ),
+                ),
+              )
+              .animate(autoPlay: false, controller: _animationController)
+              .move(begin: widget.beginOffset, end: widget.endOffset)
+              .animate(autoPlay: false, controller: _fadeController)
+              .fadeIn(),
     );
   }
 
@@ -135,8 +132,6 @@ class _GamicoFingerState extends State<GamicoFinger>
 
           break;
       }
-
-      if (kDebugMode && Platform.isIOS) return;
 
       await _fadeController?.reverse();
     }

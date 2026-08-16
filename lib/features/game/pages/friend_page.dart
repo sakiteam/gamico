@@ -19,8 +19,6 @@ import 'package:gamico/commons/repositories/gamico_users_repository.dart';
 import 'package:gamico/commons/providers/gamico_users_provider.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:remove_diacritic/remove_diacritic.dart';
-import 'package:gamico/commons/services/invitation_service.dart';
-import 'package:gamico/commons/services/firebase_messaging_service.dart';
 import 'package:gamico/commons/services/notification.dart';
 
 class GamicoFriendPage extends StatefulWidget {
@@ -112,23 +110,14 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
 
     try {
       // Créer l'invitation dans Firebase
-      final invitation = await context.read<InvitationCubit>().sendInvitation(
+      // final invitation =
+      await context.read<InvitationCubit>().sendInvitation(
         receiverId,
         UserService.uid,
       );
 
-      // Envoyer la notification Firebase
-      final receiverToken = await InvitationService.getUserToken(receiverId);
-      if (receiverToken != null) {
-        await FirebaseMessagingService.sendGameInvitation(
-          token: receiverToken,
-          invitationId: invitation.id,
-          senderName: currentUser.displayName ?? 'Someone',
-        );
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l.friendPageInvitationSent)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(l.friendPageInvitationSent)));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l.friendPageFailedToSendInvitation)),
@@ -209,9 +198,8 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
                     controller: _searchController,
                     textCapitalization: TextCapitalization.words,
                     decoration: InputDecoration(
-                      hintText: GamicoLanguages.of(
-                        context,
-                      ).friendPageSearchHint,
+                      hintText: GamicoLanguages.of(context)
+                          .friendPageSearchHint,
                       prefixIcon: const Icon(Icons.search),
                       border: const OutlineInputBorder(
                         borderRadius: BorderRadius.all(
@@ -308,9 +296,8 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
                           Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: Text(
-                              GamicoLanguages.of(
-                                context,
-                              ).friendPagePendingInvitations,
+                              GamicoLanguages.of(context)
+                                  .friendPagePendingInvitations,
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),

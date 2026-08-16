@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
@@ -33,8 +32,7 @@ bool shouldShowAdsInAdventureGame(
       !(victory == true &&
           (currentLevel == maxLevel ||
               endMessage != null ||
-              descriptionMessage != null)) &&
-      !kDebugMode;
+              descriptionMessage != null));
 }
 
 void gamePageManageCoinsAndStarsInAdventureGame(

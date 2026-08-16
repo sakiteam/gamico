@@ -1,8 +1,7 @@
-import 'dart:io';
 import 'dart:math';
+
 import 'package:flame/widgets.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:defer_pointer/defer_pointer.dart';
 import 'package:gamico/commons/cubits/character/character_cubit.dart';
@@ -103,10 +102,9 @@ class _GamicoCharacterState extends State<GamicoCharacter> {
                             ? null
                             : SpriteAnimationWidget(
                                 animation: state.animation!,
-                                animationTicker:
-                                    state.animation!.createTicker(),
-                                playing:
-                                    visible && !(kDebugMode && Platform.isIOS),
+                                animationTicker: state.animation!
+                                    .createTicker(),
+                                playing: visible,
                               ),
                       ),
                     ),
@@ -177,10 +175,7 @@ class _GamicoCharacterState extends State<GamicoCharacter> {
           0,
           LayoutService.optionButtonSize + LayoutService.optionButtonMargin * 2,
         );
-        invisibleOffset = const Offset(
-          -size,
-          0,
-        );
+        invisibleOffset = const Offset(-size, 0);
         flip = false;
         angle = (45) * pi / 180;
         spriteOffset = const Offset(-50, 0);
@@ -192,10 +187,7 @@ class _GamicoCharacterState extends State<GamicoCharacter> {
           0,
           LayoutService.optionButtonSize + LayoutService.optionButtonMargin * 2,
         );
-        invisibleOffset = const Offset(
-          size,
-          0,
-        );
+        invisibleOffset = const Offset(size, 0);
         flip = true;
         angle = (360 - 45) * pi / 180;
         spriteOffset = const Offset(50, 0);
@@ -226,10 +218,7 @@ class _GamicoCharacterState extends State<GamicoCharacter> {
           -LayoutService.optionButtonSize -
               LayoutService.optionButtonMargin * 2,
         );
-        invisibleOffset = const Offset(
-          -size,
-          0,
-        );
+        invisibleOffset = const Offset(-size, 0);
         flip = true;
         angle = (47) * pi / 180;
         spriteOffset = const Offset(-50, 0);
@@ -243,10 +232,7 @@ class _GamicoCharacterState extends State<GamicoCharacter> {
           -LayoutService.optionButtonSize -
               LayoutService.optionButtonMargin * 2,
         );
-        invisibleOffset = const Offset(
-          size,
-          0,
-        );
+        invisibleOffset = const Offset(size, 0);
         flip = false;
         angle = (360 - 47) * pi / 180;
         spriteOffset = const Offset(50, 0);

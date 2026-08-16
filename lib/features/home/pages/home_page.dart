@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/languages/languages.dart';
@@ -43,13 +42,6 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
   /// Init the current page.
   void _init() async {
     if (!mounted) return;
-
-    // Debug helper: force the reminder popup so its layout can be reviewed
-    // without having to reproduce a real refusal. No effect in release.
-    if (kDebugMode && NotificationService.debugForceReminderPopup) {
-      _showNotificationsReminderPopup();
-      return;
-    }
 
     // Route the player through the right notification flow.
     if (!NotificationService.notificationsSet) {

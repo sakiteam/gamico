@@ -1,5 +1,4 @@
 // import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -13,6 +12,7 @@ import 'package:gamico/commons/generics/showcase_tooltip.dart';
 // import 'package:gamico/commons/widgets/big_container_decoration.dart';
 // import 'package:gamico/commons/widgets/option_button.dart';
 import 'package:gamico/commons/generics/showcase_widget.dart';
+
 // import 'package:gamico/features/home/pages/home_page.dart';
 // import 'package:gamico/features/home/widgets/home_card_presentation.dart';
 
@@ -50,12 +50,12 @@ class ShowcaseService {
   //     ];
 
   static List<GlobalKey> get keys => [
-        multiplayerButtonKey,
-        singleplayerButtonKey,
-        cardPresentationKey,
-        progressOptionButtonKey,
-        cardOptionButtonKey,
-      ];
+    multiplayerButtonKey,
+    singleplayerButtonKey,
+    cardPresentationKey,
+    progressOptionButtonKey,
+    cardOptionButtonKey,
+  ];
 
   static final GlobalKey progressOptionButtonKey = GlobalKey();
   static final GlobalKey cardOptionButtonKey = GlobalKey();
@@ -131,19 +131,20 @@ class ShowcaseService {
           children: [
             ClipPath(
               clipper: GamicoShapeClipper(
-                  area: activeRect,
-                  // isCircle: true,
-                  //widget.targetShapeBorder is CircleBorder,
-                  radius: (activeShowcaseWidget.borderRadius ??
-                          BorderRadius.circular(12)) *
-                      LayoutService.ratio,
-                  overlayPadding: const EdgeInsets.all(padding)
-                  //  _isScrollRunning
-                  //     ? BorderRadius.zero
-                  //     : widget.targetBorderRadius,
-                  // overlayPadding:
-                  //     _isScrollRunning ? EdgeInsets.zero : widget.targetPadding,
-                  ),
+                area: activeRect,
+                // isCircle: true,
+                //widget.targetShapeBorder is CircleBorder,
+                radius:
+                    (activeShowcaseWidget.borderRadius ??
+                        BorderRadius.circular(12)) *
+                    LayoutService.ratio,
+                overlayPadding: const EdgeInsets.all(padding),
+                //  _isScrollRunning
+                //     ? BorderRadius.zero
+                //     : widget.targetBorderRadius,
+                // overlayPadding:
+                //     _isScrollRunning ? EdgeInsets.zero : widget.targetPadding,
+              ),
               // borderRadius: BorderRadius.circular(20),
               child: Container(
                 color: Colors.black.withAlpha(150),
@@ -151,18 +152,16 @@ class ShowcaseService {
               ),
             ),
             GamicoShowcaseTooltip(
-              arrowContainerTop: arrowContainerTop,
-              arrowContainerLeft: arrowContainerLeft,
-              arrowContainerWidth: arrowContainerWidth,
-              arrowHeight: arrowHeight,
-              activeRect: activeRect,
-              activeShowcaseWidget: activeShowcaseWidget,
-            )
+                  arrowContainerTop: arrowContainerTop,
+                  arrowContainerLeft: arrowContainerLeft,
+                  arrowContainerWidth: arrowContainerWidth,
+                  arrowHeight: arrowHeight,
+                  activeRect: activeRect,
+                  activeShowcaseWidget: activeShowcaseWidget,
+                )
                 .animate(
-                  onPlay: kDebugMode
-                      ? null
-                      : (controller) =>
-                          controller.loop(count: 5, reverse: true),
+                  onPlay: (controller) =>
+                      controller.loop(count: 5, reverse: true),
                 )
                 .slideY(
                   begin: -0.005,
@@ -184,9 +183,7 @@ class ShowcaseService {
                   ShowcaseService.shown = true;
                 }
               },
-              child: Container(
-                color: Colors.transparent,
-              ),
+              child: Container(color: Colors.transparent),
             ),
           ],
         );

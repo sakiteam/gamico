@@ -1,13 +1,13 @@
 import 'dart:io';
-import 'package:awesome_notifications/awesome_notifications.dart';
-// import 'package:firebase_database/firebase_database.dart';
+
+import 'package:gamico/commons/cubits/admob/admob_cubit.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:gamico/commons/cubits/admob/admob_cubit.dart';
 import 'package:gamico/commons/cubits/authentication/authentication_cubit.dart';
 import 'package:gamico/commons/cubits/character/character_cubit.dart';
 import 'package:gamico/commons/cubits/gratification/gratification_cubit.dart';
@@ -35,8 +35,6 @@ import 'package:gamico/commons/utilities/game/game_utility.dart';
 import 'package:gamico/commons/generics/content_wrapper.dart';
 import 'package:gamico/commons/generics/material_app_wrapper.dart';
 import 'package:gamico/features/friend/cubits/friend_invitation_cubit.dart';
-// import 'package:gamico/features/friend/cubits/invitation_cubit.dart';
-// import 'package:gamico/features/friend/models/invitation_model.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:gamico/languages/localizations.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -118,17 +116,12 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
 
     try {
       await AwesomeNotifications().initialize(
-        // 'resource://drawable/res_app_icon',
         "resource://drawable/ic_stat_${Gamico.instance.title.toLowerCase()}",
-        // null,
         [
           NotificationChannel(
-            // channelGroupKey: "",
             channelKey: "default",
             channelName: "default",
             channelDescription: "default",
-            // defaultColor: ColorService.primaryColor,
-            // ledColor: Colors.white,
             enableVibration: true,
             channelShowBadge: true,
             importance: NotificationImportance.Max,
@@ -137,21 +130,11 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
             channelKey: 'invitations',
             channelName: 'invitations',
             channelDescription: 'invitations',
-            // defaultColor: const Color(0xFF9D50DD),
-            // ledColor: const Color(0xFF9D50DD),
             enableVibration: true,
             channelShowBadge: true,
             importance: NotificationImportance.Max,
-            // channelShowBadge: true,
           ),
         ],
-
-        // Channel groups are only visual and are not required
-        // channelGroups: [
-        //   NotificationChannelGroup(
-        //       channelGroupkey: 'basic_channel_group',
-        //       channelGroupName: 'Basic group')
-        // ],
         debug: kDebugMode,
       );
     } catch (e) {
@@ -343,9 +326,8 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
                   // same proportions on every device (layout is handled by
                   // the game's own FittedBox scaling).
                   return MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(textScaler: TextScaler.noScaling),
+                    data: MediaQuery.of(context)
+                        .copyWith(textScaler: TextScaler.noScaling),
                     child:
                         widget.builder?.call(context, finalContent) ??
                         finalContent,
@@ -391,7 +373,8 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
 
                   return GamicoLanguages.fallbackLocale;
                 },
-                onUnknownRoute: widget.onUnknownRoute ??
+                onUnknownRoute:
+                    widget.onUnknownRoute ??
                     (settings) {
                       return MaterialPageRoute(
                         builder: (context) => Scaffold(

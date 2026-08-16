@@ -54,12 +54,6 @@ class NotificationService {
   static set defaultTopicSubscribed(bool value) =>
       LocalStorageService.setBool("default_topic_subscribed", value);
 
-  /// Debug-only switch: when `true`, the home page shows the notification
-  /// reminder popup on every launch regardless of the stored permission state,
-  /// so its appearance can be inspected. Guarded by [kDebugMode] on the call
-  /// site, so it has no effect in release builds. Set it from `main()`.
-  static bool debugForceReminderPopup = false;
-
   static Future<bool> allowed() =>
       AwesomeNotifications().isNotificationAllowed();
 

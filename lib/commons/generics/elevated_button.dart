@@ -1,6 +1,3 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:gamico/commons/services/animation.dart';
@@ -184,12 +181,7 @@ class _GamicoElevatedButtonState extends State<GamicoElevatedButton> {
                 ),
               ),
             )
-            .animate(
-              // target: kDebugMode && Platform.isIOS ? 0 : 1,
-              onPlay: kDebugMode && Platform.isIOS
-                  ? null
-                  : (controller) => controller.repeat(),
-            )
+            .animate(onPlay: (controller) => controller.repeat())
             .shimmer(
               delay: 5.seconds,
               duration: 1.seconds,
