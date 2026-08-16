@@ -21,11 +21,13 @@ class GamicoDialogPoster extends StatelessWidget {
   final IconData? acceptationIcon;
   final Function? onAccepted;
   final bool acceptationButtonEnabled;
+  final Color? acceptationColor;
 
   final String? rejectionText;
   final IconData? rejectionIcon;
   final Function? onRejected;
   final bool rejectionButtonEnabled;
+  final Color? rejectionColor;
 
   final bool automaticClose;
   final bool simple;
@@ -57,8 +59,10 @@ class GamicoDialogPoster extends StatelessWidget {
     this.rejectionText,
     this.rejectionIcon,
     this.onRejected,
+    this.rejectionColor,
     this.automaticClose = true,
     this.loading = false,
+    this.acceptationColor,
     //
     this.acceptationIconWidget,
     this.rejectionIconWidget,
@@ -86,6 +90,7 @@ class GamicoDialogPoster extends StatelessWidget {
             children: [
               if (!simple)
                 GamicoIconTextButton(
+                  color: rejectionColor,
                   onPressed: !rejectionButtonEnabled
                       ? null
                       : () {
@@ -99,9 +104,24 @@ class GamicoDialogPoster extends StatelessWidget {
                   text: rejectionText ?? l.globalCancel,
                   iconWidget: rejectionIconWidget,
                 ),
-              if (!simple)
+
+              if (simple)
                 GamicoIconTextButton(
-                  color: ColorService.accentColor,
+                  color: acceptationColor ?? ColorService.accentColor,
+                  onPressed: () {
+                    if (automaticClose) {
+                      NavigationService.pop(context);
+                    }
+
+                    onAccepted?.call();
+                  },
+                  text: acceptationText ?? l.globalOK,
+                  iconData: acceptationIcon ?? Icons.check,
+                  iconWidget: acceptationIconWidget,
+                )
+              else
+                GamicoIconTextButton(
+                  color: acceptationColor ?? ColorService.accentColor,
                   onPressed: !acceptationButtonEnabled
                       ? null
                       : () {
@@ -112,20 +132,6 @@ class GamicoDialogPoster extends StatelessWidget {
                           onAccepted?.call();
                         },
                   text: acceptationText ?? l.globalValidate,
-                  iconData: acceptationIcon ?? Icons.check,
-                  iconWidget: acceptationIconWidget,
-                ),
-              if (simple)
-                GamicoIconTextButton(
-                  color: ColorService.accentColor,
-                  onPressed: () {
-                    if (automaticClose) {
-                      NavigationService.pop(context);
-                    }
-
-                    onAccepted?.call();
-                  },
-                  text: acceptationText ?? l.globalOK,
                   iconData: acceptationIcon ?? Icons.check,
                   iconWidget: acceptationIconWidget,
                 ),

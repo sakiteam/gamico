@@ -154,6 +154,16 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
     onGameEnd?.call();
   }
 
+  /// Clears a previous [endGame] result. Games that let players start a fresh
+  /// match in place (e.g. Crazy Eights' online "Rejouer", which restarts the
+  /// engine without recreating this cubit) must call this once play resumes,
+  /// otherwise `state.over` stays stuck true and anything gated on it — the
+  /// end-of-game confetti loop included — keeps behaving as if the match were
+  /// still over.
+  void resetGameOver() {
+    emit(state.copyWith(victory: () => null, overReason: ""));
+  }
+
   /* CLOSE */
 
   @override

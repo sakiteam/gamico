@@ -32,19 +32,24 @@ class GamicoRemoteGamePage extends StatelessWidget {
         ),
         BlocListener<GamicoRemoteGameCubit, GamicoRemoteGameState>(
           listener: (context, gameState) async {
+            if (!context.mounted) return;
+
             GameService.plays++;
 
             final gameCubit = context.read<GamicoGameCubit>();
+            final remoteCubit = context.read<RemoteCubit>();
 
             NavigationService.closePopups();
+
+            if (!context.mounted) return;
 
             gameCubit.setActive(false);
             gameCubit.setAnimGame(true);
 
-            await NavigationService.replace(
+            await NavigationService.replacePageWithAnimation(
               context,
               BlocProvider.value(
-                value: context.read<RemoteCubit>(),
+                value: remoteCubit,
                 child: Gamico.instance.pagesSettings.gamePage(
                   context,
                   RemoteGameUtility(

@@ -400,10 +400,17 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       }
 
       // Seeds
-      final seedModulo = remoteUtility.seedModulo;
-
-      seed1 = (currentGame?.createdAt?.millisecond ?? 0) % seedModulo;
-      seed2 = (currentGame?.createdAt?.microsecond ?? 0) % seedModulo;
+      // Derived from the shared `createdAt` timestamp (written once by the
+      // host and read identically by every device) so all clients land on
+      // the same seed for deterministic, lockstep-reproducible shuffles.
+      // This used to be reduced modulo `remoteUtility.seedModulo` (10),
+      // which collapsed the deck shuffle to only 10 possible outcomes
+      // across all online games (e.g. Crazy Eights hands repeating).
+      // Use the full timestamp instead, masked to a positive 32-bit int
+      // since that's what `Random()` expects.
+      final createdAtUs = currentGame?.createdAt?.microsecondsSinceEpoch ?? 0;
+      seed1 = createdAtUs & 0x7FFFFFFF;
+      seed2 = (createdAtUs ~/ 7) & 0x7FFFFFFF;
 
       // Listen to game events
       if (!state.fakeOpponent) {

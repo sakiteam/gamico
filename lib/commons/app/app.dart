@@ -134,6 +134,20 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
             channelShowBadge: true,
             importance: NotificationImportance.Max,
           ),
+          // Channel for active game turn updates.
+          // Importance Max ensures it appears in the active/prominent section of the
+          // Android shade (NOT tucked away in "Silencieux").
+          // onlyAlertOnce: true ensures silent progress updates without repeated sounds.
+          NotificationChannel(
+            channelKey: 'game_turn',
+            channelName: 'Partie en cours',
+            channelDescription: 'Notifications pendant la partie',
+            enableVibration: false,
+            playSound: false,
+            onlyAlertOnce: true,
+            channelShowBadge: true,
+            importance: NotificationImportance.Max,
+          ),
         ],
         debug: kDebugMode,
       );

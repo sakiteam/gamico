@@ -29,12 +29,17 @@ class _GamicoGameConfettiState extends State<GamicoGameConfetti> {
   Widget build(BuildContext context) {
     return BlocListener<GamicoGameCubit, GamicoGameState>(
       listener: (context, state) {
-        if (state.victory == true) {
-          _confettiController.play();
+        if (state.over) {
+          if (state.victory == true) _confettiController.play();
+        } else {
+          // The match restarted in place (e.g. online "Rejouer") without this
+          // widget being disposed: the confetti loops forever (shouldLoop) once
+          // started, so it must be stopped explicitly rather than left to fade.
+          _confettiController.stop();
         }
       },
       listenWhen: (previous, current) {
-        return current.over && !previous.over;
+        return current.over != previous.over;
       },
       child: GamicoConfetti(controller: _confettiController),
     );
