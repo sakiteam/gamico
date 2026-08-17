@@ -334,19 +334,46 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
             );
         opponentStreamSubscriptions.add(sub);
       } else {
+        // Only the handful of fields actually rendered/consulted for an
+        // opponent (see player_profile_button, game_profile_poster, the
+        // `broke`/`online` checks below) are listened to individually,
+        // instead of the whole `users/$opponentId` node — that node also
+        // carries ~20 fields (achievements, progression, skins, trophies…)
+        // that change constantly across a player's other games and used to
+        // re-download the entire user object to every opponent watching them.
+        // `userCreateFakeOpponent` additionally needs a few identity fields
+        // to build its synthetic opponent, so those are listened to too, but
+        // only when this game actually runs in fake-opponent mode.
+        final fieldsToWatch = <String>{
+          "name",
+          "photo",
+          "online",
+          "coins",
+          if (state.fakeOpponent) ...{
+            "type",
+            "achievements",
+            "firebaseId",
+            "socialId",
+            "token",
+          },
+        };
+
         for (final opponentId in otherPlayerIds) {
-          final sub = FirebaseDatabase.instance
-              .ref()
-              .child("users/$opponentId")
-              .onValue
-              .listen(
-                (event) {
-                  if (event.snapshot.exists) {
-                    final rawData = event.snapshot.value;
-                    final validData = _deepCastMap(rawData);
+          final fields = <String, dynamic>{"id": opponentId};
+
+          for (final field in fieldsToWatch) {
+            final sub = FirebaseDatabase.instance
+                .ref()
+                .child("users/$opponentId/$field")
+                .onValue
+                .listen(
+                  (event) {
+                    fields[field] = event.snapshot.exists
+                        ? _deepCastValue(event.snapshot.value)
+                        : null;
 
                     var finalOpponent = Gamico.instance.userFromJson(
-                      Map<String, dynamic>.from(validData),
+                      Map<String, dynamic>.from(fields),
                     );
 
                     if (state.fakeOpponent) {
@@ -390,12 +417,13 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                         ),
                       );
                     }
-                  }
-                },
-                onError: (e) =>
-                    debugPrint("⚠️ opponent subscription error => $e"),
-              );
-          opponentStreamSubscriptions.add(sub);
+                  },
+                  onError: (e) => debugPrint(
+                    "⚠️ opponent $field subscription error => $e",
+                  ),
+                );
+            opponentStreamSubscriptions.add(sub);
+          }
         }
       }
 

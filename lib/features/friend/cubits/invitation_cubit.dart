@@ -131,8 +131,8 @@ class InvitationCubit extends Cubit<InvitationState> {
     final key1 = ref.push().key ?? "";
     final key2 = ref.push().key ?? "";
 
-    await gameRef.set(
-      GamicoGameModel(
+    await gameRef.set({
+      ...GamicoGameModel(
         updatedAt: now,
         createdAt: now,
         status: "ACCEPTED",
@@ -151,7 +151,8 @@ class InvitationCubit extends Cubit<InvitationState> {
           ),
         },
       ).toJson(),
-    );
+      'last_activity_at': ServerValue.timestamp,
+    });
     await newInvitationRef.set(invitation.toJson());
 
     // Set this as our current invitation and start listening to it
@@ -194,14 +195,15 @@ class InvitationCubit extends Cubit<InvitationState> {
     // Create the shared game
     final gameRef = _database.ref().child('games').push();
     final gameId = gameRef.key!;
-    await gameRef.set(
-      GamicoGameModel(
+    await gameRef.set({
+      ...GamicoGameModel(
         updatedAt: now,
         createdAt: now,
         status: "ACCEPTED",
         players: players,
       ).toJson(),
-    );
+      'last_activity_at': ServerValue.timestamp,
+    });
 
     // Create one invitation per receiver pointing to the same game
     for (final receiverId in receiverIds) {

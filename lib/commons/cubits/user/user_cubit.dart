@@ -361,6 +361,40 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   static String sanitizeName(String name) =>
       name.trim().replaceAll(RegExp(r"\s+"), " ");
 
+  /// Drops unpaired UTF-16 surrogates.
+  ///
+  /// Some accounts' `name` was seeded before [_findAvailableName] truncated
+  /// by grapheme cluster instead of code unit, so a handful of stored names
+  /// still contain a lone surrogate. Flutter's TextPainter throws on that
+  /// (`string is not well-formed UTF-16`) the moment the value is laid out in
+  /// an editable field, so strip it defensively wherever a stored name feeds
+  /// a TextField, not just at write time.
+  static String stripLoneSurrogates(String name) {
+    final buffer = StringBuffer();
+
+    for (var i = 0; i < name.length; i++) {
+      final unit = name.codeUnitAt(i);
+
+      if (unit >= 0xD800 && unit <= 0xDBFF) {
+        final hasLowSurrogate = i + 1 < name.length &&
+            name.codeUnitAt(i + 1) >= 0xDC00 &&
+            name.codeUnitAt(i + 1) <= 0xDFFF;
+
+        if (!hasLowSurrogate) continue;
+
+        buffer.write(name[i]);
+        buffer.write(name[i + 1]);
+        i++;
+      } else if (unit >= 0xDC00 && unit <= 0xDFFF) {
+        continue;
+      } else {
+        buffer.write(name[i]);
+      }
+    }
+
+    return buffer.toString();
+  }
+
   /// Normalized form stored in `formatted_name`.
   static String formatName(String name) =>
       removeDiacritics(sanitizeName(name).toLowerCase());
@@ -420,8 +454,14 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
           : "${GamicoGlobalService.random.nextInt(900) + 100}";
 
       // Keep room for the suffix rather than overflowing the max length.
+      // Truncate by grapheme cluster, not UTF-16 code unit: root can contain
+      // astral-plane letters (e.g. some non-Latin scripts), and cutting mid
+      // surrogate pair leaves a lone surrogate that later crashes any
+      // TextField laid out with this name (invalid UTF-16 in TextPainter).
       final trimmed = root.length + suffix.length > nameMaxLength
-          ? root.substring(0, nameMaxLength - suffix.length)
+          ? root.characters
+                .take(nameMaxLength - suffix.length)
+                .toString()
           : root;
 
       final candidate = "$trimmed$suffix";

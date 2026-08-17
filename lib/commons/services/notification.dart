@@ -344,6 +344,29 @@ class NotificationService {
     }
   }
 
+  /// App-level providers for friend-request-accepted notification text, same
+  /// rationale as [friendRequestTitleProvider]/[friendRequestBodyProvider].
+  static String Function()? friendRequestAcceptedTitleProvider;
+  static String Function(String accepterName)? friendRequestAcceptedBodyProvider;
+
+  static String get friendRequestAcceptedTitle {
+    try {
+      return friendRequestAcceptedTitleProvider?.call() ??
+          "Friend Request Accepted";
+    } catch (_) {
+      return "Friend Request Accepted";
+    }
+  }
+
+  static String friendRequestAcceptedBodyFrom(String accepterName) {
+    try {
+      return friendRequestAcceptedBodyProvider?.call(accepterName) ??
+          "$accepterName accepted your friend request";
+    } catch (_) {
+      return "$accepterName accepted your friend request";
+    }
+  }
+
   static String get invitationTitle {
     try {
       return GamicoLanguages.instance.friendPageGameInvitation;
@@ -459,6 +482,34 @@ class NotificationService {
     String friendRequestId,
   ) async {
     await AwesomeNotifications().cancel(friendRequestId.hashCode & 0x7fffffff);
+  }
+
+  /// Informational notification shown to the original sender once the other
+  /// user accepts their friend request. No action buttons, unlike
+  /// [showFriendRequestNotification] — there is nothing left to do here.
+  static Future<void> showFriendRequestAcceptedNotification({
+    required String title,
+    required String body,
+    required String accepterId,
+  }) async {
+    if (!(await allowed())) return;
+
+    try {
+      await AwesomeNotifications().createNotification(
+        content: NotificationContent(
+          id: ('accepted_$accepterId').hashCode & 0x7fffffff,
+          channelKey: 'invitations',
+          title: title,
+          body: body,
+          payload: {'accepter_id': accepterId},
+          notificationLayout: NotificationLayout.BigText,
+          wakeUpScreen: true,
+          displayOnForeground: true,
+        ),
+      );
+    } catch (e) {
+      debugPrint("Error creating friend request accepted notification: $e");
+    }
   }
 
   /// Generic ambient "whose turn" indicator for any turn-based gamico game,
@@ -582,6 +633,19 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await NotificationService.cancelFriendRequestNotification(
       message.data['friend_request_id'],
     );
+  } else if (message.data['type'] == 'friend_request_accepted') {
+    final accepterName = message.data['accepter_name'] as String?;
+    await NotificationService.showFriendRequestAcceptedNotification(
+      title:
+          message.notification?.title ??
+          NotificationService.friendRequestAcceptedTitle,
+      body:
+          message.notification?.body ??
+          NotificationService.friendRequestAcceptedBodyFrom(
+            accepterName ?? '',
+          ),
+      accepterId: message.data['accepter_id'],
+    );
   } else if (message.data['type'] == 'turn_notification') {
     await NotificationService.showTurnNotification(message.data);
   } else if (message.data['type'] == 'turn_notification_end') {
@@ -618,6 +682,19 @@ Future<void> handleForegroundMessage(RemoteMessage message) async {
   } else if (message.data['type'] == 'friend_request_cancelled') {
     await NotificationService.cancelFriendRequestNotification(
       message.data['friend_request_id'],
+    );
+  } else if (message.data['type'] == 'friend_request_accepted') {
+    final accepterName = message.data['accepter_name'] as String?;
+    await NotificationService.showFriendRequestAcceptedNotification(
+      title:
+          message.notification?.title ??
+          NotificationService.friendRequestAcceptedTitle,
+      body:
+          message.notification?.body ??
+          NotificationService.friendRequestAcceptedBodyFrom(
+            accepterName ?? '',
+          ),
+      accepterId: message.data['accepter_id'],
     );
   } else if (message.data['type'] == 'turn_notification') {
     await NotificationService.showTurnNotification(message.data);

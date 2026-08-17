@@ -1,8 +1,13 @@
+import 'package:firebase_database/firebase_database.dart';
 import 'package:gamico/commons/providers/gamico_generic_provider.dart';
 
 class GamicoGamesProvider extends GamicoGenericProvider {
-  Future<String> createGame(Map<String, dynamic> doc) {
-    return createData("games", doc);
+  Future<String> createGame(Map<String, dynamic> doc) async {
+    final id = await createData("games", doc);
+    if (id.isNotEmpty) {
+      ref.child("games/$id/last_activity_at").set(ServerValue.timestamp);
+    }
+    return id;
   }
 
   Future<Map<String, dynamic>> readGame(String id) {
@@ -32,6 +37,7 @@ class GamicoGamesProvider extends GamicoGenericProvider {
 
   Future<String> addGameEvent(
       String gameId, Map<String, dynamic> gameEventDoc) {
+    ref.child("games/$gameId/last_activity_at").set(ServerValue.timestamp);
     return createData("games/$gameId/events", gameEventDoc);
   }
 

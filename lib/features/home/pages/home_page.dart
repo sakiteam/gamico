@@ -191,14 +191,14 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
     final l = GamicoLanguages.of(context);
 
     final status = VersionService.status;
+    final forceUpdate = VersionService.forceUpdate();
 
-    if ((status != null && status.canUpdate) ||
+    if (forceUpdate ||
+        (status != null && status.canUpdate) ||
         VersionService.localVersionDeprecated()) {
       if (status != null) {
         VersionService.storeVersion = status.storeVersion;
       }
-
-      final forceUpdate = VersionService.forceUpdate();
 
       NavigationService.showPopup(
         context: context,

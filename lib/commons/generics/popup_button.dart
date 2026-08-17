@@ -12,6 +12,7 @@ class GamicoPopupButton extends StatelessWidget {
   final String? text;
   final Color? foregroundColor;
   final Color? backgroundColor;
+  final double? width;
   final double? height;
   final EdgeInsets? padding;
   final IconData? icon;
@@ -39,6 +40,7 @@ class GamicoPopupButton extends StatelessWidget {
     this.text,
     this.foregroundColor,
     this.backgroundColor,
+    this.width,
     this.height,
     this.padding,
     this.icon,
@@ -57,7 +59,7 @@ class GamicoPopupButton extends StatelessWidget {
       borderRadius: borderRadius,
       // raised: true,
       onPressed: loading ? null : onPressed,
-      width: defaultWidth,
+      width: width ?? defaultWidth,
       height: height ?? defaultHeight,
       disabledForegroundColor: disabledForegroundColor,
       disabledBackgroundColor: disabledBackgroundColor,
