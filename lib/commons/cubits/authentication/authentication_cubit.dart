@@ -154,17 +154,32 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
 
         if (snapshot.exists) {
           final data = jsonDecode(jsonEncode(snapshot.value));
+          final userData = Map<String, dynamic>.from(data.values.first);
 
           UserService.uid = data.keys.first;
 
           userCubit.setUser(
-            Gamico.instance.userFromJson(
-              Map<String, dynamic>.from(data.values.first),
-            ),
+            Gamico.instance.userFromJson(userData),
             loaded: true,
           );
 
           friendInvitationCubit.listenToInvitations();
+
+          // [GAMICO-FIX] Cloud Functions (e.g. tournament creation) resolve
+          // the caller's app account via `firebase_id`, which is otherwise
+          // only ever written once at account creation. If the Firebase Auth
+          // uid has since changed (reinstall, cleared data, auth refresh)
+          // while this profile keeps getting reattached via the stable
+          // `social_id`, `firebase_id` goes stale and those Cloud Functions
+          // silently resolve to an unrelated/ghost account instead. Keep it
+          // in sync on every sign-in so server-side lookups stay correct.
+          if (userData["firebase_id"] != firebaseId) {
+            unawaited(
+              usersRepository.usersProvider.updateUser(UserService.uid, {
+                "firebase_id": firebaseId,
+              }),
+            );
+          }
         } else {
           final user = Gamico.instance.userSettings.createNewUser(
             firebaseId,

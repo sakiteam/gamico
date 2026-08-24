@@ -640,12 +640,12 @@ class RemoteCubit extends Cubit<RemoteState> {
     attempt.roomSubscription = roomRef.onValue.listen(
       (event) {
         final value = event.snapshot.value;
-        if (value == null) return;
+        if (value == null || isClosed || _committed || _launching) return;
         final data = Map<String, dynamic>.from(
           jsonDecode(jsonEncode(value)) as Map,
         );
         final roomNextGameId = data["next_game_id"]?.toString();
-        if (roomNextGameId != attempt.gameId && !isInfinite) return;
+        if (roomNextGameId != attempt.gameId) return;
 
         final players = Map<String, dynamic>.from(
           data["players"] as Map? ?? <String, dynamic>{},
