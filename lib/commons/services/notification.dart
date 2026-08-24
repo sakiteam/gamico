@@ -4,13 +4,17 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/repositories/gamico_games_repository.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/settings/matchmaking_settings.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
 import 'package:gamico/features/adventure/utilities/remote_utility.dart';
 import 'package:gamico/features/friend/cubits/invitation_cubit.dart';
 import 'package:gamico/features/friend/models/invitation_model.dart';
+import 'package:gamico/features/remote/cubits/remote_cubit.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:gamico/commons/services/local_storage.dart';
@@ -244,39 +248,60 @@ class NotificationService {
 
       NavigationService.closePopups();
 
+      final acceptContext =
+          NavigationService.globalNavigatorKey.currentContext!;
+
+      final remoteUtility = RemoteUtility(
+        adventure: false,
+        developerAndroidId: "",
+        developerAppleId: "",
+        levelsBuilder: null,
+        matchmakingSettings: MatchmakingSettings(
+          minLevel: 0,
+          maxLevel: 0,
+          getMatchmakingLevel: (_) => 0,
+          increment: 0,
+        ),
+      );
+
+      // GamicoRemoteGamePage (built below by gamePage for a RemoteGameUtility)
+      // reads a RemoteCubit from context to drive its own replay/new-game
+      // listeners. The normal flow provides one via GamicoRemotePage, but
+      // accepting a friend invitation from a notification jumps straight to
+      // the game page, so a RemoteCubit must be provided here too - without
+      // calling init()/launch(), since there is no matchmaking to run.
+      final remoteCubit = RemoteCubit(
+        userCubit: acceptContext.read<GamicoUserCubit>(),
+        gamesRepository: acceptContext.read<GamicoGamesRepository>(),
+        remoteUtility: remoteUtility,
+        level: null,
+      );
+
       NavigationService.pushPageWithAnimation(
-        NavigationService.globalNavigatorKey.currentContext!,
-        Gamico.instance.pagesSettings.gamePage(
-          NavigationService.globalNavigatorKey.currentContext!,
-          RemoteGameUtility(
-            level: null,
-            gameId: invitationId, // remoteState.gameId,
-            fakeOpponent: false,
-            friend: true,
-            remoteUtility: RemoteUtility(
-              adventure: false,
-              developerAndroidId: "",
-              developerAppleId: "",
-              levelsBuilder: null,
-              matchmakingSettings: MatchmakingSettings(
-                minLevel: 0,
-                maxLevel: 0,
-                getMatchmakingLevel: (_) => 0,
-                increment: 0,
-              ),
+        acceptContext,
+        BlocProvider.value(
+          value: remoteCubit,
+          child: Gamico.instance.pagesSettings.gamePage(
+            acceptContext,
+            RemoteGameUtility(
+              level: null,
+              gameId: invitationId, // remoteState.gameId,
+              fakeOpponent: false,
+              friend: true,
+              remoteUtility: remoteUtility,
+              adventureUtility: null,
+              creatorOfCurrentGame: false,
+              onBackButtonPressed: () async {
+                // if (widget.remoteUtility.adventure) {
+                //   remoteCubit.setForcePop(true);
+                //   NavigationService.pop(context);
+                // } else {
+                //   remoteCubit.setAnimGame(false);
+                //   await Future.delayed(AnimationService.animationDuration);
+                //   remoteCubit.setAnimated(false);
+                // }
+              },
             ),
-            adventureUtility: null,
-            creatorOfCurrentGame: false,
-            onBackButtonPressed: () async {
-              // if (widget.remoteUtility.adventure) {
-              //   remoteCubit.setForcePop(true);
-              //   NavigationService.pop(context);
-              // } else {
-              //   remoteCubit.setAnimGame(false);
-              //   await Future.delayed(AnimationService.animationDuration);
-              //   remoteCubit.setAnimated(false);
-              // }
-            },
           ),
         ),
       );
@@ -347,7 +372,8 @@ class NotificationService {
   /// App-level providers for friend-request-accepted notification text, same
   /// rationale as [friendRequestTitleProvider]/[friendRequestBodyProvider].
   static String Function()? friendRequestAcceptedTitleProvider;
-  static String Function(String accepterName)? friendRequestAcceptedBodyProvider;
+  static String Function(String accepterName)?
+  friendRequestAcceptedBodyProvider;
 
   static String get friendRequestAcceptedTitle {
     try {
@@ -568,6 +594,50 @@ class NotificationService {
     await turnNotificationEndHandler?.call(data);
   }
 
+  /// "Your online game has started" for a player who is away from the app
+  /// while their matchmaking room fills (see `onGameCreated` in the backend).
+  /// Android only: the same push carries an APNs alert on iOS, which the OS
+  /// renders itself.
+  ///
+  /// The backend localizes the copy — gamico has no notion of the game — and
+  /// sends a fixed `notification_id`, so a game the app already announced
+  /// locally (the isolate was still alive when the table filled) is replaced
+  /// in the tray rather than shown a second time.
+  static Future<void> showGameStartedNotification(
+    Map<String, dynamic> data,
+  ) async {
+    if (!Platform.isAndroid) return;
+
+    final title = data['title'] as String?;
+    final body = data['body'] as String?;
+    if (title == null || body == null) return;
+
+    final idStr = data['notification_id'] as String?;
+    final id = int.tryParse(idStr ?? '') ?? 98;
+
+    try {
+      if (await allowed()) {
+        await AwesomeNotifications().createNotification(
+          content: NotificationContent(
+            id: id,
+            channelKey: 'default',
+            title: title,
+            body: body,
+            notificationLayout: NotificationLayout.Default,
+            category: NotificationCategory.Call,
+            wakeUpScreen: true,
+            locked: false,
+            autoDismissible: true,
+            displayOnForeground: false,
+            payload: {'game_id': data['game_id'] as String? ?? ''},
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error showing game started notification: $e");
+    }
+  }
+
   static Future<void> updateUserToken(String userId) async {
     if (!(await allowed())) return;
 
@@ -641,15 +711,15 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
           NotificationService.friendRequestAcceptedTitle,
       body:
           message.notification?.body ??
-          NotificationService.friendRequestAcceptedBodyFrom(
-            accepterName ?? '',
-          ),
+          NotificationService.friendRequestAcceptedBodyFrom(accepterName ?? ''),
       accepterId: message.data['accepter_id'],
     );
   } else if (message.data['type'] == 'turn_notification') {
     await NotificationService.showTurnNotification(message.data);
   } else if (message.data['type'] == 'turn_notification_end') {
     await NotificationService.cancelTurnNotificationById(message.data);
+  } else if (message.data['type'] == 'game_started') {
+    await NotificationService.showGameStartedNotification(message.data);
   }
 }
 
@@ -691,15 +761,15 @@ Future<void> handleForegroundMessage(RemoteMessage message) async {
           NotificationService.friendRequestAcceptedTitle,
       body:
           message.notification?.body ??
-          NotificationService.friendRequestAcceptedBodyFrom(
-            accepterName ?? '',
-          ),
+          NotificationService.friendRequestAcceptedBodyFrom(accepterName ?? ''),
       accepterId: message.data['accepter_id'],
     );
   } else if (message.data['type'] == 'turn_notification') {
     await NotificationService.showTurnNotification(message.data);
   } else if (message.data['type'] == 'turn_notification_end') {
     await NotificationService.cancelTurnNotificationById(message.data);
+  } else if (message.data['type'] == 'game_started') {
+    await NotificationService.showGameStartedNotification(message.data);
   }
 }
 

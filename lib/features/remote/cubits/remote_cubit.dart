@@ -168,6 +168,9 @@ class RemoteCubit extends Cubit<RemoteState> {
   /// Guards a single graduation write per search.
   bool _graduated = false;
 
+  /// Guards a single [enableBotFallback] arming per search.
+  bool _botFallbackArmed = false;
+
   /// Guards a single launch (the game-node listener can fire more than once).
   bool _launching = false;
 
@@ -245,6 +248,13 @@ class RemoteCubit extends Cubit<RemoteState> {
     _graduated = false;
     _launching = false;
 
+    // The new search knows nobody yet: dropping the roster (and the profiles
+    // resolved for it) is what stops the previous game's opponents from being
+    // re-displayed as "found" on the waiting page. Bumping the sequence also
+    // disowns any profile fetch still in flight for the old search.
+    _profileCache.clear();
+    _playersFoundSeq++;
+
     emit(
       state.copyWith(
         status: RemoteGameStatus.initial,
@@ -254,6 +264,10 @@ class RemoteCubit extends Cubit<RemoteState> {
         finalized: false,
         fakeOpponent: false,
         playersFound: 0,
+        playerNames: const [],
+        playerPhotos: const [],
+        countdownRemaining: () => null,
+        searchGeneration: state.searchGeneration + 1,
         // animInit: false,
         level: level == null ? null : () => level,
       ),
@@ -420,7 +434,15 @@ class RemoteCubit extends Cubit<RemoteState> {
           String? matchedGameId;
           Map<String, dynamic>? matchedPlayers;
 
-          await roomRef.runTransaction((current) {
+          final result = await roomRef.runTransaction((current) {
+            // Reset on every invocation: the handler runs once against the
+            // local cache and again against the server value, and only the
+            // last run describes what was actually committed. Leaving the
+            // previous run's batch behind is what let a speculative snapshot
+            // — taken before the last player joined — reach _graduateBatch.
+            matchedGameId = null;
+            matchedPlayers = null;
+
             if (current == null) return Transaction.abort();
             final room = Map<String, dynamic>.from(current as Map);
             final currentPlayers = Map<String, dynamic>.from(
@@ -437,7 +459,14 @@ class RemoteCubit extends Cubit<RemoteState> {
             return Transaction.success(room);
           });
 
-          if (matchedGameId != null &&
+          // Every client of the room ticks this countdown down at the same
+          // second, but exactly one transaction wins and extracts the batch;
+          // the losers abort. Only the winner may seat the batch — a loser
+          // graduating from its own (necessarily stale) view of the room
+          // would overwrite games/<id>/players with a subset of it, and the
+          // player it dropped launches into a hand nobody dealt them.
+          if (result.committed == true &&
+              matchedGameId != null &&
               matchedPlayers != null &&
               matchedPlayers!.length >= 2) {
             await _graduateBatch(attempt, matchedGameId!, matchedPlayers!);
@@ -498,6 +527,12 @@ class RemoteCubit extends Cubit<RemoteState> {
     TransactionResult result;
     try {
       result = await roomRef.runTransaction((current) {
+        // See the countdown ticker: the handler can run several times and only
+        // the last run is the committed one, so the batch it extracts (if any)
+        // must be re-derived from scratch every time.
+        matchedGameId = null;
+        matchedPlayersMap = null;
+
         final nowStr = DateTime.now().toString();
 
         final room = current == null
@@ -654,6 +689,16 @@ class RemoteCubit extends Cubit<RemoteState> {
                 .map((p) => (p as Map)["user_id"]?.toString())
                 .whereType<String>()
                 .toSet();
+
+            // The batch graduated without us. Launching anyway drops us into a
+            // table whose engines never seated us: no hand, no turn, and a
+            // defeat at the end. Go back to the pool instead — same treatment
+            // as a batch that moved on while we were reconnecting.
+            if (!realIds.contains(UserService.uid)) {
+              unawaited(_rejoinIfUnseated(attempt));
+              return;
+            }
+
             // The host is the chronologically first player still present.
             final orderedKeys = players.keys.toList()..sort();
             creator =
@@ -748,14 +793,50 @@ class RemoteCubit extends Cubit<RemoteState> {
 
     final createdAt = DateTime.now().toString();
 
-    await FirebaseDatabase.instance
-        .ref("games/$targetGameId")
-        .update(<String, dynamic>{
-          "status": "STARTED",
-          "created_at": createdAt,
-          "updated_at": createdAt,
-          "players": players,
-        });
+    // One atomic transaction, and the seats are MERGED, never replaced.
+    //
+    // Several clients of the same batch write this node and their snapshots of
+    // the room can differ by whoever joined last; a plain overwrite lets the
+    // client holding the oldest snapshot erase a real player's seat. That
+    // player still launches — the node is STARTED and it is listening on it —
+    // but is absent from `players`, so no engine ever deals it a hand: it
+    // watches the others play and is charged a defeat at the end. A union can
+    // only ever be too generous, and a seat nobody occupies is already handled
+    // by the READINESS roll-call. Keeping status and players in the same
+    // commit preserves the invariant every client relies on: when the node
+    // reads STARTED, its seats are final.
+    await FirebaseDatabase.instance.ref("games/$targetGameId").runTransaction((
+      current,
+    ) {
+      final game = current == null
+          ? <String, dynamic>{}
+          : Map<String, dynamic>.from(current as Map);
+      final seats = Map<String, dynamic>.from(
+        game["players"] as Map? ?? <String, dynamic>{},
+      );
+
+      final seatedUids = <String>{};
+      for (final seat in seats.values) {
+        if (seat is! Map) continue;
+        final uid = seat["user_id"]?.toString();
+        if (uid != null) seatedUids.add(uid);
+      }
+      for (final entry in players.entries) {
+        if (seats.containsKey(entry.key)) continue;
+        final uid = (entry.value is Map)
+            ? (entry.value as Map)["user_id"]?.toString()
+            : null;
+        // Same player under a second lobby key (a rejoin): one seat only.
+        if (uid != null && !seatedUids.add(uid)) continue;
+        seats[entry.key] = entry.value;
+      }
+
+      game["players"] = seats;
+      game["status"] = "STARTED";
+      game["created_at"] ??= createdAt;
+      game["updated_at"] = createdAt;
+      return Transaction.success(game);
+    });
   }
 
   /// Leaves every room except [winner]. Kept losing rooms would keep counting
@@ -902,6 +983,36 @@ class RemoteCubit extends Cubit<RemoteState> {
           (p) => p is Map && p["user_id"]?.toString() == UserService.uid,
         );
     if (iAmSeated || isClosed || _committed) return;
+    _rejoin(attempt);
+  }
+
+  /// Confirms, against the server, that the graduated game really did start
+  /// without us before sending the search back to the pool.
+  ///
+  /// The seats are written before the STARTED flip precisely so this never
+  /// races, but a re-read costs one round trip and makes bouncing a player who
+  /// *is* seated impossible — the failure mode a plain local check would have.
+  Future<void> _rejoinIfUnseated(_LobbyAttempt attempt) async {
+    if (isClosed || _committed || _launching) return;
+
+    try {
+      final snapshot = await FirebaseDatabase.instance
+          .ref("games/${attempt.gameId}/players")
+          .get();
+      final seats = snapshot.value;
+      final iAmSeated =
+          seats is Map &&
+          seats.values.any(
+            (p) => p is Map && p["user_id"]?.toString() == UserService.uid,
+          );
+      if (iAmSeated) return;
+    } catch (_) {
+      // Couldn't check: leave the attempt alone rather than abandon a game we
+      // may well be part of. The readiness fallback covers us either way.
+      return;
+    }
+
+    if (isClosed || _committed || _launching) return;
     _rejoin(attempt);
   }
 
@@ -1061,6 +1172,136 @@ class RemoteCubit extends Cubit<RemoteState> {
           jsonDecode(jsonEncode(result.snapshot.value)) as Map,
         );
         _onRoomStarted(attempt, room);
+        return;
+      }
+    }
+  }
+
+  /// Opt-in bot fallback for pools with more than 2 seats, where
+  /// [_manageFakeGame]'s own fallback doesn't apply (see its guard) — without
+  /// this, a table that never fills with real players waits forever.
+  ///
+  /// Arms once at least 2 real players are actually gathered (a lone searcher
+  /// isn't "the table didn't fill", it just hasn't started filling yet), then
+  /// after [after] with the pool still short of
+  /// [MatchmakingSettings.maxPlayers] real players, fills every empty seat
+  /// with a synthetic placeholder entry and graduates the room itself — same
+  /// transaction shape as a normal join filling it, so a real player racing
+  /// in at the last second still wins their seat over a bot.
+  ///
+  /// [state.countdownRemaining] ticks down during the wait, exactly like the
+  /// infinite pool's own ticker, so callers can show the same "starting in
+  /// Xs…" UI without reimplementing a timer.
+  ///
+  /// The graduated room/game node only carries placeholder seats (a unique
+  /// `user_id` of the form `bot_<key>`, nothing more) — turning an empty seat
+  /// into whatever a specific engine understands as a bot is entirely up to
+  /// the caller's own game setup, once it reads back who is actually seated.
+  void enableBotFallback({required Duration after}) async {
+    if (_botFallbackArmed) return;
+    _botFallbackArmed = true;
+
+    final settings = remoteUtility.matchmakingSettings;
+    final required = settings.maxPlayers ?? 2;
+    if (required <= 2 || settings.isInfinite) return;
+
+    if (remoteUtility.isDeveloper ||
+        appScreenshots ||
+        Gamico.instance.playSettings?.enableFakeOpponent != true) {
+      return;
+    }
+
+    if (state.playersFound < 2) {
+      await stream.firstWhere(
+        (s) => s.playersFound >= 2 || s.status == RemoteGameStatus.success,
+      );
+    }
+    if (isClosed || _committed || _graduated) return;
+    if (state.status == RemoteGameStatus.success) return;
+
+    for (int remaining = after.inSeconds; remaining > 0; remaining--) {
+      if (isClosed ||
+          _committed ||
+          _graduated ||
+          state.status == RemoteGameStatus.success) {
+        break;
+      }
+      emit(state.copyWith(countdownRemaining: () => remaining));
+      await Future.delayed(const Duration(seconds: 1));
+    }
+    if (!isClosed && state.countdownRemaining != null) {
+      emit(state.copyWith(countdownRemaining: () => null));
+    }
+
+    if (isClosed || _committed || _graduated) return;
+    if (state.status == RemoteGameStatus.success) return;
+
+    final db = FirebaseDatabase.instance;
+    final candidates = List<_LobbyAttempt>.from(_attempts)..shuffle();
+
+    for (final attempt in candidates) {
+      if (isClosed || _committed || _graduated) return;
+
+      final roomRef = db.ref("matchmakings/${attempt.roomKey}");
+      String? matchedGameId;
+      Map<String, dynamic>? matchedPlayers;
+
+      TransactionResult result;
+      try {
+        result = await roomRef.runTransaction((current) {
+          // See the countdown ticker's note: re-derive from scratch every run.
+          matchedGameId = null;
+          matchedPlayers = null;
+
+          if (current == null) return Transaction.abort();
+          final room = Map<String, dynamic>.from(current as Map);
+          if (room["status"]?.toString() != "PENDING") {
+            return Transaction.abort();
+          }
+          if (room["next_game_id"]?.toString() != attempt.gameId) {
+            return Transaction.abort();
+          }
+
+          final players = Map<String, dynamic>.from(
+            room["players"] as Map? ?? <String, dynamic>{},
+          );
+          // Already full (or emptied by a batch that just graduated): the
+          // normal path handles it, nothing for the bot fallback to do here.
+          if (players.isEmpty || players.length >= required) {
+            return Transaction.abort();
+          }
+          if (!players.containsKey(attempt.playerKey)) {
+            return Transaction.abort();
+          }
+
+          final now = DateTime.now().toString();
+          final missing = required - players.length;
+          for (int i = 0; i < missing; i++) {
+            final botKey = db.ref().push().key ?? "bot_${attempt.roomKey}_$i";
+            players[botKey] = <String, dynamic>{
+              "user_id": "bot_$botKey",
+              "status": "ACCEPTED",
+              "created_at": now,
+              "updated_at": now,
+            };
+          }
+
+          matchedPlayers = Map<String, dynamic>.from(players);
+          matchedGameId = room["next_game_id"]?.toString() ?? attempt.gameId;
+          room["players"] = <String, dynamic>{};
+          room["next_game_id"] = db.ref("games").push().key ?? "";
+          room.remove("countdown_end_at");
+          return Transaction.success(room);
+        }, applyLocally: false);
+      } catch (e) {
+        continue;
+      }
+
+      if (isClosed) return;
+      if (result.committed == true &&
+          matchedGameId != null &&
+          matchedPlayers != null) {
+        await _graduateBatch(attempt, matchedGameId!, matchedPlayers!);
         return;
       }
     }

@@ -344,9 +344,12 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         // `userCreateFakeOpponent` additionally needs a few identity fields
         // to build its synthetic opponent, so those are listened to too, but
         // only when this game actually runs in fake-opponent mode.
+        // `name`/`photo` are identity fields — they don't change for the
+        // duration of a match, so they're read once below instead of
+        // holding a live listener open on them like `online`/`coins` for
+        // the whole game.
+        const staticFields = <String>{"name", "photo"};
         final fieldsToWatch = <String>{
-          "name",
-          "photo",
           "online",
           "coins",
           if (state.fakeOpponent) ...{
@@ -358,8 +361,25 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
           },
         };
 
+        final initialFields = <String, Map<String, dynamic>>{
+          for (final id in otherPlayerIds) id: {"id": id},
+        };
+        await Future.wait([
+          for (final opponentId in otherPlayerIds)
+            for (final field in staticFields)
+              FirebaseDatabase.instance
+                  .ref()
+                  .child("users/$opponentId/$field")
+                  .get()
+                  .then((snapshot) {
+                    initialFields[opponentId]![field] = snapshot.exists
+                        ? _deepCastValue(snapshot.value)
+                        : null;
+                  }),
+        ]);
+
         for (final opponentId in otherPlayerIds) {
-          final fields = <String, dynamic>{"id": opponentId};
+          final fields = initialFields[opponentId]!;
 
           for (final field in fieldsToWatch) {
             final sub = FirebaseDatabase.instance

@@ -133,6 +133,10 @@ class NavigationService {
     required Widget Function(BuildContext) builder,
     bool draggable = true,
     bool dismissible = true,
+    // False skips the slide-up entrance, e.g. when a dialog reopens right
+    // where the player left it (returning from a cancelled matchmaking
+    // search) and shouldn't visibly "pop in" again.
+    bool animate = true,
   }) async {
     FocusManager.instance.primaryFocus?.unfocus();
     if (!context.mounted) return;
@@ -148,7 +152,15 @@ class NavigationService {
 
     currentPopupContext = context;
 
-    musicCubit?.playPopupOpenBruitage();
+    if (animate) musicCubit?.playPopupOpenBruitage();
+
+    AnimationController? instantController;
+    if (!animate) {
+      instantController = AnimationController(
+        vsync: Navigator.of(context),
+        duration: Duration.zero,
+      )..value = 1.0;
+    }
 
     await showModalBottomSheet(
       context: context,
@@ -158,7 +170,10 @@ class NavigationService {
       isScrollControlled: true,
       builder: builder,
       constraints: const BoxConstraints(),
+      transitionAnimationController: instantController,
     );
+
+    instantController?.dispose();
 
     if (currentPopupContext == context) {
       musicCubit?.playPopupCloseBruitage();

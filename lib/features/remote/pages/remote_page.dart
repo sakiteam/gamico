@@ -8,12 +8,10 @@ import 'package:gamico/languages/languages.dart';
 import 'package:gamico/commons/services/animation.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
-import 'package:gamico/commons/services/notification.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
 import 'package:gamico/features/remote/cubits/remote_cubit.dart';
 import 'package:gamico/commons/generics/dialog_poster.dart';
-import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:gamico/commons/repositories/gamico_games_repository.dart';
 
 class GamicoRemotePage extends StatefulWidget {
@@ -149,13 +147,14 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
                   await Future.delayed(AnimationService.animationDuration);
 
                   if (!mounted) return;
-                  notifyPlayers(l);
 
                   if (!remoteCubit.isClosed) {
                     remoteCubit.setFinalized(true);
                   }
                 } catch (e, stack) {
-                  debugPrint("⚠️ Exception launching remote game page: $e\n$stack");
+                  debugPrint(
+                    "⚠️ Exception launching remote game page: $e\n$stack",
+                  );
                   if (!mounted) return;
                   remoteCubit.setAnimGame(false);
                   remoteCubit.setAnimated(false);
@@ -219,26 +218,5 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
         ),
       ),
     );
-  }
-
-  void notifyPlayers(GamicoLanguages l) async {
-    if (await NotificationService.allowed()) {
-      try {
-        await AwesomeNotifications().createNotification(
-          content: NotificationContent(
-            id: 2,
-            channelKey: "default",
-            title: l.remoteInvitationTitle,
-            body: l.remoteInvitationDescription,
-            notificationLayout: NotificationLayout.BigText,
-            wakeUpScreen: true,
-            displayOnForeground: false,
-            category: NotificationCategory.Alarm,
-          ),
-        );
-      } catch (e) {
-        debugPrint("Error notifying players: $e");
-      }
-    }
   }
 }

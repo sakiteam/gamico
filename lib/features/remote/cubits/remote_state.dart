@@ -25,6 +25,13 @@ class RemoteState {
   final List<String> playerPhotos;
   final int? countdownRemaining;
 
+  /// Bumped by every [RemoteCubit.reset] — i.e. each time the search starts
+  /// over ("Nouvelle partie" after a game). The status only flickers through
+  /// [RemoteGameStatus.initial] between two synchronous emits, so widgets
+  /// never see it; this counter is the reliable "this is a brand new search"
+  /// signal for anything caching the previous search's roster.
+  final int searchGeneration;
+
   const RemoteState({
     this.status = RemoteGameStatus.initial,
     this.creator,
@@ -41,6 +48,7 @@ class RemoteState {
     this.playerNames = const [],
     this.playerPhotos = const [],
     this.countdownRemaining,
+    this.searchGeneration = 0,
   });
 
   RemoteState copyWith({
@@ -59,6 +67,7 @@ class RemoteState {
     List<String>? playerNames,
     List<String>? playerPhotos,
     int? Function()? countdownRemaining,
+    int? searchGeneration,
   }) {
     return RemoteState(
       level: level != null ? level() : this.level,
@@ -78,6 +87,7 @@ class RemoteState {
       countdownRemaining: countdownRemaining != null
           ? countdownRemaining()
           : this.countdownRemaining,
+      searchGeneration: searchGeneration ?? this.searchGeneration,
     );
   }
 }

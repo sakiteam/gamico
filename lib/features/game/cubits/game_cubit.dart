@@ -85,7 +85,17 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
   /* BEFORE GAME */
 
   Future<void> init(GamicoGameCubitSettings settings) async {
+    // A remote game can legitimately call this twice: once with a throwaway
+    // settings object to kick off matchmaking/opponent loading as early as
+    // possible, then again with the real callbacks once the concrete game
+    // cubit exists. The second call must still swap in the real settings
+    // (that's what wires up move/exit handling), but must not replay the
+    // one-time init work — restarting game music and re-running `onInit`
+    // (re-fetching the game, resubscribing opponent listeners, resending
+    // readiness) a second time.
+    final alreadyInitialized = this.settings != null;
     this.settings = settings;
+    if (alreadyInitialized) return;
 
     setAnimInit(true);
 

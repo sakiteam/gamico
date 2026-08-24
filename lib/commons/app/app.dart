@@ -120,18 +120,22 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
         [
           NotificationChannel(
             channelKey: "default",
-            channelName: "default",
-            channelDescription: "default",
+            channelName: "Généralités",
+            channelDescription: "Ces notifications servent à informer le joueur des nouveautés et de toutes les informations d'ordre général !",
+            playSound: true,
             enableVibration: true,
             channelShowBadge: true,
+            onlyAlertOnce: false,
             importance: NotificationImportance.Max,
           ),
           NotificationChannel(
             channelKey: 'invitations',
-            channelName: 'invitations',
-            channelDescription: 'invitations',
+            channelName: 'Invitations',
+            channelDescription: 'Ces notifications servent à informer le joueur des invitations reçues !',
+            playSound: true,
             enableVibration: true,
             channelShowBadge: true,
+            onlyAlertOnce: false,
             importance: NotificationImportance.Max,
           ),
           // Channel for active game turn updates.
@@ -139,9 +143,9 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
           // Android shade (NOT tucked away in "Silencieux").
           // onlyAlertOnce: true ensures silent progress updates without repeated sounds.
           NotificationChannel(
-            channelKey: 'game_turn',
-            channelName: 'Partie en cours',
-            channelDescription: 'Notifications pendant la partie',
+            channelKey: 'game',
+            channelName: 'Parties',
+            channelDescription: "Ces notifications servent à donner des informations au joueur au cours d'une partie !",
             enableVibration: false,
             playSound: false,
             onlyAlertOnce: true,

@@ -215,6 +215,11 @@ class AdmobCubit extends Cubit<AdmobState> {
   }
 
   Future<void> showRewardedAd(Function onShown) async {
+    if (_rewardedAd == null) {
+      debugPrint('⚠️ Rewarded ad not ready, skipping show');
+      return;
+    }
+
     MusicService.pausedByAd = true;
 
     try {
@@ -224,6 +229,7 @@ class AdmobCubit extends Cubit<AdmobState> {
         },
       );
     } catch (e) {
+      MusicService.pausedByAd = false;
       debugPrint('Failed to show rewarded ad: $e');
       _rewardedAd = null;
       loadRewardedAd();
@@ -231,14 +237,42 @@ class AdmobCubit extends Cubit<AdmobState> {
   }
 
   Future<void> showInterstitialAd() async {
+    if (_interstitialAd == null) {
+      // The ad may simply still be loading (right after a previous one was
+      // shown, or on the very first game of a session) — give it a short
+      // grace period instead of silently dropping the ad. Bounded so a load
+      // failure can never hang the caller, and so `MusicService.pausedByAd`
+      // (set below) never gets stuck true: `_interstitialAd?.show()` on a
+      // null ad doesn't throw, so without this guard the catch block below
+      // would never run to reset it.
+      await GamicoGlobalService.waitWhile(
+        () =>
+            _interstitialAd == null &&
+            state.interstitialAdStatus != AdmobInterstitialAdStatus.failure,
+      ).timeout(const Duration(seconds: 5), onTimeout: () {});
+    }
+
+    if (_interstitialAd == null) {
+      debugPrint('⚠️ Interstitial ad not ready, skipping show');
+      return;
+    }
+
     MusicService.pausedByAd = true;
 
     try {
       await _interstitialAd?.show();
     } catch (e) {
+      MusicService.pausedByAd = false;
       debugPrint('Failed to show interstitial ad: $e');
       _interstitialAd = null;
       loadInterstitialAd();
     }
+  }
+
+  @override
+  Future<void> close() {
+    _rewardedAd?.dispose();
+    _interstitialAd?.dispose();
+    return super.close();
   }
 }

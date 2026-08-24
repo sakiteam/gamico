@@ -104,12 +104,17 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
             acceptationText: l.homeNotificationsAllow,
             onAccepted: () async {
               if (!(await AwesomeNotifications().isNotificationAllowed())) {
-                // The native permission dialog is being presented — remember it
-                // so a later reminder knows the OS dialog has already been used.
-                NotificationService.notificationsRequested = true;
-
                 await AwesomeNotifications()
                     .requestPermissionToSendNotifications();
+
+                // Only now do we know the native dialog actually resolved —
+                // remember it so a later reminder knows the OS dialog has
+                // already been used. Setting this before the await would mark
+                // it "used" even if the request got interrupted (e.g. the app
+                // backgrounded or the process died before the OS dialog could
+                // be answered), permanently blocking the reminder flow from
+                // ever re-presenting the real native prompt.
+                NotificationService.notificationsRequested = true;
 
                 NotificationService.init();
                 NotificationService.scheduleNotificationsIfAllowed();
@@ -164,10 +169,12 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
                 await AwesomeNotifications().showNotificationConfigPage();
               } else {
                 // The native dialog was never shown — present it now.
-                NotificationService.notificationsRequested = true;
-
                 await AwesomeNotifications()
                     .requestPermissionToSendNotifications();
+
+                // See the equivalent comment in _showNotificationsPopup: only
+                // mark the dialog "used" once we know it actually resolved.
+                NotificationService.notificationsRequested = true;
               }
 
               NotificationService.notificationsAccepted =

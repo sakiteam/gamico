@@ -200,7 +200,7 @@ abstract class GamicoLanguageFr extends GamicoLanguages {
       "Les offres spéciales s'activent tous les 3 jours et ne sont valables que pendant 24h. Ne ratez pas la prochaine !";
   @override
   String get homeSpecialOfferPopupOfferLoadedDescription =>
-      "Les offres spéciales s'activent tous les 3 jours et ne sont valables que pendant 24h. Alors, qu'attendez-vous pour en profiter ?";
+      "Les offres spéciales s'activent tous les 3 jours et ne sont valables que pendant 24h. Alors, qu'attendez-vous ?";
   @override
   String get homeSpecialOfferPopupOfferLoadingDescription =>
       "Les données relatives à l'offre spéciale seront bientôt disponibles. S'il vous plaît, veuillez patienter un tout petit peu !";
