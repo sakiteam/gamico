@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/languages/languages.dart';
@@ -15,11 +16,13 @@ import 'package:gamico/commons/cubits/authentication/authentication_cubit.dart';
 
 class GamicoGlobalService {
   static String simplifyProductName(String name) {
-    return name
-        //
-        .replaceAll("(${Gamico.instance.title})", "")
-        //
-        .trim();
+    String finalName = name.replaceAll("(${Gamico.instance.title})", "");
+
+    for (final title in Gamico.instance.titles) {
+      finalName = finalName.replaceAll("($title)", "");
+    }
+
+    return finalName.trim();
   }
 
   // Random
@@ -92,8 +95,10 @@ class GamicoGlobalService {
     BuildContext context,
     void Function() function,
   ) {
-    bool authenticated =
-        context.read<AuthenticationCubit>().state.authenticated;
+    bool authenticated = context
+        .read<AuthenticationCubit>()
+        .state
+        .authenticated;
 
     if (authenticated) {
       function();

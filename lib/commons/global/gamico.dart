@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -40,6 +41,7 @@ class Gamico {
       _mobileAdsInitFuture ??= MobileAds.instance.initialize();
 
   final String title;
+  final List<String> titles;
 
   late final UserSettings userSettings;
   late final PagesSettings pagesSettings;
@@ -64,6 +66,7 @@ class Gamico {
 
   Gamico({
     required this.title,
+    this.titles = const [],
     UserSettings? userSettings,
     PagesSettings? pagesSettings,
     LanguagesSettings? languagesSettings,

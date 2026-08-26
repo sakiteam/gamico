@@ -238,6 +238,20 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     await _submitCollectorsScore(max(userDiamonds - cowries, 0));
   }
 
+  /// Emits a signal distinct from [incrementCowries]'s `cowriesUpdate` so a
+  /// "challenge completed" banner can react specifically to this event rather
+  /// than any coin gain (an ad reward or a match-win payout must not trigger
+  /// it). [gameKey] lets multiple games share this cubit without cross-firing
+  /// each other's banners.
+  void notifyChallengeCompleted(String gameKey) {
+    emit(
+      state.copyWith(
+        challengeCompletedSignal: state.challengeCompletedSignal + 1,
+        challengeCompletedGameKey: gameKey,
+      ),
+    );
+  }
+
   void updateUserProgression(Map<String, dynamic> progression) {
     if (UserService.uid.isEmpty) return;
 

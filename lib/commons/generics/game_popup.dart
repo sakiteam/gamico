@@ -64,7 +64,9 @@ class GamicoGamePopup extends StatelessWidget {
 
                 admobCubit.showRewardedAd(() {
                   context.read<GamicoUserCubit>().incrementCowries(
-                    tripleAd ? 3 : 1,
+                    tripleAd
+                        ? Gamico.instance.gameSettings.playMinimumCoins
+                        : 1,
                   );
                   context.read<GamicoGameCubit>().enabledTripleAd();
                 });
