@@ -25,6 +25,17 @@ class PlaySettings {
   )?
   onModedRemoteResult;
 
+  /// Optional veto over the generic end-of-game interstitial shown by
+  /// [GamePage]. Consulted at the moment the ad would play; returning true
+  /// holds it back.
+  ///
+  /// For host apps that run a sequence of games as one unit and own the ad
+  /// rhythm themselves — a best-of-3 tournament tie, say, where the generic
+  /// per-game ad would interrupt the run between legs and the host shows a
+  /// single ad of its own once the tie is decided. Leave null to keep the
+  /// default behaviour.
+  final bool Function()? suppressEndOfGameAd;
+
   const PlaySettings({
     required this.activePlayersLeaderboardId,
     required this.inactivePlayersLeaderboardId,
@@ -33,5 +44,6 @@ class PlaySettings {
     this.displayCongratulations = true,
     this.exitUserWhenDisconnected = true,
     this.onModedRemoteResult,
+    this.suppressEndOfGameAd,
   });
 }

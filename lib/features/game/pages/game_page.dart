@@ -263,6 +263,9 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
                   if (context.mounted &&
                       GameService.tutorialPassed &&
                       gameMode.shouldShowAds(context) &&
+                      Gamico.instance.playSettings?.suppressEndOfGameAd
+                              ?.call() !=
+                          true &&
                       userCubit.state.user?.premium != true) {
                     try {
                       if (admobCubit.state.rewardedAdStatus ==
