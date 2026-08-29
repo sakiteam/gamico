@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/foundation.dart';
 import 'package:gamico/commons/providers/gamico_generic_provider.dart';
 
 class GamicoGamesProvider extends GamicoGenericProvider {
@@ -35,10 +38,35 @@ class GamicoGamesProvider extends GamicoGenericProvider {
 
   //
 
+  // Writes the event and bumps `last_activity_at` in a single multi-path
+  // update instead of two separate round-trips — this fires on every
+  // lockstep action, heartbeat, resync, emote and chat message of every
+  // active match, so halving the write count matters.
   Future<String> addGameEvent(
-      String gameId, Map<String, dynamic> gameEventDoc) {
-    ref.child("games/$gameId/last_activity_at").set(ServerValue.timestamp);
-    return createData("games/$gameId/events", gameEventDoc);
+      String gameId, Map<String, dynamic> gameEventDoc) async {
+    try {
+      final pushRef = ref.child("games/$gameId/events").push();
+      final now = DateTime.now().toString();
+
+      final doc = Map<String, dynamic>.from(gameEventDoc);
+      doc.remove("id");
+      doc["created_at"] = now;
+      doc["updated_at"] = now;
+
+      final jsonDoc = jsonDecode(jsonEncode(doc, toEncodable: (dynamic item) {
+        return item?.toString();
+      }));
+
+      await ref.update({
+        "games/$gameId/events/${pushRef.key}": jsonDoc,
+        "games/$gameId/last_activity_at": ServerValue.timestamp,
+      });
+
+      return pushRef.key ?? "";
+    } catch (e) {
+      debugPrint("Error creating data games/$gameId/events: $e");
+      return "";
+    }
   }
 
   Future<void> removeGameEvent(String gameId, String gameEventId) {

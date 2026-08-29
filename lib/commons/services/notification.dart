@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
@@ -106,10 +107,25 @@ class NotificationService {
   static bool _initialized = false;
   static bool _subscribingToDefaultTopic = false;
 
-  static void init() async {
+  static Future<void> init() async {
     if (!(await allowed())) return;
     if (_initialized) return;
     _initialized = true;
+
+    // iOS renders an APNs alert itself even while the app is in the
+    // foreground, which duplicates what the app is already doing: the
+    // foreground handler below re-posts the ones worth seeing as local
+    // notifications, and events like `game_started` are pointless on screen
+    // (the player is being taken to the table anyway). Turning the OS-rendered
+    // foreground alert off leaves exactly one notification per event.
+    if (!kIsWeb && Platform.isIOS) {
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+            alert: false,
+            badge: false,
+            sound: false,
+          );
+    }
 
     FirebaseMessaging.onMessage.listen(handleForegroundMessage);
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);

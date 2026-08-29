@@ -43,7 +43,7 @@ class GamicoButton extends StatelessWidget {
           overlayColor: ink
               ? null
               : WidgetStateProperty.all(Colors.transparent),
-          onDoubleTap: () {},
+          // onDoubleTap: () {},
           borderRadius:
               borderRadius ?? BorderRadius.circular(defaultBorderRadius),
           onTap: () {

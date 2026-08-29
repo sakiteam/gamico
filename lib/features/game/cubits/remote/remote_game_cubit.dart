@@ -96,9 +96,20 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   Set<String> _expectedPlayerIds = {};
   Timer? _readinessFallbackTimer;
 
+  /// Grace granted to a player whose READINESS has not landed yet.
+  ///
+  /// Dropping them is a purely LOCAL verdict — nothing is written anywhere, so
+  /// the dropped device keeps dealing itself in and ends up watching a table
+  /// it holds no seat at. The game layer republishes the verdict to close that
+  /// gap, but the cheapest fix is still not to reach this point for a player
+  /// who is merely slow: the launch has to clear a page transition, a game
+  /// read and (bounded, see below) the opponent profile fetches before its
+  /// READINESS can even be sent, and 10s left no margin for a bad connection.
+  static const Duration _readinessGrace = Duration(seconds: 20);
+
   void _startReadinessFallbackTimer() {
     _readinessFallbackTimer?.cancel();
-    _readinessFallbackTimer = Timer(const Duration(seconds: 10), () {
+    _readinessFallbackTimer = Timer(_readinessGrace, () {
       if (isClosed || gameCubit.state.ready) return;
 
       final unready = _expectedPlayerIds
@@ -364,6 +375,12 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         final initialFields = <String, Map<String, dynamic>>{
           for (final id in otherPlayerIds) id: {"id": id},
         };
+        // Bounded on purpose: these reads sit on the critical path to our own
+        // READINESS (sent at the end of this callback), and `get()` bypasses
+        // the cache — a single slow or hanging one used to push READINESS past
+        // the other players' readiness grace, which drops us from THEIR tables
+        // while ours still deals us in. A name or a photo is display-only and
+        // has its own fallback downstream, so a missed one costs nothing.
         await Future.wait([
           for (final opponentId in otherPlayerIds)
             for (final field in staticFields)
@@ -375,7 +392,9 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                     initialFields[opponentId]![field] = snapshot.exists
                         ? _deepCastValue(snapshot.value)
                         : null;
-                  }),
+                  })
+                  .timeout(const Duration(seconds: 2), onTimeout: () {})
+                  .catchError((_) {}),
         ]);
 
         for (final opponentId in otherPlayerIds) {

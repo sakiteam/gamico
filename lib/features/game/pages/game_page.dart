@@ -258,7 +258,11 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
                   NavigationService.closePopups();
                   if (!context.mounted) return;
 
-                  gameMode.gamePageManageGamePopup(context);
+                  if (Gamico.instance.playSettings?.suppressEndOfGamePopup
+                          ?.call() !=
+                      true) {
+                    gameMode.gamePageManageGamePopup(context);
+                  }
 
                   if (context.mounted &&
                       GameService.tutorialPassed &&

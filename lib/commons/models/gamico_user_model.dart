@@ -32,6 +32,15 @@ class GamicoUserModel {
   final int? lastGratification;
   final int? nextGratification;
   final Map<String, dynamic>? progression;
+
+  /// The daily-open streak: `{count, last_day, best}`, where `last_day` is a
+  /// `yyyymmdd` integer in the player's local time.
+  ///
+  /// Singular and top-level on purpose. There is one streak per player, and it
+  /// lives outside [progression] because progression is rewritten wholesale on
+  /// every write — a per-open streak write must not carry every game's stats
+  /// along with it.
+  final Map<String, dynamic>? streak;
   // final Map<String, dynamic>? skins;
   final List<String>? skins;
   final bool? premium;
@@ -71,6 +80,7 @@ class GamicoUserModel {
     this.nextGratification,
     this.skins,
     this.progression,
+    this.streak,
     this.premium,
     this.activeSkin,
   });
@@ -103,6 +113,7 @@ class GamicoUserModel {
       "stars": stars,
       "skins": skins,
       "progression": progression,
+      "streak": streak,
       "premium": premium,
       "active_skin": activeSkin,
     };
@@ -174,6 +185,14 @@ class GamicoUserModel {
         _ => null,
       },
       progression: json["progression"],
+      // Tolerate a malformed node rather than throwing, which would null the
+      // whole user — the streak is cosmetic, the rest of the account is not.
+      streak: switch (json["streak"]) {
+        final Map map => map.map(
+          (key, value) => MapEntry<String, dynamic>(key.toString(), value),
+        ),
+        _ => null,
+      },
       premium: json["premium"],
       activeSkin: json["active_skin"]?.toString(),
     );

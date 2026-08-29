@@ -118,6 +118,16 @@ class GamicoUsersRepository {
     await usersProvider.updateUser(id, {"progression": progression});
   }
 
+  /// Writes only the `streak` node. Unlike [updateUserProgression] this is a
+  /// narrow update: it cannot take another part of the account down with it,
+  /// which matters for a write that fires on every app open.
+  Future<void> updateUserStreak(
+    String id,
+    Map<String, dynamic> streak,
+  ) async {
+    await usersProvider.updateUser(id, {"streak": streak});
+  }
+
   // Skins
 
   Future<void> updateUserSkins(String id, Map<String, dynamic> skins) async {

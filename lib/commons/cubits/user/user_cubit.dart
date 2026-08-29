@@ -279,6 +279,23 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     usersRepository.updateUserProgression(UserService.uid, progression);
   }
 
+  /// Persists the daily-open streak. Refuses while the user is not loaded, for
+  /// the same reason [updateUserProgression] does: the caller merges onto the
+  /// current user, and merging onto nothing would publish an empty streak.
+  void updateUserStreak(Map<String, dynamic> streak) {
+    if (UserService.uid.isEmpty) return;
+    if (state.user == null) return;
+
+    // Mirror it locally first so a read straight after the call already sees
+    // the new value, as the progression writer does.
+    final updatedUser = Gamico.instance.userFromJson(
+      state.user!.toJson()..["streak"] = streak,
+    );
+    emit(state.copyWith(user: () => updatedUser));
+
+    usersRepository.updateUserStreak(UserService.uid, streak);
+  }
+
   void updateUserSkins(Map<String, dynamic> skins) {
     if (UserService.uid.isEmpty) return;
     usersRepository.updateUserSkins(UserService.uid, skins);

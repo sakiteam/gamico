@@ -16,6 +16,7 @@ class GamicoDialogPoster extends StatelessWidget {
 
   final bool expandIcon;
   final bool expandContent;
+  final bool expandDescription;
 
   final String? acceptationText;
   final IconData? acceptationIcon;
@@ -51,6 +52,7 @@ class GamicoDialogPoster extends StatelessWidget {
     this.descriptionWidget,
     this.expandIcon = false,
     this.expandContent = true,
+    this.expandDescription = false,
     //
     this.simple = false,
     this.acceptationText,
@@ -141,6 +143,7 @@ class GamicoDialogPoster extends StatelessWidget {
       description: description,
       descriptionWidget: descriptionWidget,
       expandContent: expandContent,
+      expandDescription: expandDescription,
       expandIcon: expandIcon,
       icon: icon,
       iconWidget: iconWidget,

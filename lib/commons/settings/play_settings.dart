@@ -36,6 +36,17 @@ class PlaySettings {
   /// default behaviour.
   final bool Function()? suppressEndOfGameAd;
 
+  /// Optional veto over the generic end-of-game popup ([GamicoGamePopup])
+  /// shown by [GamePage]. Consulted the moment that popup would open;
+  /// returning true holds it back.
+  ///
+  /// For host apps whose own game already shows its own end-of-game dialog
+  /// and runs a sequence of games as one unit — same case as
+  /// [suppressEndOfGameAd] — where the generic popup would otherwise flash
+  /// on screen for a moment before being dismissed. Leave null to keep the
+  /// default behaviour.
+  final bool Function()? suppressEndOfGamePopup;
+
   const PlaySettings({
     required this.activePlayersLeaderboardId,
     required this.inactivePlayersLeaderboardId,
@@ -45,5 +56,6 @@ class PlaySettings {
     this.exitUserWhenDisconnected = true,
     this.onModedRemoteResult,
     this.suppressEndOfGameAd,
+    this.suppressEndOfGamePopup,
   });
 }
