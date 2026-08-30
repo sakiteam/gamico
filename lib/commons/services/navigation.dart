@@ -40,10 +40,17 @@ class NavigationService {
     FocusManager.instance.primaryFocus?.unfocus();
     popupsContexts.remove(context);
 
-    if (context.mounted) {
-      final nav = Navigator.maybeOf(context);
-      nav?.pop(result);
-    }
+    if (!context.mounted) return;
+
+    final nav = Navigator.maybeOf(context);
+    // canPop() == false means the navigator has no route left to pop. That
+    // happens on a second tap fired while the previous pop's exit animation is
+    // still playing: the context is still mounted and the Navigator is still
+    // findable, so neither guard above catches it, and pop() would throw
+    // "Bad state: No element" from _history.lastWhere().
+    if (nav == null || !nav.canPop()) return;
+
+    nav.pop(result);
   }
 
   static Future<void> maybePop(BuildContext context) async {

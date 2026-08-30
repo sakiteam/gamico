@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/gamico_game_model.dart';
 import 'package:gamico/commons/repositories/gamico_games_repository.dart';
+import 'package:gamico/commons/services/database_shutdown.dart';
 import 'package:gamico/commons/services/game.dart';
 import 'package:gamico/commons/services/global.dart';
 import 'package:gamico/commons/services/user.dart';
@@ -38,7 +39,26 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
              gameCubit.userCubit.state.user,
            ),
          ),
-       );
+       ) {
+    GamicoDatabaseShutdown.register(this, cancelDatabaseListeners);
+  }
+
+  /// See [GamicoDatabaseShutdown]: drops every game listener while the app is
+  /// being torn down, before the Flutter engine dies.
+  Future<void> cancelDatabaseListeners() async {
+    await newGameStreamSubscription?.cancel();
+    newGameStreamSubscription = null;
+    await opponentStreamSubscription?.cancel();
+    opponentStreamSubscription = null;
+    for (final s in opponentStreamSubscriptions) {
+      await s.cancel();
+    }
+    opponentStreamSubscriptions = [];
+    await gameEventsStreamSubscription?.cancel();
+    gameEventsStreamSubscription = null;
+    await _disconnectionPenaltySubscription?.cancel();
+    _disconnectionPenaltySubscription = null;
+  }
 
   @override
   void emit(GamicoRemoteGameState state) {
@@ -823,6 +843,8 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
   @override
   Future<void> close() {
+    GamicoDatabaseShutdown.unregister(this);
+
     _readinessFallbackTimer?.cancel();
     // Cancel all usual streams
     newGameStreamSubscription?.cancel();

@@ -7,6 +7,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:games_services/games_services.dart';
 import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/services/database_shutdown.dart';
 import 'package:gamico/commons/services/global.dart';
 import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/commons/services/play.dart';
@@ -49,6 +50,8 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     // if (UserService.authenticated) {
     //   listenToUserChanges();
     // }
+
+    GamicoDatabaseShutdown.register(this, cancelDatabaseListeners);
   }
 
   // final dynamic Function(Map<String, dynamic>) fromJson;
@@ -129,9 +132,12 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
           );
         }();
 
+        // Fire-and-forget: an achievement mirror that fails (offline, rules,
+        // a sign-out mid-flight) must not surface as an unhandled async error.
         FirebaseDatabase.instance
             .ref("users/${UserService.uid}/achievements/$id")
-            .set(percentage);
+            .set(percentage)
+            .catchError((e) => debugPrint("⚠️ achievement set error => $e"));
 
         if (percentage == 100) {
           incrementCowries(3);
@@ -448,7 +454,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     try {
       final snapshot = await FirebaseDatabase.instance
           .ref()
-          .child("users")
+          .child("profiles")
           .orderByChild("formatted_name")
           .equalTo(formattedName)
           // One extra entry so our own account never hides a real conflict.
@@ -657,6 +663,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     _streamSubscription?.cancel();
 
     if (!UserService.authenticated) return;
+    if (GamicoDatabaseShutdown.shuttingDown) return;
 
     final ref = FirebaseDatabase.instance.ref("users/${UserService.uid}");
 
@@ -794,6 +801,18 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     // }
   }
 
+  /// Drops every database listener without touching the state: called while the
+  /// app is being torn down, so no RTDB event can reach a dead engine.
+  Future<void> cancelDatabaseListeners() async {
+    _managed = false;
+    await _streamSubscription?.cancel();
+    _streamSubscription = null;
+    await _disconnectionSubscription?.cancel();
+    _disconnectionSubscription = null;
+    await _disconnectionReference?.cancel();
+    _disconnectionReference = null;
+  }
+
   void cancelUserChangesListener() {
     _managed = false;
     _streamSubscription?.cancel();
@@ -850,6 +869,8 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
   @override
   Future<void> close() {
+    GamicoDatabaseShutdown.unregister(this);
+
     _streamSubscription?.cancel();
     _disconnectionSubscription?.cancel();
     _disconnectionReference?.cancel();

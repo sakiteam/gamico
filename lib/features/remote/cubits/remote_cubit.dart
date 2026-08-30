@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/gamico_game_model.dart';
+import 'package:gamico/commons/services/database_shutdown.dart';
 import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/commons/services/layout.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -107,7 +109,21 @@ class RemoteCubit extends Cubit<RemoteState> {
     required int? level,
     this.receiverId,
     this.senderId,
-  }) : super(RemoteState(level: level));
+  }) : super(RemoteState(level: level)) {
+    GamicoDatabaseShutdown.register(this, cancelDatabaseListeners);
+  }
+
+  /// See [GamicoDatabaseShutdown]: drops every matchmaking listener while the
+  /// app is being torn down, before the Flutter engine dies.
+  Future<void> cancelDatabaseListeners() async {
+    for (final attempt in _attempts) {
+      attempt.cancelSubscriptions();
+    }
+    await _connectedSubscription?.cancel();
+    _connectedSubscription = null;
+    await _serverTimeOffsetSubscription?.cancel();
+    _serverTimeOffsetSubscription = null;
+  }
 
   /// Reference to the games repository.
   final GamicoGamesRepository gamesRepository;
@@ -805,39 +821,73 @@ class RemoteCubit extends Cubit<RemoteState> {
     // by the READINESS roll-call. Keeping status and players in the same
     // commit preserves the invariant every client relies on: when the node
     // reads STARTED, its seats are final.
-    await FirebaseDatabase.instance.ref("games/$targetGameId").runTransaction((
-      current,
+    //
+    // The write is retried: a network blip in this exact instant used to throw
+    // `[firebase_database/disconnected]` out of an unawaited future — a fatal
+    // crash — and, crash aside, left the search stuck (the guards below are
+    // already set and the other rooms already withdrawn from), so the player
+    // never entered the game they had just been matched into.
+    final gameRef = FirebaseDatabase.instance.ref("games/$targetGameId");
+
+    Future<bool> commitSeats() async {
+      await gameRef.runTransaction((current) {
+        final game = current == null
+            ? <String, dynamic>{}
+            : Map<String, dynamic>.from(current as Map);
+        final seats = Map<String, dynamic>.from(
+          game["players"] as Map? ?? <String, dynamic>{},
+        );
+
+        final seatedUids = <String>{};
+        for (final seat in seats.values) {
+          if (seat is! Map) continue;
+          final uid = seat["user_id"]?.toString();
+          if (uid != null) seatedUids.add(uid);
+        }
+        for (final entry in players.entries) {
+          if (seats.containsKey(entry.key)) continue;
+          final uid = (entry.value is Map)
+              ? (entry.value as Map)["user_id"]?.toString()
+              : null;
+          // Same player under a second lobby key (a rejoin): one seat only.
+          if (uid != null && !seatedUids.add(uid)) continue;
+          seats[entry.key] = entry.value;
+        }
+
+        game["players"] = seats;
+        game["status"] = "STARTED";
+        game["created_at"] ??= createdAt;
+        game["updated_at"] = createdAt;
+        return Transaction.success(game);
+      });
+      return true;
+    }
+
+    for (
+      var attemptIndex = 0;
+      attemptIndex < _graduationAttempts;
+      attemptIndex++
     ) {
-      final game = current == null
-          ? <String, dynamic>{}
-          : Map<String, dynamic>.from(current as Map);
-      final seats = Map<String, dynamic>.from(
-        game["players"] as Map? ?? <String, dynamic>{},
-      );
-
-      final seatedUids = <String>{};
-      for (final seat in seats.values) {
-        if (seat is! Map) continue;
-        final uid = seat["user_id"]?.toString();
-        if (uid != null) seatedUids.add(uid);
+      if (isClosed) return;
+      try {
+        if (await commitSeats()) return;
+      } catch (_) {
+        if (attemptIndex == _graduationAttempts - 1) break;
+        await Future.delayed(Duration(milliseconds: 400 * (attemptIndex + 1)));
       }
-      for (final entry in players.entries) {
-        if (seats.containsKey(entry.key)) continue;
-        final uid = (entry.value is Map)
-            ? (entry.value as Map)["user_id"]?.toString()
-            : null;
-        // Same player under a second lobby key (a rejoin): one seat only.
-        if (uid != null && !seatedUids.add(uid)) continue;
-        seats[entry.key] = entry.value;
-      }
+    }
 
-      game["players"] = seats;
-      game["status"] = "STARTED";
-      game["created_at"] ??= createdAt;
-      game["updated_at"] = createdAt;
-      return Transaction.success(game);
-    });
+    // Definitively unreachable: undo the guards so the search is not left
+    // half-committed, and surface a retryable failure instead of a crash.
+    _graduated = false;
+    _chosen = null;
+    _stopCountdownTimer();
+    attempt.cancelSubscriptions();
+    emit(state.copyWith(status: RemoteGameStatus.failure, creator: null));
   }
+
+  /// How many times the graduation write is attempted before giving up.
+  static const int _graduationAttempts = 3;
 
   /// Leaves every room except [winner]. Kept losing rooms would keep counting
   /// us towards their batches and could start a second game with a ghost.
@@ -1345,6 +1395,8 @@ class RemoteCubit extends Cubit<RemoteState> {
 
   @override
   Future<void> close() async {
+    GamicoDatabaseShutdown.unregister(this);
+
     _stopCountdownTimer();
     await abortGame();
 

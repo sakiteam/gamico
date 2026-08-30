@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gamico/commons/services/database_shutdown.dart';
 import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/features/friend/models/invitation_model.dart';
 import 'package:gamico/commons/services/notification.dart';
@@ -36,12 +37,26 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
   final Map<String, InvitationModel> _invitations = {};
 
   FriendInvitationCubit() : super(const FriendInvitationState()) {
+    GamicoDatabaseShutdown.register(this, cancelDatabaseListeners);
+
     listenToInvitations();
+  }
+
+  /// See [GamicoDatabaseShutdown]: cancels every listener while the app is
+  /// being torn down.
+  Future<void> cancelDatabaseListeners() async {
+    await _invitationSubscription?.cancel();
+    _invitationSubscription = null;
+    await _invitationChangedSubscription?.cancel();
+    _invitationChangedSubscription = null;
+    await _invitationRemovedSubscription?.cancel();
+    _invitationRemovedSubscription = null;
   }
 
   void listenToInvitations() {
     final userId = UserService.uid;
     if (userId.isEmpty) return;
+    if (GamicoDatabaseShutdown.shuttingDown) return;
 
     // [GAMICO-FIX] listenToInvitations() is called from BOTH the constructor and
     // on sign-in. Cancel every previous listener before re-subscribing, otherwise
@@ -183,6 +198,8 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
 
   @override
   Future<void> close() {
+    GamicoDatabaseShutdown.unregister(this);
+
     // [GAMICO-FIX] Cancel all three listeners (previously only onChildAdded).
     _invitationSubscription?.cancel();
     _invitationChangedSubscription?.cancel();

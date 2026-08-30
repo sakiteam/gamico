@@ -269,7 +269,11 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
             ),
           ),
           BlocProvider(lazy: false, create: (context) => InternetCubit()),
-          BlocProvider(lazy: false, create: (context) => AdmobCubit()),
+          BlocProvider(
+            lazy: false,
+            create: (context) =>
+                AdmobCubit(userCubit: context.read<GamicoUserCubit>()),
+          ),
           BlocProvider(lazy: false, create: (context) => ShowcaseCubit()),
           BlocProvider(
             lazy: false,

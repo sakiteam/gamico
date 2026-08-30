@@ -135,12 +135,23 @@ class GamicoUserModel {
       victories: json["victories"]?.toInt(),
       defeats: json["defeats"]?.toInt(),
       trophies: json["trophies"]?.toInt(),
-      achievements: json["achievements"]?.map<String, int>(
-        (key, value) => MapEntry<String, int>(
-          key.toString(),
-          int.tryParse(value.toString()) ?? 0,
+      // Firebase RTDB hands back a map with consecutive numeric keys as a
+      // list, so tolerate both forms — a throw here would null the whole user
+      // mid-game, and an achievement count is cosmetic next to that.
+      achievements: switch (json["achievements"]) {
+        final Map map => map.map<String, int>(
+          (key, value) => MapEntry<String, int>(
+            key.toString(),
+            int.tryParse(value.toString()) ?? 0,
+          ),
         ),
-      ),
+        final List list => <String, int>{
+          for (var i = 0; i < list.length; i++)
+            if (list[i] != null)
+              i.toString(): int.tryParse(list[i].toString()) ?? 0,
+        },
+        _ => null,
+      },
       firebaseId: json["firebase_id"]?.toString(),
       socialId: json["social_id"]?.toString(),
       blocked: json["blocked"],

@@ -214,9 +214,11 @@ class Gamico {
       debugPrint(e.toString());
     }
 
-    // Initialize Google Play services
+    // Initialize Google Play services. This runs before `runApp`, so it waits
+    // for the home page to be painted instead of starting right away — see
+    // [PlayService.initGameServicesWhenIdle].
     if (UserService.authenticated) {
-      PlayService.initGameServices();
+      PlayService.initGameServicesWhenIdle();
     }
   }
 }

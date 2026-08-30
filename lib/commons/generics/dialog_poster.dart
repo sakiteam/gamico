@@ -5,7 +5,7 @@ import 'package:gamico/commons/generics/poster.dart';
 import 'package:gamico/commons/generics/icon_text_button.dart';
 import 'package:gamico/languages/languages.dart';
 
-class GamicoDialogPoster extends StatelessWidget {
+class GamicoDialogPoster extends StatefulWidget {
   final IconData? icon;
   final String? title;
   final String? description;
@@ -78,76 +78,81 @@ class GamicoDialogPoster extends StatelessWidget {
   });
 
   @override
+  State<GamicoDialogPoster> createState() => _GamicoDialogPosterState();
+}
+
+class _GamicoDialogPosterState extends State<GamicoDialogPoster> {
+  // Set as soon as a button closes the dialog. A second tap can land while the
+  // exit animation is still playing (the widget stays mounted until it ends),
+  // which would fire onAccepted / onRejected twice.
+  bool _dismissed = false;
+
+  void _handlePressed(Function? callback) {
+    if (!widget.automaticClose) {
+      callback?.call();
+      return;
+    }
+
+    if (_dismissed) return;
+    _dismissed = true;
+
+    NavigationService.pop(context);
+    callback?.call();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l = GamicoLanguages.of(context);
 
     return GamicoPoster(
-      currentIconColor: iconColor,
-      currentTitleColor: titleColor,
-      currentDescriptionColor: descriptionColor,
+      currentIconColor: widget.iconColor,
+      currentTitleColor: widget.titleColor,
+      currentDescriptionColor: widget.descriptionColor,
       content:
-          content ??
+          widget.content ??
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              if (!simple)
+              if (!widget.simple)
                 GamicoIconTextButton(
-                  color: rejectionColor,
-                  onPressed: !rejectionButtonEnabled
+                  color: widget.rejectionColor,
+                  onPressed: !widget.rejectionButtonEnabled
                       ? null
-                      : () {
-                          if (automaticClose) {
-                            NavigationService.pop(context);
-                          }
-
-                          onRejected?.call();
-                        },
-                  iconData: rejectionIcon ?? Icons.close,
-                  text: rejectionText ?? l.globalCancel,
-                  iconWidget: rejectionIconWidget,
+                      : () => _handlePressed(widget.onRejected),
+                  iconData: widget.rejectionIcon ?? Icons.close,
+                  text: widget.rejectionText ?? l.globalCancel,
+                  iconWidget: widget.rejectionIconWidget,
                 ),
 
-              if (simple)
+              if (widget.simple)
                 GamicoIconTextButton(
-                  color: acceptationColor ?? ColorService.accentColor,
-                  onPressed: () {
-                    if (automaticClose) {
-                      NavigationService.pop(context);
-                    }
-
-                    onAccepted?.call();
-                  },
-                  text: acceptationText ?? l.globalOK,
-                  iconData: acceptationIcon ?? Icons.check,
-                  iconWidget: acceptationIconWidget,
+                  color: widget.acceptationColor ?? ColorService.accentColor,
+                  onPressed: () => _handlePressed(widget.onAccepted),
+                  text: widget.acceptationText ?? l.globalOK,
+                  iconData: widget.acceptationIcon ?? Icons.check,
+                  iconWidget: widget.acceptationIconWidget,
                 )
               else
                 GamicoIconTextButton(
-                  color: acceptationColor ?? ColorService.accentColor,
-                  onPressed: !acceptationButtonEnabled
+                  color: widget.acceptationColor ?? ColorService.accentColor,
+                  onPressed: !widget.acceptationButtonEnabled
                       ? null
-                      : () {
-                          if (automaticClose) {
-                            NavigationService.pop(context);
-                          }
-
-                          onAccepted?.call();
-                        },
-                  text: acceptationText ?? l.globalValidate,
-                  iconData: acceptationIcon ?? Icons.check,
-                  iconWidget: acceptationIconWidget,
+                      : () => _handlePressed(widget.onAccepted),
+                  text: widget.acceptationText ?? l.globalValidate,
+                  iconData: widget.acceptationIcon ?? Icons.check,
+                  iconWidget: widget.acceptationIconWidget,
                 ),
             ],
           ),
-      loading: loading,
-      description: description,
-      descriptionWidget: descriptionWidget,
-      expandContent: expandContent,
-      expandDescription: expandDescription,
-      expandIcon: expandIcon,
-      icon: icon,
-      iconWidget: iconWidget,
-      title: title,
+      loading: widget.loading,
+      description: widget.description,
+      descriptionWidget: widget.descriptionWidget,
+      expandContent: widget.expandContent,
+      expandDescription: widget.expandDescription,
+      expandIcon: widget.expandIcon,
+      icon: widget.icon,
+      iconWidget: widget.iconWidget,
+      title: widget.title,
     );
   }
 }

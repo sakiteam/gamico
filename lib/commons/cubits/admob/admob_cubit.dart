@@ -1,24 +1,105 @@
 import 'dart:io';
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/music.dart';
 import 'package:gamico/commons/services/global.dart';
+import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 part 'admob_state.dart';
 
 class AdmobCubit extends Cubit<AdmobState> {
-  static const Duration _retryDelay = Duration(seconds: 30);
+  /// Retries use an exponential backoff: a load failure is usually a lack of
+  /// connectivity or an empty fill, and hammering the SDK every 30s for the
+  /// whole session builds a request (and its web views) each time for nothing.
+  static const Duration _initialRetryDelay = Duration(seconds: 30);
+  static const Duration _maxRetryDelay = Duration(minutes: 5);
 
-  AdmobCubit() : super(const AdmobState()) {
+  /// How long we wait for the user to load before deciding whether to request
+  /// an interstitial. Bounded so a signed-out/guest session — where the user
+  /// never loads — still gets its ads, just a few seconds later.
+  static const Duration _premiumResolutionTimeout = Duration(seconds: 5);
+
+  AdmobCubit({GamicoUserCubit? userCubit}) : this._(userCubit);
+
+  AdmobCubit._(this._userCubit) : super(const AdmobState()) {
+    // Rewarded ads are opt-in (the user taps a button to earn something), so
+    // they are preloaded for everyone, premium included.
     loadRewardedAd();
+    _watchPremium();
     loadInterstitialAd();
   }
 
+  final GamicoUserCubit? _userCubit;
+  StreamSubscription<GamicoUserState>? _userSubscription;
+  bool _lastKnownPremium = false;
+
   RewardedAd? _rewardedAd;
   InterstitialAd? _interstitialAd;
+
+  Timer? _rewardedRetryTimer;
+  Timer? _interstitialRetryTimer;
+  Duration _rewardedRetryDelay = _initialRetryDelay;
+  Duration _interstitialRetryDelay = _initialRetryDelay;
+
+  bool get _isPremium => _userCubit?.state.user?.premium == true;
+
+  static Duration _nextDelay(Duration current) {
+    final next = current * 2;
+    return next > _maxRetryDelay ? _maxRetryDelay : next;
+  }
+
+  /// Resolves whether the current user is premium, waiting (briefly) for the
+  /// user to load when it hasn't yet — at cold start the cubit is built before
+  /// the user comes back, so reading [_isPremium] straight away would say
+  /// "not premium" for everyone.
+  Future<bool> _resolvePremium() async {
+    final userCubit = _userCubit;
+    if (userCubit == null) return false;
+    if (userCubit.state.loaded) return _isPremium;
+
+    try {
+      await userCubit.stream
+          .firstWhere((state) => state.loaded)
+          .timeout(_premiumResolutionTimeout);
+    } catch (_) {
+      // Timed out or the cubit closed: fall through on what we know.
+    }
+
+    return _isPremium;
+  }
+
+  /// Drops (or picks back up) the interstitial when the premium flag flips
+  /// mid-session — a purchase, or a subscription that lapses.
+  void _watchPremium() {
+    final userCubit = _userCubit;
+    if (userCubit == null) return;
+
+    _lastKnownPremium = _isPremium;
+    _userSubscription = userCubit.stream.listen((_) {
+      final premium = _isPremium;
+      if (premium == _lastKnownPremium) return;
+      _lastKnownPremium = premium;
+
+      if (premium) {
+        _interstitialRetryTimer?.cancel();
+        _interstitialAd?.dispose();
+        _interstitialAd = null;
+        if (!isClosed) {
+          emit(
+            state.copyWith(
+              interstitialAdStatus: AdmobInterstitialAdStatus.failure,
+            ),
+          );
+        }
+      } else if (_interstitialAd == null) {
+        loadInterstitialAd();
+      }
+    });
+  }
 
   String get androidRewardedAdUnitId =>
       Gamico.instance.admobSettings?.androidRewardedAdUnitId ?? "";
@@ -94,6 +175,7 @@ class AdmobCubit extends Cubit<AdmobState> {
             ad.dispose();
             return;
           }
+          _rewardedAd?.dispose();
           _rewardedAd = ad;
 
           ad.fullScreenContentCallback = FullScreenContentCallback(
@@ -115,6 +197,7 @@ class AdmobCubit extends Cubit<AdmobState> {
             },
           );
 
+          _rewardedRetryDelay = _initialRetryDelay;
           emit(state.copyWith(rewardedAdStatus: AdmobRewardedAdStatus.success));
         },
         onAdFailedToLoad: (error) {
@@ -123,12 +206,14 @@ class AdmobCubit extends Cubit<AdmobState> {
 
           emit(state.copyWith(rewardedAdStatus: AdmobRewardedAdStatus.failure));
 
-          Timer(_retryDelay, () {
+          _rewardedRetryTimer?.cancel();
+          _rewardedRetryTimer = Timer(_rewardedRetryDelay, () {
             if (!isClosed &&
                 state.rewardedAdStatus == AdmobRewardedAdStatus.failure) {
               loadRewardedAd();
             }
           });
+          _rewardedRetryDelay = _nextDelay(_rewardedRetryDelay);
         },
       ),
     );
@@ -140,6 +225,21 @@ class AdmobCubit extends Cubit<AdmobState> {
     } catch (_) {}
 
     if (isClosed) return;
+
+    // Premium users never see interstitials, so never build the request: at
+    // cold start it lands in the same window as the audio player and the ad
+    // web views spinning up, for an ad that would only be thrown away.
+    if (await _resolvePremium()) {
+      if (isClosed) return;
+      // Reported as a failure so `showInterstitialAd` bails out immediately
+      // instead of waiting on an ad that will never come.
+      emit(
+        state.copyWith(interstitialAdStatus: AdmobInterstitialAdStatus.failure),
+      );
+      return;
+    }
+    if (isClosed) return;
+
     emit(
       state.copyWith(interstitialAdStatus: AdmobInterstitialAdStatus.loading),
     );
@@ -153,6 +253,7 @@ class AdmobCubit extends Cubit<AdmobState> {
             ad.dispose();
             return;
           }
+          _interstitialAd?.dispose();
           _interstitialAd = ad;
 
           ad.fullScreenContentCallback = FullScreenContentCallback(
@@ -174,6 +275,7 @@ class AdmobCubit extends Cubit<AdmobState> {
             },
           );
 
+          _interstitialRetryDelay = _initialRetryDelay;
           emit(
             state.copyWith(
               interstitialAdStatus: AdmobInterstitialAdStatus.success,
@@ -190,13 +292,15 @@ class AdmobCubit extends Cubit<AdmobState> {
             ),
           );
 
-          Timer(_retryDelay, () {
+          _interstitialRetryTimer?.cancel();
+          _interstitialRetryTimer = Timer(_interstitialRetryDelay, () {
             if (!isClosed &&
                 state.interstitialAdStatus ==
                     AdmobInterstitialAdStatus.failure) {
               loadInterstitialAd();
             }
           });
+          _interstitialRetryDelay = _nextDelay(_interstitialRetryDelay);
         },
       ),
     );
@@ -231,6 +335,7 @@ class AdmobCubit extends Cubit<AdmobState> {
     } catch (e) {
       MusicService.pausedByAd = false;
       debugPrint('Failed to show rewarded ad: $e');
+      _rewardedAd?.dispose();
       _rewardedAd = null;
       loadRewardedAd();
     }
@@ -264,6 +369,7 @@ class AdmobCubit extends Cubit<AdmobState> {
     } catch (e) {
       MusicService.pausedByAd = false;
       debugPrint('Failed to show interstitial ad: $e');
+      _interstitialAd?.dispose();
       _interstitialAd = null;
       loadInterstitialAd();
     }
@@ -271,6 +377,9 @@ class AdmobCubit extends Cubit<AdmobState> {
 
   @override
   Future<void> close() {
+    _userSubscription?.cancel();
+    _rewardedRetryTimer?.cancel();
+    _interstitialRetryTimer?.cancel();
     _rewardedAd?.dispose();
     _interstitialAd?.dispose();
     return super.close();

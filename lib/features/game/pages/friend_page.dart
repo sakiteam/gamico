@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -32,6 +34,7 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
   final _searchController = TextEditingController();
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -48,8 +51,10 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
     }
   }
 
-  Future<void> _searchUsers(String query) async {
-    if (query.isEmpty) {
+  void _onSearchChanged(String query) {
+    _debounceTimer?.cancel();
+    final trimmed = query.trim();
+    if (trimmed.length < 3) {
       setState(() {
         _searchResults = [];
         _isSearching = false;
@@ -57,18 +62,38 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
       return;
     }
 
-    setState(() => _isSearching = true);
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _searchUsers(trimmed);
+    });
+  }
+
+  Future<void> _searchUsers(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.length < 3) {
+      if (mounted) {
+        setState(() {
+          _searchResults = [];
+          _isSearching = false;
+        });
+      }
+      return;
+    }
+
+    if (mounted) setState(() => _isSearching = true);
 
     try {
-      final usersRef = FirebaseDatabase.instance.ref().child('users');
+      final usersRef = FirebaseDatabase.instance.ref().child('profiles');
 
-      final simplifiedQuery = removeDiacritics(query.toLowerCase());
+      final simplifiedQuery = removeDiacritics(trimmed.toLowerCase());
 
       final snapshot = await usersRef
           .orderByChild('formatted_name')
           .startAt(simplifiedQuery)
           .endAt('$simplifiedQuery\uf8ff')
+          .limitToFirst(25)
           .get();
+
+      if (!mounted) return;
 
       if (snapshot.exists) {
         final data = snapshot.value as Map<dynamic, dynamic>;
@@ -95,6 +120,7 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _searchResults = [];
         _isSearching = false;
@@ -209,7 +235,7 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
                       filled: true,
                       fillColor: Colors.white,
                     ),
-                    onChanged: (value) => _searchUsers(value),
+                    onChanged: _onSearchChanged,
                   ),
                 ),
                 if (_isSearching)
@@ -378,6 +404,7 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     AwesomeNotifications().dispose();
     super.dispose();

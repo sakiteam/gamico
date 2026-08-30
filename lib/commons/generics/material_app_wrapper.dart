@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/cubits/gratification/gratification_cubit.dart';
 import 'package:gamico/commons/cubits/music/music_cubit.dart';
+import 'package:gamico/commons/services/database_shutdown.dart';
 import 'package:gamico/commons/services/music.dart';
 
 class GamicoMaterialAppWrapper extends StatefulWidget {
@@ -31,6 +32,18 @@ class _GamicoMaterialAppWrapperState extends State<GamicoMaterialAppWrapper>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     GamicoMaterialAppWrapper.state = state;
+
+    // The process is about to die: drop every Realtime Database listener now.
+    // The native firebase_database observers otherwise stay attached until the
+    // plugin is deallocated, and any event landing on the engine while it is
+    // being destroyed crashes the app with an NSInternalInconsistencyException
+    // out of `-[FlutterEngine sendOnChannel:]` (iOS/macOS).
+    if (state == AppLifecycleState.detached) {
+      GamicoDatabaseShutdown.cancelAll();
+    } else if (state == AppLifecycleState.resumed) {
+      // `detached` does not always kill the process on Android.
+      GamicoDatabaseShutdown.reset();
+    }
 
     final musicCubit = context.read<GamicoMusicCubit>();
 

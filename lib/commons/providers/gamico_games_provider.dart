@@ -8,7 +8,10 @@ class GamicoGamesProvider extends GamicoGenericProvider {
   Future<String> createGame(Map<String, dynamic> doc) async {
     final id = await createData("games", doc);
     if (id.isNotEmpty) {
-      ref.child("games/$id/last_activity_at").set(ServerValue.timestamp);
+      ref
+          .child("games/$id/last_activity_at")
+          .set(ServerValue.timestamp)
+          .catchError((e) => debugPrint("⚠️ last_activity_at set error => $e"));
     }
     return id;
   }

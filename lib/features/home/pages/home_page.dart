@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/game.dart';
+import 'package:gamico/commons/services/play.dart';
 import 'package:gamico/commons/services/store.dart';
 import 'package:gamico/commons/services/version.dart';
 import 'package:gamico/commons/services/navigation.dart';
@@ -41,6 +42,10 @@ class _GamicoHomePageState extends State<GamicoHomePage> {
 
   /// Init the current page.
   void _init() async {
+    // The home page is painted: the startup rush is over and it is now safe to
+    // let GameKit put its "Welcome back" banner on the main thread.
+    PlayService.notifyHomeReady();
+
     if (!mounted) return;
 
     // Route the player through the right notification flow.

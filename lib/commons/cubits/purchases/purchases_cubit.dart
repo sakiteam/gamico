@@ -40,13 +40,11 @@ class PurchasesCubit extends Cubit<PurchasesState> {
           //     purchase.pendingCompletePurchase.toString() +
           //     purchase.transactionDate.toString());
 
-          final product = _getProductById(purchase.productID);
-
           switch (purchase.status) {
             case PurchaseStatus.purchased:
               logEvent(
                 name: "iap_completed",
-                parameters: {"product": product.title},
+                parameters: {"product": _productLabel(purchase.productID)},
               );
 
               _confirmPurchase(purchase);
@@ -58,7 +56,7 @@ class PurchasesCubit extends Cubit<PurchasesState> {
             case PurchaseStatus.canceled:
               logEvent(
                 name: "iap_canceled",
-                parameters: {"product": product.title},
+                parameters: {"product": _productLabel(purchase.productID)},
               );
 
               resetStatus();
@@ -156,9 +154,18 @@ class PurchasesCubit extends Cubit<PurchasesState> {
     emit(state.copyWith(products: response.productDetails));
   }
 
-  ProductDetails _getProductById(String id) {
-    return state.products.firstWhere((element) => element.id == id);
+  /// Null when the store catalogue never resolved this id — a failed or partial
+  /// [queryProductDetails], or a restored purchase for a product since pulled
+  /// from the catalogue. Callers must degrade instead of crashing: the purchase
+  /// still has to be credited.
+  ProductDetails? _getProductById(String id) {
+    final matching = state.products.where((element) => element.id == id);
+    return matching.isEmpty ? null : matching.first;
   }
+
+  /// Analytics label for a purchase: the store title when we have it, else the
+  /// raw product id — never a reason to drop the event.
+  String _productLabel(String id) => _getProductById(id)?.title ?? id;
 
   ProductDetails? getPremiumProduct() {
     final id = Gamico.instance.purchasesSettings?.premiumProductId;
