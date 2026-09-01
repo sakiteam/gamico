@@ -1,17 +1,17 @@
 import 'package:gamico/commons/cubits/admob/admob_cubit.dart';
-import 'package:gamico/commons/generics/game_popup_stars.dart';
+import 'package:gamico/features/game/widgets/game_popup_stars.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/generics/poster.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
 import 'package:gamico/commons/generics/ad_button.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
-import 'package:gamico/commons/modes/remote_mode_settings.dart';
+import 'package:gamico/features/game/modes/remote_mode_settings.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gamico/commons/generics/game_exit_button.dart';
-import 'package:gamico/commons/generics/game_replay_button.dart';
+import 'package:gamico/features/game/widgets/game_exit_button.dart';
+import 'package:gamico/features/game/widgets/game_replay_button.dart';
 import 'package:gamico/features/game/cubits/remote/remote_game_cubit.dart';
 import 'package:gamico/languages/languages.dart';
 

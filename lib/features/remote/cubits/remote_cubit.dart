@@ -11,7 +11,7 @@ import 'package:gamico/commons/services/layout.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
-import 'package:gamico/features/adventure/utilities/remote_utility.dart';
+import 'package:gamico/commons/models/remote_utility.dart';
 import 'package:gamico/commons/repositories/gamico_games_repository.dart';
 
 part 'remote_state.dart';
@@ -674,8 +674,8 @@ class RemoteCubit extends Cubit<RemoteState> {
           data["players"] as Map? ?? <String, dynamic>{},
         );
         attempt.playerIds = players.values
-            .where((p) => p is Map)
-            .map((p) => (p as Map)["user_id"]?.toString())
+            .whereType<Map>()
+            .map((p) => p["user_id"]?.toString())
             .whereType<String>()
             .toSet();
         debugPrint("🔍 [MM] roomSub: ${players.length} players, status=${data["status"]}, countdown=${data["countdown_end_at"]}");
@@ -747,8 +747,8 @@ class RemoteCubit extends Cubit<RemoteState> {
             // as real players, or a table finished by the bot fallback would
             // be rewarded as a full human match.
             final realIds = players.values
-                .where((p) => p is Map)
-                .map((p) => (p as Map)["user_id"]?.toString())
+                .whereType<Map>()
+                .map((p) => p["user_id"]?.toString())
                 .whereType<String>()
                 .where((id) => !id.startsWith("bot_"))
                 .toSet();

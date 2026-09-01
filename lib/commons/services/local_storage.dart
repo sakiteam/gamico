@@ -86,13 +86,17 @@ class LocalStorageService {
   static set phoneNumber(String value) => setString("phone_number", value);
   static String get phoneNumber => getString("phone_number") ?? "";
 
-  // Photo URL
-  static set photoURL(String value) => setString("photo_url", value);
-  static String get photoURL => getString("photo_url") ?? "";
+  // Games counter
+  static int get games => preferences.getInt("games") ?? 0;
+  static set games(int value) => preferences.setInt("games", value);
 
-  // static void reset() {
-  //   GenericGlobalService.welcomed = false;
-  //   GenericGlobalService.authenticated = false;
-  //   GenericGlobalService.accepted = false;
-  // }
+  // Chat auto close
+  static bool get chatAutoCloseOnSend =>
+      preferences.getBool("chatAutoCloseOnSend") ?? true;
+  static set chatAutoCloseOnSend(bool value) =>
+      preferences.setBool("chatAutoCloseOnSend", value);
+
+  // Init alias for initialize
+  static Future<void> init() => initialize();
 }
+

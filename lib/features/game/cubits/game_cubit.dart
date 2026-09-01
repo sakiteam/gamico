@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:gamico/commons/enums/game_type.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/cubits/music/music_cubit.dart';
-import 'package:gamico/commons/modes/game_mode_settings.dart';
+import 'package:gamico/features/game/modes/game_mode_settings.dart';
 import 'package:gamico/commons/cubits/character/character_cubit.dart';
 import 'package:gamico/commons/utilities/message/abstract/message_utility.dart';
 import 'package:gamico/features/game/utilities/gamico_game_cubit_settings.dart';

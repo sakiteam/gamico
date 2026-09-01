@@ -1,7 +1,7 @@
 import 'package:bloc/bloc.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/game.dart';
-import 'package:gamico/features/adventure/utilities/adventure_utility.dart';
+import 'package:gamico/commons/models/adventure_utility.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:meta/meta.dart';
 

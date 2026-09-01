@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gamico/commons/generics/game_popup_stars_scaler.dart';
+import 'package:gamico/features/game/widgets/game_popup_stars_scaler.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 
 class GamePopupStars extends StatelessWidget {

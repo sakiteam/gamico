@@ -14,7 +14,6 @@ import 'package:firebase_database/firebase_database.dart';
 // import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/repositories/gamico_users_repository.dart';
-import 'package:gamico/features/friend/cubits/friend_invitation_cubit.dart';
 
 part 'authentication_state.dart';
 
@@ -23,7 +22,7 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
 
   final GamicoUserCubit userCubit;
   final GamicoUsersRepository usersRepository;
-  final FriendInvitationCubit friendInvitationCubit;
+  final void Function()? onAuthenticated;
 
   StreamSubscription<User?>? _authSubscription;
   StreamSubscription<PlayerData?>? _playerSubscription;
@@ -31,7 +30,7 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
   AuthenticationCubit({
     required this.userCubit,
     required this.usersRepository,
-    required this.friendInvitationCubit,
+    this.onAuthenticated,
   }) : super(
          AuthenticationState(
            status: AuthenticationStateStatus.initial,
@@ -163,7 +162,7 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
             loaded: true,
           );
 
-          friendInvitationCubit.listenToInvitations();
+          onAuthenticated?.call();
 
           // [GAMICO-FIX] Cloud Functions (e.g. tournament creation) resolve
           // the caller's app account via `firebase_id`, which is otherwise

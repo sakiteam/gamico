@@ -4,23 +4,10 @@ import 'package:flame/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:defer_pointer/defer_pointer.dart';
+export 'package:gamico/commons/enums/character_position.dart';
+import 'package:gamico/commons/enums/character_position.dart';
 import 'package:gamico/commons/cubits/character/character_cubit.dart';
 import 'package:gamico/commons/services/layout.dart';
-
-enum GamicoCharacterPosition {
-  topLeft,
-  topRight,
-  //
-  centerLeft,
-  centerRight,
-  //
-  bottomLeft,
-  bottomRight,
-  bottomCenter,
-  //
-  bottomLeftExtreme,
-  bottomRightExtreme,
-}
 
 class GamicoCharacter extends StatefulWidget {
   final GamicoCharacterPosition position;

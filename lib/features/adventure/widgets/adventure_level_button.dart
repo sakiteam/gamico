@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/animation.dart';
 import 'package:gamico/commons/services/navigation.dart';
+import 'package:gamico/commons/generics/coins_popup.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
 import 'package:gamico/features/adventure/cubits/adventure_cubit.dart';
@@ -105,7 +106,7 @@ class AdventureLevelButton extends StatelessWidget {
     // Check whether the user has enough coins to play or not
     if (adventureUtility.isUserBroke(user) && level == userLevel) {
       // Show unsufficient coins popup
-      NavigationService.showCowriesPopup(
+      CoinsPopup.showCowriesPopup(
         context,
         Gamico.instance.gameSettings.playMinimumCoins,
       );

@@ -15,6 +15,7 @@ import 'package:gamico/commons/settings/cache_settings.dart';
 import 'package:gamico/commons/settings/character_settings.dart';
 import 'package:gamico/commons/settings/game_settings.dart';
 import 'package:gamico/commons/settings/languages_settings.dart';
+import 'package:gamico/languages/languages.dart';
 import 'package:gamico/commons/settings/pages_settings.dart';
 import 'package:gamico/commons/settings/play_settings.dart';
 import 'package:gamico/commons/settings/gratification_settings.dart';
@@ -86,6 +87,7 @@ class Gamico {
     this.userSettings = userSettings ?? defaultUserSettings;
     this.pagesSettings = pagesSettings ?? defaultPagesSettings;
     this.languagesSettings = languagesSettings ?? defaultLanguagesSettings;
+    GamicoLanguages.instance = this.languagesSettings.en;
   }
 
   Future<void> initialize() async {

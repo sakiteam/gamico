@@ -6,17 +6,11 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/global/gamico.dart';
-import 'package:gamico/commons/repositories/gamico_games_repository.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/settings/matchmaking_settings.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
-import 'package:gamico/features/adventure/utilities/remote_utility.dart';
-import 'package:gamico/features/friend/cubits/invitation_cubit.dart';
-import 'package:gamico/features/friend/models/invitation_model.dart';
-import 'package:gamico/features/remote/cubits/remote_cubit.dart';
+import 'package:gamico/commons/models/remote_utility.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:gamico/commons/services/local_storage.dart';
@@ -24,6 +18,10 @@ import 'package:gamico/commons/services/locale.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 
 class NotificationService {
+  static void Function(BuildContext context, String invitationId)?
+      onAcceptInvitation;
+  static void Function(String invitationId)? onRejectInvitation;
+
   static bool get notificationsSet =>
       LocalStorageService.getBool("notifications_set") ?? false;
   static set notificationsSet(bool value) =>
@@ -318,91 +316,62 @@ class NotificationService {
     // the tray so the ACCEPT/REJECT buttons can't be pressed again.
     await cancelGameInvitationNotification(invitationId);
 
-    final cubit = InvitationCubit(FirebaseDatabase.instance);
-
     if (receivedAction.buttonKeyPressed == "ACCEPT") {
-      await cubit.updateInvitationStatus(
-        invitationId,
-        InvitationStatus.accepted,
-      );
-
-      NavigationService.closePopups();
+      final ref =
+          FirebaseDatabase.instance.ref().child('invitations/$invitationId');
+      await ref.update({
+        'status': 'accepted',
+        'updated_at': ServerValue.timestamp,
+      });
 
       final acceptContext =
-          NavigationService.globalNavigatorKey.currentContext!;
+          NavigationService.globalNavigatorKey.currentContext;
 
-      final remoteUtility = RemoteUtility(
-        adventure: false,
-        developerAndroidId: "",
-        developerAppleId: "",
-        levelsBuilder: null,
-        matchmakingSettings: MatchmakingSettings(
-          minLevel: 0,
-          maxLevel: 0,
-          getMatchmakingLevel: (_) => 0,
-          increment: 0,
-        ),
-      );
+      if (acceptContext != null) {
+        if (onAcceptInvitation != null) {
+          onAcceptInvitation!(acceptContext, invitationId);
+        } else {
+          NavigationService.closePopups();
 
-      // GamicoRemoteGamePage (built below by gamePage for a RemoteGameUtility)
-      // reads a RemoteCubit from context to drive its own replay/new-game
-      // listeners. The normal flow provides one via GamicoRemotePage, but
-      // accepting a friend invitation from a notification jumps straight to
-      // the game page, so a RemoteCubit must be provided here too - without
-      // calling init()/launch(), since there is no matchmaking to run.
-      final remoteCubit = RemoteCubit(
-        userCubit: acceptContext.read<GamicoUserCubit>(),
-        gamesRepository: acceptContext.read<GamicoGamesRepository>(),
-        remoteUtility: remoteUtility,
-        level: null,
-      );
-
-      NavigationService.pushPageWithAnimation(
-        acceptContext,
-        BlocProvider.value(
-          value: remoteCubit,
-          child: Gamico.instance.pagesSettings.gamePage(
-            acceptContext,
-            RemoteGameUtility(
-              level: null,
-              gameId: invitationId, // remoteState.gameId,
-              fakeOpponent: false,
-              friend: true,
-              remoteUtility: remoteUtility,
-              adventureUtility: null,
-              creatorOfCurrentGame: false,
-              onBackButtonPressed: () async {
-                // if (widget.remoteUtility.adventure) {
-                //   remoteCubit.setForcePop(true);
-                //   NavigationService.pop(context);
-                // } else {
-                //   remoteCubit.setAnimGame(false);
-                //   await Future.delayed(AnimationService.animationDuration);
-                //   remoteCubit.setAnimated(false);
-                // }
-              },
+          final remoteUtility = RemoteUtility(
+            adventure: false,
+            developerAndroidId: "",
+            developerAppleId: "",
+            levelsBuilder: null,
+            matchmakingSettings: MatchmakingSettings(
+              minLevel: 0,
+              maxLevel: 0,
+              getMatchmakingLevel: (_) => 0,
+              increment: 0,
             ),
-          ),
-        ),
-      );
+          );
 
-      // Navigate to game
-      // if (mounted) {
-      //   // Navigator.of(context).push(
-      //   //   MaterialPageRoute(
-      //   //     builder:
-      //   //         (context) => GamicoRemoteGamePage(
-      //   //           child: Container(), // Replace with your game widget
-      //   //           onBackButtonPressed: () => Navigator.of(context).pop(),
-      //   //         ),
-      //   //   ),
-      //   // );
-      // }
+          NavigationService.pushPageWithAnimation(
+            acceptContext,
+            Gamico.instance.pagesSettings.gamePage(
+              acceptContext,
+              RemoteGameUtility(
+                level: null,
+                gameId: invitationId,
+                fakeOpponent: false,
+                friend: true,
+                remoteUtility: remoteUtility,
+                adventureUtility: null,
+                creatorOfCurrentGame: false,
+                onBackButtonPressed: () async {},
+              ),
+            ),
+          );
+        }
+      }
     } else if (receivedAction.buttonKeyPressed == 'REJECT') {
-      await cubit.updateInvitationStatus(
-        invitationId,
-        InvitationStatus.rejected,
-      );
+      final ref =
+          FirebaseDatabase.instance.ref().child('invitations/$invitationId');
+      await ref.update({
+        'status': 'rejected',
+        'updated_at': ServerValue.timestamp,
+      });
+      onRejectInvitation?.call(invitationId);
     }
   }
 

@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:poly_collisions/poly_collisions.dart';
 // import 'package:gamico/features/game/utilities/ball_utility.dart';
-import 'package:gamico/features/game/utilities/polygon_utility.dart';
+import 'package:gamico/commons/utilities/math/polygon_utility.dart';
 
 class MathService {
   // final distance = 5.0 * first.speed;

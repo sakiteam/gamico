@@ -7,6 +7,7 @@ import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/music.dart';
 import 'package:gamico/commons/services/global.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
+import 'package:gamico/commons/services/local_storage.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 part 'admob_state.dart';
@@ -385,3 +386,19 @@ class AdmobCubit extends Cubit<AdmobState> {
     return super.close();
   }
 }
+
+extension ShowAdAfterGame on AdmobCubit {
+  /// Shows an interstitial once every 3 finished games, using the shared
+  /// "games" counter (bumped by callers on each game end). Only the games
+  /// this app opts into count towards it — see [LocalStorageService.games].
+  Future<void> showAdAfterGame({bool isPremium = false}) async {
+    if (isPremium) return;
+    if (LocalStorageService.games < 3) return;
+    if (state.interstitialAdStatus != AdmobInterstitialAdStatus.success) {
+      return;
+    }
+    LocalStorageService.games = 0;
+    await showInterstitialAd();
+  }
+}
+

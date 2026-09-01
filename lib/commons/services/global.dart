@@ -3,16 +3,17 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gamico/languages/languages.dart';
-import 'package:gamico/commons/global/gamico.dart';
-import 'package:gamico/commons/enums/game_type.dart';
-import 'package:gamico/commons/services/navigation.dart';
-import 'package:gamico/commons/generics/gamico_popup.dart';
-import 'package:gamico/commons/cubits/user/user_cubit.dart';
-import 'package:gamico/commons/generics/authentication_popup.dart';
-import 'package:gamico/commons/generics/dialog_poster.dart';
-import 'package:gamico/commons/cubits/internet/internet_cubit.dart';
 import 'package:gamico/commons/cubits/authentication/authentication_cubit.dart';
+import 'package:gamico/commons/cubits/internet/internet_cubit.dart';
+import 'package:gamico/commons/cubits/user/user_cubit.dart';
+import 'package:gamico/commons/enums/game_type.dart';
+import 'package:gamico/commons/generics/authentication_popup.dart';
+import 'package:gamico/commons/generics/coins_popup.dart';
+import 'package:gamico/commons/generics/dialog_poster.dart';
+import 'package:gamico/commons/generics/gamico_popup.dart';
+import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/services/navigation.dart';
+import 'package:gamico/languages/languages.dart';
 
 class GamicoGlobalService {
   static String simplifyProductName(String name) {
@@ -60,7 +61,7 @@ class GamicoGlobalService {
     return "${names.first}$code";
   }
 
-  // Execution
+  // Execution guards
 
   static void executeIfConnected(
     BuildContext context,
@@ -130,7 +131,7 @@ class GamicoGlobalService {
     if (!broke) {
       function();
     } else {
-      NavigationService.showCowriesPopup(
+      CoinsPopup.showCowriesPopup(
         context,
         Gamico.instance.gameSettings.playMinimumCoins,
       );

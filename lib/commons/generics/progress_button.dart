@@ -2,6 +2,7 @@ import 'package:gamico/commons/cubits/authentication/authentication_cubit.dart';
 import 'package:gamico/commons/cubits/gratification/gratification_cubit.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/generics/coins_widget.dart';
+import 'package:gamico/commons/generics/coins_popup.dart';
 import 'package:gamico/commons/services/animation.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/game.dart';
@@ -207,7 +208,7 @@ class _GamicoProgressButtonState extends State<GamicoProgressButton>
                           GamicoProgressButton.popupVisible = true;
                         });
 
-                        await NavigationService.showCowriesPopup(context, null);
+                        await CoinsPopup.showCowriesPopup(context, null);
 
                         if (!mounted) return;
 
@@ -223,7 +224,7 @@ class _GamicoProgressButtonState extends State<GamicoProgressButton>
                             if (GameService.tutorialPassed) {
                               return GamicoAuthenticationPopup(
                                 onSuccess: () {
-                                  NavigationService.showCowriesPopup(
+                                  CoinsPopup.showCowriesPopup(
                                     context,
                                     null,
                                   );

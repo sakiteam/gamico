@@ -10,8 +10,8 @@ import 'package:gamico/commons/services/database_shutdown.dart';
 import 'package:gamico/commons/services/game.dart';
 import 'package:gamico/commons/services/global.dart';
 import 'package:gamico/commons/services/user.dart';
-import 'package:gamico/features/adventure/utilities/adventure_utility.dart';
-import 'package:gamico/features/adventure/utilities/remote_utility.dart';
+import 'package:gamico/commons/models/adventure_utility.dart';
+import 'package:gamico/commons/models/remote_utility.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 
 part 'remote_game_state.dart';

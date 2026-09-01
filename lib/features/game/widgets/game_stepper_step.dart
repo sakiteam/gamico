@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gamico/commons/generics/game_stepper.dart';
+import 'package:gamico/features/game/widgets/game_stepper.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/generics/card.dart';
 import 'package:gamico/commons/generics/dialog_poster.dart';

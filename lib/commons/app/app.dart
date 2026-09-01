@@ -34,7 +34,10 @@ import 'package:gamico/commons/services/version.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
 import 'package:gamico/commons/generics/content_wrapper.dart';
 import 'package:gamico/commons/generics/material_app_wrapper.dart';
+import 'package:gamico/commons/models/remote_utility.dart';
+import 'package:gamico/commons/settings/matchmaking_settings.dart';
 import 'package:gamico/features/friend/cubits/friend_invitation_cubit.dart';
+import 'package:gamico/features/remote/cubits/remote_cubit.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:gamico/languages/localizations.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -166,10 +169,64 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
     loadingNotifier.value = false;
   }
 
-  /// Init state.
   @override
   void initState() {
     super.initState();
+
+    NavigationService.onPopupOpen = (ctx) {
+      try {
+        ctx.read<GamicoMusicCubit>().playPopupOpenBruitage();
+      } catch (_) {}
+    };
+    NavigationService.onPopupClose = (ctx) {
+      try {
+        ctx.read<GamicoMusicCubit>().playPopupCloseBruitage();
+      } catch (_) {}
+    };
+
+    NotificationService.onAcceptInvitation = (acceptContext, invitationId) {
+      NavigationService.closePopups();
+
+      final remoteUtility = RemoteUtility(
+        adventure: false,
+        developerAndroidId: "",
+        developerAppleId: "",
+        levelsBuilder: null,
+        matchmakingSettings: MatchmakingSettings(
+          minLevel: 0,
+          maxLevel: 0,
+          getMatchmakingLevel: (_) => 0,
+          increment: 0,
+        ),
+      );
+
+      final remoteCubit = RemoteCubit(
+        userCubit: acceptContext.read<GamicoUserCubit>(),
+        gamesRepository: acceptContext.read<GamicoGamesRepository>(),
+        remoteUtility: remoteUtility,
+        level: null,
+      );
+
+      NavigationService.pushPageWithAnimation(
+        acceptContext,
+        BlocProvider.value(
+          value: remoteCubit,
+          child: Gamico.instance.pagesSettings.gamePage(
+            acceptContext,
+            RemoteGameUtility(
+              level: null,
+              gameId: invitationId,
+              fakeOpponent: false,
+              friend: true,
+              remoteUtility: remoteUtility,
+              adventureUtility: null,
+              creatorOfCurrentGame: false,
+              onBackButtonPressed: () async {},
+            ),
+          ),
+        ),
+      );
+    };
 
     WidgetsBinding.instance.addObserver(this);
     // Clear any stale app-icon badge on launch (see [didChangeAppLifecycleState]).
@@ -263,7 +320,8 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
           BlocProvider(
             lazy: false,
             create: (context) => AuthenticationCubit(
-              friendInvitationCubit: context.read<FriendInvitationCubit>(),
+              onAuthenticated: () =>
+                  context.read<FriendInvitationCubit>().listenToInvitations(),
               userCubit: context.read<GamicoUserCubit>(),
               usersRepository: Gamico.instance.usersRepository,
             ),
@@ -382,7 +440,10 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
                 themeMode: widget.themeMode,
                 locale: localeState.locale,
                 localizationsDelegates: [
-                  const GamicoLocalizationsDelegate(),
+                  GamicoLocalizationsDelegate(
+                    loader: (locale) =>
+                        Gamico.instance.languagesSettings.forLocale(locale),
+                  ),
                   ...GlobalMaterialLocalizations.delegates,
                   ...(widget.localizationsDelegates ?? []),
                 ],

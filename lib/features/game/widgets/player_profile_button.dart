@@ -4,8 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:gamico/commons/models/gamico_user_model.dart';
-import 'package:gamico/commons/generics/game_profile_poster.dart';
-import 'package:gamico/commons/modes/adventure_mode_settings.dart';
+import 'package:gamico/features/game/widgets/game_profile_poster.dart';
+import 'package:gamico/features/game/modes/adventure_mode_settings.dart';
 
 enum GamicoPlayerProfileButtonType { local, other }
 

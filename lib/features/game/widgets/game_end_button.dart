@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
-import 'package:gamico/commons/generics/game_passed_tutorial_popup.dart';
+import 'package:gamico/features/game/widgets/game_passed_tutorial_popup.dart';
 
 class GamicoGameEndButton extends StatelessWidget {
   final Widget Function(BuildContext context, void Function() onPressed)

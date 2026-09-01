@@ -3,7 +3,7 @@ import 'package:bloc/bloc.dart';
 import 'package:gamico/commons/global/gamico.dart';
 
 import 'package:meta/meta.dart';
-import 'package:gamico/commons/generics/character.dart';
+import 'package:gamico/commons/enums/character_position.dart';
 import 'package:flame/components.dart' as flame_components;
 
 part 'character_state.dart';

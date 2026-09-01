@@ -1,23 +1,297 @@
-// ORGANISATIONNEL
+library;
 
-// Bien gérer la logique des tutos avec Gamico (supprimer la dépendance cyclique)
-// Permettre de pouvoir utiliser un utilisateur générique dans Gamico
-// Déplacer la logique de GamicoGamePage dans le cubit
-// Déplacer la logique de GamicoHomePage dans le cubit
-// Theming : pouvoir donner des couleurs (fore/back) aux IconTextButton dans tous les endroits où il le faut
-// Gérer les Achievements dans Gamico
-// Améliorer la customization des popups
-// Rendre GamicoMusicCubit facilement utilisable pour intérer d'autres musiques
+// ==========================================
+// CORE / APP / GLOBAL
+// ==========================================
+export 'commons/app/app.dart';
+export 'commons/global/gamico.dart';
+export 'commons/constants/constants.dart';
 
-// FONCTIONNEL
+// ==========================================
+// MODELS & ENUMS
+// ==========================================
+export 'commons/models/gamico_user_model.dart';
+export 'commons/models/gamico_game_model.dart';
+export 'commons/models/gamico_purchase_model.dart';
+export 'commons/models/skin_model.dart';
+export 'commons/models/adventure_utility.dart';
+export 'commons/models/remote_utility.dart';
+export 'commons/enums/game_type.dart';
+export 'commons/enums/character_position.dart';
+export 'commons/enums/message_type.dart';
 
-//  _iap.restorePurchases() a été commenté (vérifier que ça ne pose pas de problème)
-// Régler les noms des IAs jusqu'au dernier niveau
-// Permettre le chat pendant la partie
-// OptionButtonSlider doit afficher le contenu si option est enabled
-// Si Admob n'a pas été bien chargé à l'initialisation, insiter jusqu'à ce que ça prenne
-// Si user a déjà ouvert GamePopup à la fin du jeu, ne pas ouvrir encore grâce au code qui le fait automatiquement
-// Créer un Draggable et un DragTarget adaptés à Gamico
-// Gérer plus correctement le prix de l'offre à côté de l'offre spéciale
-// Améliorer la gestion des images/icônes (selon ce que le user veut) des packs et les CoinsWidget
-// Ajouter les voices pour toutes les langues
+// ==========================================
+// SETTINGS
+// ==========================================
+export 'commons/settings/about_settings.dart';
+export 'commons/settings/admob_settings.dart';
+export 'commons/settings/cache_settings.dart';
+export 'commons/settings/character_settings.dart';
+export 'commons/settings/game_settings.dart';
+export 'commons/settings/gratification_settings.dart';
+export 'commons/settings/languages_settings.dart';
+export 'commons/settings/matchmaking_settings.dart';
+export 'commons/settings/pages_settings.dart';
+export 'commons/settings/play_settings.dart';
+export 'commons/settings/purchases_settings.dart';
+export 'commons/settings/store_settings.dart';
+export 'commons/settings/tutorial_settings.dart';
+export 'commons/settings/user_settings.dart';
+
+// ==========================================
+// SERVICES & ANALYTICS
+// ==========================================
+export 'commons/analytics/analytics_utils.dart';
+export 'commons/services/animation.dart';
+export 'commons/services/collection.dart';
+export 'commons/services/color.dart';
+export 'commons/services/database_shutdown.dart';
+export 'commons/services/formatting.dart';
+export 'commons/services/game.dart';
+export 'commons/services/gif.dart';
+export 'commons/services/global.dart';
+export 'commons/services/gratification.dart';
+export 'commons/services/layout.dart';
+export 'commons/services/local_storage.dart';
+export 'commons/services/locale.dart';
+export 'commons/services/math.dart';
+export 'commons/services/music.dart';
+export 'commons/services/navigation.dart';
+export 'commons/services/notification.dart';
+export 'commons/services/paint.dart';
+export 'commons/services/play.dart';
+export 'commons/services/showcase.dart';
+export 'commons/services/store.dart';
+export 'commons/services/time_zone.dart';
+export 'commons/services/timestamp.dart';
+export 'commons/services/user.dart';
+export 'commons/services/version.dart';
+
+// ==========================================
+// REPOSITORIES & PROVIDERS
+// ==========================================
+export 'commons/repositories/gamico_users_repository.dart';
+export 'commons/repositories/gamico_games_repository.dart';
+export 'commons/repositories/gamico_purchases_repository.dart';
+export 'commons/providers/gamico_generic_provider.dart';
+export 'commons/providers/gamico_users_provider.dart';
+export 'commons/providers/gamico_games_provider.dart';
+export 'commons/providers/gamico_purchases_provider.dart';
+
+// ==========================================
+// CUBITS
+// ==========================================
+export 'commons/cubits/admob/admob_cubit.dart';
+export 'commons/cubits/authentication/authentication_cubit.dart';
+export 'commons/cubits/character/character_cubit.dart';
+export 'commons/cubits/decoration/gamico_decoration_cubit.dart';
+export 'commons/cubits/gratification/gratification_cubit.dart';
+export 'commons/cubits/internet/internet_cubit.dart';
+export 'commons/cubits/locale/locale_cubit.dart';
+export 'commons/cubits/music/music_cubit.dart';
+export 'commons/cubits/purchases/purchases_cubit.dart';
+export 'commons/cubits/referral/referral_cubit.dart';
+export 'commons/cubits/showcase/showcase_cubit.dart';
+export 'commons/cubits/user/user_cubit.dart';
+
+// ==========================================
+// GENERICS (UI Widgets)
+// ==========================================
+export 'commons/generics/ad_button.dart';
+export 'commons/generics/animated_number.dart';
+export 'commons/generics/authentication_popup.dart';
+export 'commons/generics/beam.dart';
+export 'commons/generics/button.dart';
+export 'commons/generics/card.dart';
+export 'commons/generics/character.dart';
+export 'commons/generics/coins_popup.dart';
+export 'commons/generics/coins_store_poster.dart';
+export 'commons/generics/coins_widget.dart';
+export 'commons/generics/confetti.dart';
+export 'commons/generics/content_container.dart';
+export 'commons/generics/content_wrapper.dart';
+export 'commons/generics/dialog_poster.dart';
+export 'commons/generics/disabler.dart';
+export 'commons/generics/elevated_button.dart';
+export 'commons/generics/elevated_container.dart';
+export 'commons/generics/fader.dart';
+export 'commons/generics/finger.dart';
+export 'commons/generics/finite_scaler.dart';
+export 'commons/generics/gamico_popup.dart';
+export 'commons/generics/gamico_shaker.dart';
+export 'commons/generics/gratification_poster.dart';
+export 'commons/generics/grey_tinter.dart';
+export 'commons/generics/grid.dart';
+export 'commons/generics/icon_button.dart';
+export 'commons/generics/icon_text_button.dart';
+export 'commons/generics/image.dart';
+export 'commons/generics/infinite_rotater.dart';
+export 'commons/generics/info_line.dart';
+export 'commons/generics/loader.dart';
+export 'commons/generics/loading_poster.dart';
+export 'commons/generics/locker.dart';
+export 'commons/generics/material_app_wrapper.dart';
+export 'commons/generics/multi_progress_indicator.dart';
+export 'commons/generics/music_button.dart';
+export 'commons/generics/normal_golden_ratio.dart';
+export 'commons/generics/only_one_pointer_recognizer_widget.dart';
+export 'commons/generics/outlined_icon.dart';
+export 'commons/generics/outlined_image.dart';
+export 'commons/generics/outlined_text.dart';
+export 'commons/generics/page_indicator.dart';
+export 'commons/generics/pop_scope.dart';
+export 'commons/generics/popup_button.dart';
+export 'commons/generics/poster.dart';
+export 'commons/generics/premium_button.dart';
+export 'commons/generics/premium_poster.dart';
+export 'commons/generics/progress_bar.dart';
+export 'commons/generics/progress_button.dart';
+export 'commons/generics/purchase_button.dart';
+export 'commons/generics/reversed_golden_ratio.dart';
+export 'commons/generics/scaler.dart';
+export 'commons/generics/scroll_behavior.dart';
+export 'commons/generics/shape_clipper.dart';
+export 'commons/generics/shimmer.dart';
+export 'commons/generics/showcase_tooltip.dart';
+export 'commons/generics/showcase_widget.dart';
+export 'commons/generics/simple_page_view.dart';
+export 'commons/generics/simple_popup.dart';
+export 'commons/generics/special_offer_poster.dart';
+export 'commons/generics/tinter.dart';
+export 'commons/generics/user_photo.dart';
+export 'commons/widgets/heartbeat.dart';
+
+// ==========================================
+// UTILITIES
+// ==========================================
+export 'commons/utilities/couple/couple_utility.dart';
+export 'commons/utilities/game/game_utility.dart';
+export 'commons/utilities/math/polygon_utility.dart';
+export 'commons/utilities/message/abstract/message_utility.dart';
+export 'commons/utilities/message/concrete/awesome_message_utility.dart';
+export 'commons/utilities/message/concrete/congratulations_message_utility.dart';
+export 'commons/utilities/message/concrete/excellent_message_utility.dart';
+export 'commons/utilities/message/concrete/good_message_utility.dart';
+export 'commons/utilities/message/concrete/great_message_utility.dart';
+export 'commons/utilities/message/concrete/magnificent_message_utility.dart';
+export 'commons/utilities/message/concrete/masterful_message_utility.dart';
+export 'commons/utilities/progress/progress_utility.dart';
+export 'commons/utilities/share/gamico_share_utility.dart';
+export 'commons/utilities/tutorial/tutorial_lesson_utility.dart';
+export 'commons/utilities/tutorial/tutorial_step_utility.dart';
+
+// ==========================================
+// FEATURES
+// ==========================================
+// Feature: Game
+export 'features/game/cubits/game_cubit.dart';
+export 'features/game/cubits/adventure/adventure_game_cubit.dart';
+export 'features/game/cubits/pass_and_play/pass_and_play_game_cubit.dart';
+export 'features/game/cubits/remote/remote_game_cubit.dart';
+export 'features/game/cubits/tutorial/tutorial_game_cubit.dart';
+export 'features/game/modes/game_mode_settings.dart';
+export 'features/game/modes/adventure_mode_settings.dart';
+export 'features/game/modes/pass_and_play_mode_settings.dart';
+export 'features/game/modes/remote_mode_settings.dart';
+export 'features/game/modes/tutorial_mode_settings.dart';
+export 'features/game/pages/game_page.dart';
+export 'features/game/pages/adventure_game_page.dart';
+export 'features/game/pages/pass_and_play_game_page.dart';
+export 'features/game/pages/remote_game_page.dart';
+export 'features/game/pages/tutorial_game_page.dart';
+export 'features/game/utilities/gamico_game_cubit_settings.dart';
+export 'features/game/utilities/replay_utility.dart';
+export 'features/game/utilities/tile_utility.dart';
+export 'features/game/widgets/game_abandonment_button.dart';
+export 'features/game/widgets/game_back_button.dart';
+export 'features/game/widgets/game_confetti.dart';
+export 'features/game/widgets/game_congratulations_text.dart';
+export 'features/game/widgets/game_congratulations_tutorial_popup.dart';
+export 'features/game/widgets/game_end_button.dart';
+export 'features/game/widgets/game_exit_button.dart';
+export 'features/game/widgets/game_explanation_popup.dart';
+export 'features/game/widgets/game_initial_tutorial_popup.dart';
+export 'features/game/widgets/game_line.dart';
+export 'features/game/widgets/game_next_lesson_button.dart';
+export 'features/game/widgets/game_option_button_slider.dart';
+export 'features/game/widgets/game_pass_button.dart';
+export 'features/game/widgets/game_passed_tutorial_popup.dart';
+export 'features/game/widgets/game_popup.dart';
+export 'features/game/widgets/game_popup_stars.dart';
+export 'features/game/widgets/game_popup_stars_scaler.dart';
+export 'features/game/widgets/game_profile_poster.dart';
+export 'features/game/widgets/game_progress_tutorial_popup.dart';
+export 'features/game/widgets/game_remote_loader.dart';
+export 'features/game/widgets/game_replay_button.dart';
+export 'features/game/widgets/game_stars.dart';
+export 'features/game/widgets/game_stepper.dart';
+export 'features/game/widgets/game_stepper_step.dart';
+export 'features/game/widgets/game_time_indicator.dart';
+export 'features/game/widgets/player_profile_button.dart';
+
+// Feature: Adventure
+export 'features/adventure/cubits/adventure_cubit.dart';
+export 'features/adventure/pages/adventure_page.dart';
+export 'features/adventure/widgets/adventure_chapters_page_view.dart';
+export 'features/adventure/widgets/adventure_level_button.dart';
+export 'features/adventure/widgets/adventure_page_indicator.dart';
+
+// Feature: Friend
+export 'features/friend/cubits/friend_invitation_cubit.dart';
+export 'features/friend/cubits/invitation_cubit.dart';
+export 'features/friend/models/invitation_model.dart';
+export 'features/friend/pages/friend_page.dart';
+
+// Feature: Home
+export 'features/home/pages/home_page.dart';
+export 'features/home/widgets/about_button.dart';
+export 'features/home/widgets/help_button.dart';
+export 'features/home/widgets/profile_button.dart';
+export 'features/home/widgets/translation_button.dart';
+export 'features/home/widgets/home_about_popup.dart';
+export 'features/home/widgets/home_help_popup.dart';
+export 'features/home/widgets/home_help_popup_wooden_button.dart';
+export 'features/home/widgets/home_profile_popup.dart';
+export 'features/home/widgets/home_translation_flag.dart';
+export 'features/home/widgets/home_translation_popup.dart';
+
+// Feature: Remote
+export 'features/remote/cubits/remote_cubit.dart';
+export 'features/remote/pages/remote_page.dart';
+export 'features/remote/widgets/remote_dynamic_poster.dart';
+export 'features/remote/widgets/remote_failure_poster.dart';
+export 'features/remote/widgets/remote_impossible_game_poster.dart';
+export 'features/remote/widgets/remote_new_game_poster.dart';
+export 'features/remote/widgets/remote_search_poster.dart';
+
+// ==========================================
+// LANGUAGES (i18n)
+// ==========================================
+export 'languages/languages.dart';
+export 'languages/localizations.dart';
+export 'languages/language_bn.dart';
+export 'languages/language_de.dart';
+export 'languages/language_en.dart';
+export 'languages/language_es.dart';
+export 'languages/language_fr.dart';
+export 'languages/language_hi.dart';
+export 'languages/language_pt.dart';
+export 'languages/language_ru.dart';
+export 'languages/language_zh.dart';
+
+// ==========================================
+// NOTES & ROADMAP
+// ==========================================
+// ORGANISATIONNEL :
+// - Bien gérer la logique des tutos avec Gamico (supprimer la dépendance cyclique)
+// - Permettre de pouvoir utiliser un utilisateur générique dans Gamico
+// - Déplacer la logique de GamicoGamePage dans le cubit
+// - Déplacer la logique de GamicoHomePage dans le cubit
+// - Theming : pouvoir donner des couleurs (fore/back) aux IconTextButton dans tous les endroits où il le faut
+// - Rendre GamicoMusicCubit facilement utilisable pour intégrer d'autres musiques
+//
+// FONCTIONNEL :
+// - _iap.restorePurchases() a été commenté (vérifier que ça ne pose pas de problème)
+// - OptionButtonSlider doit afficher le contenu si option est enabled
+// - Si user a déjà ouvert GamePopup à la fin du jeu, ne pas ouvrir encore grâce au code qui le fait automatiquement
+// - Gérer plus correctement le prix de l'offre à côté de l'offre spéciale

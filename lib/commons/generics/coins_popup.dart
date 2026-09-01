@@ -10,6 +10,7 @@ import 'package:gamico/commons/generics/gratification_poster.dart';
 import 'package:gamico/commons/generics/special_offer_poster.dart';
 import 'package:gamico/commons/generics/premium_poster.dart';
 import 'package:gamico/commons/generics/ad_button.dart';
+import 'package:gamico/commons/services/navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -22,6 +23,17 @@ class CoinsPopup extends StatefulWidget {
   final int? minimumRequiredCowries;
 
   const CoinsPopup({super.key, required this.minimumRequiredCowries});
+
+  static Future<void> showCowriesPopup(
+    BuildContext context, [
+    int? minimumRequiredCowries,
+  ]) async {
+    await NavigationService.showPopup(
+      context: context,
+      builder: (_) =>
+          CoinsPopup(minimumRequiredCowries: minimumRequiredCowries),
+    );
+  }
 
   @override
   State<CoinsPopup> createState() => _CoinsPopupState();

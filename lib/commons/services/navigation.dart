@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:gamico/commons/generics/coins_popup.dart';
-import 'package:gamico/commons/cubits/music/music_cubit.dart';
 import 'package:gamico/commons/services/animation.dart';
 
 class NavigationService {
@@ -11,6 +8,9 @@ class NavigationService {
   static BuildContext? currentPopupContext;
 
   static List<BuildContext> popupsContexts = [];
+
+  static void Function(BuildContext context)? onPopupOpen;
+  static void Function(BuildContext context)? onPopupClose;
 
   static Future<void> push(BuildContext context, Widget page) async {
     FocusManager.instance.primaryFocus?.unfocus();
@@ -148,18 +148,13 @@ class NavigationService {
     FocusManager.instance.primaryFocus?.unfocus();
     if (!context.mounted) return;
 
-    GamicoMusicCubit? musicCubit;
-    try {
-      musicCubit = context.read<GamicoMusicCubit>();
-    } catch (_) {}
-
     closePopups();
 
     popupsContexts.add(context);
 
     currentPopupContext = context;
 
-    if (animate) musicCubit?.playPopupOpenBruitage();
+    if (animate) onPopupOpen?.call(context);
 
     AnimationController? instantController;
     if (!animate) {
@@ -183,27 +178,9 @@ class NavigationService {
     instantController?.dispose();
 
     if (currentPopupContext == context) {
-      musicCubit?.playPopupCloseBruitage();
+      onPopupClose?.call(context);
     }
 
     popupsContexts.remove(context);
-  }
-
-  // static void removeContextFromStack(BuildContext context) {
-  //   if (GlobalService.currentPopupContext == context) {
-  //     GlobalService.currentPopupContext = null;
-  //     context.read<MusicCubit>().playPopupCloseBruitage();
-  //   }
-  // }
-
-  static Future<void> showCowriesPopup(
-    BuildContext context,
-    int? minimumRequiredCowries,
-  ) async {
-    await NavigationService.showPopup(
-      context: context,
-      builder: (_) =>
-          CoinsPopup(minimumRequiredCowries: minimumRequiredCowries),
-    );
   }
 }

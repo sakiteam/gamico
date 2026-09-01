@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/enums/game_type.dart';
-import 'package:gamico/commons/generics/game_exit_button.dart';
-import 'package:gamico/commons/generics/game_replay_button.dart';
+import 'package:gamico/features/game/widgets/game_exit_button.dart';
+import 'package:gamico/features/game/widgets/game_replay_button.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/gamico_user_model.dart';
-import 'package:gamico/commons/modes/adventure_mode_settings.dart';
-import 'package:gamico/commons/modes/pass_and_play_mode_settings.dart';
-import 'package:gamico/commons/modes/remote_mode_settings.dart';
-import 'package:gamico/commons/modes/tutorial_mode_settings.dart';
+import 'package:gamico/features/game/modes/adventure_mode_settings.dart';
+import 'package:gamico/features/game/modes/pass_and_play_mode_settings.dart';
+import 'package:gamico/features/game/modes/remote_mode_settings.dart';
+import 'package:gamico/features/game/modes/tutorial_mode_settings.dart';
 
 import 'package:gamico/commons/services/game.dart';
-import 'package:gamico/features/adventure/utilities/adventure_utility.dart';
+import 'package:gamico/commons/models/adventure_utility.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 
 bool shouldShowAdsInAdventureGame(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
-import 'package:gamico/features/adventure/utilities/remote_utility.dart';
-import 'package:gamico/features/adventure/utilities/adventure_utility.dart';
+import 'package:gamico/commons/models/remote_utility.dart';
+import 'package:gamico/commons/models/adventure_utility.dart';
 
 @immutable
 class PagesSettings {

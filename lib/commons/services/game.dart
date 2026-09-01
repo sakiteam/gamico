@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/layout.dart';
 import 'package:gamico/commons/services/local_storage.dart';
-import 'package:gamico/features/game/utilities/polygon_utility.dart';
+import 'package:gamico/commons/utilities/math/polygon_utility.dart';
 
 class GameService {
   static bool get gameSkipped =>

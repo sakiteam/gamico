@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gamico/languages/languages.dart';
 import 'package:gamico/languages/language_bn.dart';
 import 'package:gamico/languages/language_de.dart';
 import 'package:gamico/languages/language_en.dart';
@@ -32,6 +33,20 @@ class LanguagesSettings {
     required this.ru,
     required this.pt,
   });
+
+  GamicoLanguages forLocale(Locale locale) {
+    return switch (locale.languageCode) {
+      "fr" => fr,
+      "zh" => zh,
+      "hi" => hi,
+      "es" => es,
+      "de" => de,
+      "bn" => bn,
+      "ru" => ru,
+      "pt" => pt,
+      _ => en,
+    };
+  }
 }
 
 final defaultLanguagesSettings = LanguagesSettings(

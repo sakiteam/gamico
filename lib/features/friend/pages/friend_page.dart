@@ -7,16 +7,15 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 
 import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/models/remote_utility.dart';
 import 'package:gamico/commons/services/layout.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/commons/settings/matchmaking_settings.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
-import 'package:gamico/features/adventure/utilities/remote_utility.dart';
 import 'package:gamico/features/friend/cubits/friend_invitation_cubit.dart';
 import 'package:gamico/features/friend/cubits/invitation_cubit.dart';
 import 'package:gamico/features/friend/models/invitation_model.dart';
-// import 'package:gamico/features/game/pages/remote_game_page.dart';
 import 'package:gamico/commons/repositories/gamico_users_repository.dart';
 import 'package:gamico/commons/providers/gamico_users_provider.dart';
 import 'package:gamico/languages/languages.dart';

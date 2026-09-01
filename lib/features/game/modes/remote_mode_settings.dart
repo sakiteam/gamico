@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
-import 'package:gamico/commons/generics/game_exit_button.dart';
-import 'package:gamico/commons/generics/game_replay_button.dart';
+import 'package:gamico/features/game/widgets/game_exit_button.dart';
+import 'package:gamico/features/game/widgets/game_replay_button.dart';
 import 'package:gamico/commons/generics/icon_text_button.dart';
 import 'package:gamico/commons/generics/loader.dart';
 import 'package:gamico/commons/generics/simple_page_view.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/gamico_user_model.dart';
-import 'package:gamico/commons/modes/game_mode_settings.dart';
+import 'package:gamico/features/game/modes/game_mode_settings.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/services/user.dart';

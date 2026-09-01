@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/generics/poster.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
-import 'package:gamico/commons/generics/game_next_lesson_button.dart';
+import 'package:gamico/features/game/widgets/game_next_lesson_button.dart';
 import 'package:gamico/features/game/cubits/tutorial/tutorial_game_cubit.dart';
 import 'package:gamico/languages/languages.dart';
 

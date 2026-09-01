@@ -1,27 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:gamico/languages/languages.dart';
-import 'package:gamico/commons/global/gamico.dart';
 
 /// Custom localizations delegate for the game.
 class GamicoLocalizationsDelegate
     extends LocalizationsDelegate<GamicoLanguages> {
+  final GamicoLanguages Function(Locale locale)? loader;
+
   /// Custom localizations delegate for the game.
-  const GamicoLocalizationsDelegate();
+  const GamicoLocalizationsDelegate({this.loader});
 
   @override
   Future<GamicoLanguages> load(Locale locale) async {
-    return switch (locale.languageCode) {
-      "en" => Gamico.instance.languagesSettings.en,
-      "fr" => Gamico.instance.languagesSettings.fr,
-      "zh" => Gamico.instance.languagesSettings.zh,
-      "hi" => Gamico.instance.languagesSettings.hi,
-      "es" => Gamico.instance.languagesSettings.es,
-      "de" => Gamico.instance.languagesSettings.de,
-      "bn" => Gamico.instance.languagesSettings.bn,
-      "ru" => Gamico.instance.languagesSettings.ru,
-      "pt" => Gamico.instance.languagesSettings.pt,
-      _ => Gamico.instance.languagesSettings.en,
-    };
+    if (loader != null) {
+      return loader!(locale);
+    }
+    return GamicoLanguages.instance;
   }
 
   @override
