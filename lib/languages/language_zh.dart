@@ -219,6 +219,15 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "连接问题！";
 
   @override
+  String get premiumPopupTitle => "高级模式";
+  @override
+  String get premiumPopupDescription => "解锁完整版以移除所有广告！";
+  @override
+  String get premiumPlayer => "高级玩家";
+  @override
+  String get nonPremiumPlayer => "非高级玩家";
+
+  @override
   String get homeHelpBasicsA => "蓝色王国面对橙色王国。";
   @override
   String get homeHelpBasicsB => "可以通过改变敌方领主的颜色来获胜。";

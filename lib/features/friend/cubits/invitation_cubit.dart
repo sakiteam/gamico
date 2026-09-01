@@ -11,9 +11,21 @@ part 'invitation_state.dart';
 
 class InvitationCubit extends Cubit<InvitationState> {
   final FirebaseDatabase _database;
-  StreamSubscription? _receivedInvitationSubscription;
-  StreamSubscription? _sentInvitationSubscription;
+
+  /// Three child listeners each (added/changed/removed) — see
+  /// [_watchInvitations].
+  List<StreamSubscription> _receivedInvitationSubscriptions = const [];
+  List<StreamSubscription> _sentInvitationSubscriptions = const [];
   StreamSubscription? _currentInvitationSubscription;
+
+  /// Live mirrors of the two query windows, keyed by invitation id. Child
+  /// events patch these instead of a whole snapshot replacing them.
+  final Map<String, InvitationModel> _received = {};
+  final Map<String, InvitationModel> _sent = {};
+
+  /// One per watch, coalescing a burst of child events into a single emit —
+  /// see [_watchInvitations].
+  final List<Timer> _notifyTimers = [];
 
   InvitationCubit(this._database) : super(InvitationState.initial()) {
     GamicoDatabaseShutdown.register(this, cancelDatabaseListeners);
@@ -22,102 +34,182 @@ class InvitationCubit extends Cubit<InvitationState> {
   /// See [GamicoDatabaseShutdown]: cancels every listener while the app is
   /// being torn down.
   Future<void> cancelDatabaseListeners() async {
-    await _receivedInvitationSubscription?.cancel();
-    _receivedInvitationSubscription = null;
-    await _sentInvitationSubscription?.cancel();
-    _sentInvitationSubscription = null;
+    await _cancelInvitationSubscriptions();
+    _listeningUserId = null;
     await _currentInvitationSubscription?.cancel();
     _currentInvitationSubscription = null;
   }
 
+  Future<void> _cancelInvitationSubscriptions() async {
+    for (final sub in [
+      ..._receivedInvitationSubscriptions,
+      ..._sentInvitationSubscriptions,
+    ]) {
+      await sub.cancel();
+    }
+    _receivedInvitationSubscriptions = const [];
+    _sentInvitationSubscriptions = const [];
+    for (final timer in _notifyTimers) {
+      timer.cancel();
+    }
+    _notifyTimers.clear();
+    _received.clear();
+    _sent.clear();
+  }
+
+  /// Uid the two invitation listeners below are currently attached for, or null
+  /// when nothing is attached. See [startListening].
+  String? _listeningUserId;
+
   void startListening(String userId) {
-    _receivedInvitationSubscription?.cancel();
-    _sentInvitationSubscription?.cancel();
+    // Idempotent. Both queries below re-download their whole 30-invitation
+    // window on every attach, and this is called from `initState` of a page the
+    // user goes in and out of — so tearing the listeners down and rebuilding
+    // them for the uid they were already watching paid for the same ~4 kB
+    // again, for nothing. Re-attaching stays possible for a genuine uid change
+    // (account switch), which is the only case that needs fresh data.
+    if (_listeningUserId == userId &&
+        _receivedInvitationSubscriptions.isNotEmpty &&
+        _sentInvitationSubscriptions.isNotEmpty) {
+      return;
+    }
+
+    _cancelInvitationSubscriptions();
+    _listeningUserId = null;
+
+    // An empty query fires no child event at all, where `onValue` used to
+    // deliver an explicit null and clear these. Reset here so a genuine
+    // (re)attach — an account switch — never leaves the previous user's
+    // invitations on screen.
+    if (!isClosed) {
+      emit(state.copyWith(pendingInvitations: [], sentInvitations: []));
+    }
 
     if (GamicoDatabaseShutdown.shuttingDown) return;
+
+    _listeningUserId = userId;
 
     final invitationsRef = _database.ref().child('invitations');
 
     // Écoute des invitations reçues
-    _receivedInvitationSubscription = invitationsRef
-        .orderByChild('receiver_id')
-        .equalTo(userId)
-        // [GAMICO-FIX] Invitations are never purged; bound the read to the most
-        // recent ones (push keys are chronological) instead of the full history.
-        .limitToLast(30)
-        .onValue
-        .listen(
-          (event) {
-            if (event.snapshot.value != null) {
-              final Map<dynamic, dynamic> values =
-                  event.snapshot.value as Map<dynamic, dynamic>;
-              final invitations = values.entries
-                  .map(
-                    (e) => InvitationModel.fromJson({
-                      ...Map<String, dynamic>.from(e.value as Map),
-                      'id': e.key,
-                    }),
-                  )
-                  .where((inv) => inv.status == InvitationStatus.pending)
-                  .toList();
-              emit(state.copyWith(pendingInvitations: invitations));
-            } else {
-              emit(state.copyWith(pendingInvitations: []));
-            }
-          },
-          onError: (e) =>
-              debugPrint("⚠️ _receivedInvitationSubscription error => $e"),
-        );
+    _receivedInvitationSubscriptions = _watchInvitations(
+      invitationsRef
+          .orderByChild('receiver_id')
+          .equalTo(userId)
+          // [GAMICO-FIX] Invitations are never purged; bound the read to the
+          // most recent ones (push keys are chronological) instead of the full
+          // history.
+          .limitToLast(30),
+      _received,
+      label: 'received',
+      onChanged: () => emit(
+        state.copyWith(
+          pendingInvitations: _sorted(_received)
+              .where((inv) => inv.status == InvitationStatus.pending)
+              .toList(),
+        ),
+      ),
+    );
 
     // Écoute des invitations envoyées
-    _sentInvitationSubscription = _database
-        .ref()
-        .child('invitations')
-        .orderByChild('sender_id')
-        .equalTo(userId)
-        // [GAMICO-FIX] Invitations are never purged; bound the read to the most
-        // recent ones (push keys are chronological) instead of the full history.
-        .limitToLast(30)
-        .onValue
-        .listen(
-          (event) {
-            if (event.snapshot.value != null) {
-              final Map<dynamic, dynamic> values =
-                  event.snapshot.value as Map<dynamic, dynamic>;
-              final invitations = values.entries
-                  .map(
-                    (e) => InvitationModel.fromJson({
-                      ...Map<String, dynamic>.from(e.value as Map),
-                      'id': e.key,
-                    }),
-                  )
-                  .toList();
+    _sentInvitationSubscriptions = _watchInvitations(
+      invitationsRef
+          .orderByChild('sender_id')
+          .equalTo(userId)
+          .limitToLast(30),
+      _sent,
+      label: 'sent',
+      onChanged: () {
+        final invitations = _sorted(_sent);
+        emit(state.copyWith(sentInvitations: invitations));
 
-              // Update sent invitations list
-              emit(state.copyWith(sentInvitations: invitations));
+        final current = state.currentInvitation;
+        if (current == null) return;
 
-              // If we have a current invitation, check its status
-              if (state.currentInvitation != null) {
-                final currentInvitation = invitations.firstWhere(
-                  (inv) => inv.id == state.currentInvitation!.id,
-                  orElse: () => state.currentInvitation!,
-                );
-
-                if (currentInvitation.status != InvitationStatus.pending) {
-                  // Update current invitation status
-                  emit(state.copyWith(currentInvitation: currentInvitation));
-                }
-              }
-            } else {
-              emit(
-                state.copyWith(sentInvitations: [], currentInvitation: null),
-              );
-            }
-          },
-          onError: (e) =>
-              debugPrint("⚠️ _sentInvitationSubscription error => $e"),
+        // The one we are waiting on: surface its answer as soon as it lands.
+        // Absent from the window (never in it, or aged out) means nothing has
+        // changed about it, which is what `orElse` preserves.
+        final currentInvitation = invitations.firstWhere(
+          (inv) => inv.id == current.id,
+          orElse: () => current,
         );
+
+        if (currentInvitation.status != InvitationStatus.pending) {
+          emit(state.copyWith(currentInvitation: currentInvitation));
+        }
+      },
+    );
   }
+
+  /// Keeps [into] in step with [query] and calls [onChanged] on every change.
+  ///
+  /// Child listeners, not `onValue`. RTDB re-sends the entire result set on
+  /// every `onValue` event, so one invitation flipping to ACCEPTED used to cost
+  /// all thirty in the window — twice, since the received and sent queries
+  /// overlap on the invitations a player both sent and received answers for,
+  /// and a third time via [FriendInvitationCubit], which watches the exact same
+  /// received query with the child listeners this now mirrors. Profiling had
+  /// `/invitations` at 111 kB over 54 reads, 2 kB a read, second only to
+  /// `users`. The attach still replays the window once; everything after it is
+  /// the one record that actually changed.
+  List<StreamSubscription> _watchInvitations(
+    Query query,
+    Map<String, InvitationModel> into, {
+    required String label,
+    required VoidCallback onChanged,
+  }) {
+    InvitationModel? parse(DatabaseEvent event) {
+      final value = event.snapshot.value;
+      final key = event.snapshot.key;
+      if (value is! Map || key == null) return null;
+      return InvitationModel.fromJson({
+        ...Map<String, dynamic>.from(value),
+        'id': key,
+      });
+    }
+
+    // Child events arrive one per record, and an attach replays the whole
+    // window — so emitting on each would turn one `onValue` rebuild into
+    // thirty. Coalesce a burst into a single emit.
+    Timer? notifyTimer;
+    void notify() {
+      notifyTimer?.cancel();
+      _notifyTimers.remove(notifyTimer);
+      notifyTimer = Timer(const Duration(milliseconds: 16), () {
+        _notifyTimers.remove(notifyTimer);
+        if (isClosed) return;
+        onChanged();
+      });
+      _notifyTimers.add(notifyTimer!);
+    }
+
+    void upsert(DatabaseEvent event) {
+      final invitation = parse(event);
+      if (invitation == null) return;
+      into[invitation.id] = invitation;
+      notify();
+    }
+
+    void onError(Object e) =>
+        debugPrint("⚠️ _${label}InvitationSubscription error => $e");
+
+    into.clear();
+
+    return [
+      query.onChildAdded.listen(upsert, onError: onError),
+      query.onChildChanged.listen(upsert, onError: onError),
+      query.onChildRemoved.listen((event) {
+        final key = event.snapshot.key;
+        if (key == null || into.remove(key) == null) return;
+        notify();
+      }, onError: onError),
+    ];
+  }
+
+  /// Push keys are chronological, so ordering by id reproduces the order the
+  /// `onValue` snapshot used to arrive in.
+  static List<InvitationModel> _sorted(Map<String, InvitationModel> byId) =>
+      byId.values.toList()..sort((a, b) => a.id.compareTo(b.id));
 
   Future<InvitationModel> sendInvitation(
     String receiverId,
@@ -326,8 +418,7 @@ class InvitationCubit extends Cubit<InvitationState> {
   Future<void> close() {
     GamicoDatabaseShutdown.unregister(this);
 
-    _receivedInvitationSubscription?.cancel();
-    _sentInvitationSubscription?.cancel();
+    _cancelInvitationSubscriptions();
     _currentInvitationSubscription?.cancel();
     return super.close();
   }

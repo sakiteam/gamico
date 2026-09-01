@@ -14,11 +14,26 @@ class UserSettings {
     dynamic user,
   ) userProfile;
 
+  /// Whether the user cubit writes `online`/`updated_at` on `users/{uid}`
+  /// itself.
+  ///
+  /// Set it false in an app that already runs its own presence service, or the
+  /// two write the same flag on every reconnection and lifecycle change — two
+  /// writes, two `users/{uid}` echoes back to this very device, and two
+  /// `syncProfileOnline` invocations, for one state change. Ludiko owns
+  /// presence in `UserPresenceService`, which additionally tracks
+  /// `current_game`/`current_game_id`, so this side stands down there.
+  ///
+  /// Defaults to true so an app with no presence service of its own keeps
+  /// getting it from here.
+  final bool managePresence;
+
   const UserSettings({
     required this.usersRepository,
     required this.createNewUser,
     required this.userCreateFakeOpponent,
     required this.userProfile,
+    this.managePresence = true,
   });
 }
 

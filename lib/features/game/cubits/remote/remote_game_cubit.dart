@@ -80,6 +80,13 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   List<StreamSubscription> opponentStreamSubscriptions = [];
   StreamSubscription? gameEventsStreamSubscription;
 
+  /// How many trailing `games/{id}/events` children the move listener attaches
+  /// to. See the listener itself for why the log is windowed at all; the value
+  /// only has to stay comfortably above the largest prune threshold any game
+  /// uses (100, Crazy Eights' unrefereed fallback) so a live event is never
+  /// left outside the window.
+  static const int _eventsWindow = 200;
+
   // Remote game user disconnection manager
   OnDisconnect? userDisconnectionReference;
 
@@ -250,7 +257,12 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
     final playersEntries = (currentGame?.players?.entries.toList() ?? [])
       ..sort((a, b) => a.key.compareTo(b.key));
-    final sortedPlayerUids = playersEntries.map((e) => e.value.userId).toList();
+    // Bot-filled seats have no device to create the new game — see the note on
+    // `playersIds` in [init].
+    final sortedPlayerUids = playersEntries
+        .map((e) => e.value.userId)
+        .where((id) => id == null || !id.toString().startsWith("bot_"))
+        .toList();
     final isFirstJoiner =
         sortedPlayerUids.length > 1 && sortedPlayerUids[1] == UserService.uid;
 
@@ -312,11 +324,19 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         return;
       }
 
+      // Seats filled by [RemoteCubit.enableBotFallback] carry a synthetic
+      // `bot_<key>` id and no device behind them. Counting them here would
+      // stall the table twice over: they never answer the READINESS roll-call
+      // (so every launch would burn the 20 s grace and then report each bot as
+      // a player who disconnected mid-game), and they never ask to replay (so
+      // `replayRequests` could never reach the table's size and "Rejouer"
+      // would wait forever).
       final playersIds =
           (currentGame?.players?.values ?? <GamicoGamePlayerModel>[])
               .map<String>((e) {
                 return e.userId.toString();
               })
+              .where((id) => !id.startsWith("bot_"))
               .toList();
 
       _expectedPlayerIds = playersIds.toSet();
@@ -333,37 +353,60 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
       if (otherPlayerIds.isEmpty) {
         final developerId = remoteUtility.developerId;
-        final sub = FirebaseDatabase.instance
-            .ref()
-            .child("users/$developerId")
-            .onValue
-            .listen(
-              (event) {
-                if (event.snapshot.exists) {
-                  final rawData = event.snapshot.value;
-                  final validData = _deepCastMap(rawData);
+        // Read once, and only the fields the synthetic opponent is built from.
+        //
+        // This used to hold a live `onValue` on the whole `users/{developerId}`
+        // node for the length of the match. Two costs: the node is ~1.9 kB of
+        // which this uses five fields, and the developer account is a real one
+        // that keeps playing — so each of its own writes (coins, progression,
+        // presence) was echoed to every player currently facing a bot.
+        //
+        // `userCreateFakeOpponent` synthesises the name, photo, coins, level,
+        // trophies and stars, and takes only `type`, `achievements`,
+        // `firebase_id`, `social_id` and `token` from the real account — the
+        // very set the real-opponent branch below already enumerates under
+        // `state.fakeOpponent`. None of them changes during a match, so there
+        // is nothing for a live listener to deliver.
+        const developerFields = <String>{
+          "type",
+          "achievements",
+          "firebase_id",
+          "social_id",
+          "token",
+        };
+        final developerData = <String, dynamic>{"id": developerId};
+        await Future.wait([
+          for (final field in developerFields)
+            FirebaseDatabase.instance
+                .ref()
+                .child("users/$developerId/$field")
+                .get()
+                .then((snapshot) {
+                  if (snapshot.exists) {
+                    developerData[field] = _deepCastValue(snapshot.value);
+                  }
+                })
+                // Same bounded wait as the real-opponent reads below: this sits
+                // on the critical path to our own READINESS.
+                .timeout(const Duration(seconds: 2), onTimeout: () {})
+                .catchError((_) {}),
+        ]);
 
-                  var finalOpponent = Gamico.instance.userFromJson(
-                    Map<String, dynamic>.from(validData),
-                  );
+        var finalOpponent = Gamico.instance.userFromJson(developerData);
 
-                  final currentUser = gameCubit.userCubit.state.user!;
+        final currentUser = gameCubit.userCubit.state.user!;
 
-                  finalOpponent = Gamico.instance.userSettings
-                      .userCreateFakeOpponent(currentUser, finalOpponent);
+        finalOpponent = Gamico.instance.userSettings.userCreateFakeOpponent(
+          currentUser,
+          finalOpponent,
+        );
 
-                  emit(
-                    state.copyWith(
-                      opponents: [finalOpponent],
-                      opponent: () => finalOpponent,
-                    ),
-                  );
-                }
-              },
-              onError: (e) =>
-                  debugPrint("⚠️ developer opponent subscription error => $e"),
-            );
-        opponentStreamSubscriptions.add(sub);
+        emit(
+          state.copyWith(
+            opponents: [finalOpponent],
+            opponent: () => finalOpponent,
+          ),
+        );
       } else {
         // Only the handful of fields actually rendered/consulted for an
         // opponent (see player_profile_button, game_profile_poster, the
@@ -500,10 +543,23 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       seed2 = (createdAtUs ~/ 7) & 0x7FFFFFFF;
 
       // Listen to game events
+      //
+      // Windowed on purpose. `onChildAdded` replays every child already under
+      // the node the moment it attaches, so a table that re-enters this init
+      // (rejoin, replay, a page rebuilt after the OS killed the app) used to
+      // re-download the whole match log. Games that prune (Crazy Eights wipes
+      // it every 10 events from the referee, 100 from any seat) kept that
+      // small; games that never prune paid for the entire history, every time.
+      // The window is set well above the largest prune threshold so no event
+      // that is still live can fall outside it — only genuinely stale replays
+      // are dropped. Keys are push ids, so ordering by key is chronological
+      // and the window slides forward as events arrive: each new one still
+      // fires exactly once.
       if (!state.fakeOpponent) {
         gameEventsStreamSubscription = FirebaseDatabase.instance
             .ref()
             .child("games/$gameId/events")
+            .limitToLast(_eventsWindow)
             .onChildAdded
             .listen(
               (event) async {

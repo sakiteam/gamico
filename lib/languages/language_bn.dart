@@ -227,6 +227,15 @@ abstract class GamicoLanguageBn extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "সংযোগে সমস্যা!";
 
   @override
+  String get premiumPopupTitle => "প্রিমিয়াম মোড";
+  @override
+  String get premiumPopupDescription => "সব বিজ্ঞাপন সরাতে সম্পূর্ণ সংস্করণ আনলক করুন!";
+  @override
+  String get premiumPlayer => "প্রিমিয়াম প্লেয়ার";
+  @override
+  String get nonPremiumPlayer => "নন-প্রিমিয়াম প্লেয়ার";
+
+  @override
   String get homeHelpBasicsA => "নীল সাম্রাজ্য আর কমলা সাম্রাজ্যের সম্মুখীন।";
   @override
   String get homeHelpBasicsB =>

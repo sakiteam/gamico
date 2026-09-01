@@ -8,6 +8,7 @@ import 'package:gamico/commons/services/global.dart';
 import 'package:gamico/commons/services/navigation.dart';
 import 'package:gamico/commons/services/play.dart';
 import 'package:gamico/commons/generics/poster.dart';
+import 'package:gamico/commons/generics/premium_poster.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
 import 'package:gamico/commons/generics/icon_text_button.dart';
 import 'package:gamico/commons/generics/outlined_icon.dart';
@@ -93,87 +94,132 @@ class HomeProfilePopup extends StatelessWidget {
             description: l.homeProfilePopupDescription,
             iconWidget: GamicoUserPhoto(state.user?.photo),
             expandContent: true,
-            content: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                GamicoIconTextButton(
-                  color: Colors.brown.shade300,
-                  iconData: Icons.emoji_events,
-                  text: l.homeProfilePopupBestTacticians,
-                  iconColor: Colors.white.withAlpha(75),
-                  onPressed: () async {
-                    try {
-                      await GamicoGlobalService.waitWhile(
-                        () => !PlayService.gameServicesEnabled,
-                      );
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    GamicoIconTextButton(
+                      color: Colors.brown.shade300,
+                      iconData: Icons.emoji_events,
+                      text: l.homeProfilePopupBestTacticians,
+                      iconColor: Colors.white.withAlpha(75),
+                      onPressed: () async {
+                        try {
+                          await GamicoGlobalService.waitWhile(
+                            () => !PlayService.gameServicesEnabled,
+                          );
 
-                      await Leaderboards.showLeaderboards(
-                        androidLeaderboardID:
-                            Gamico
-                                .instance
-                                .playSettings
-                                ?.activePlayersLeaderboardId ??
-                            "",
-                        iOSLeaderboardID:
-                            Gamico
-                                .instance
-                                .playSettings
-                                ?.activePlayersLeaderboardId ??
-                            "",
-                      );
-                    } catch (e) {
-                      debugPrint("⚠️ Leaderboards error: $e");
-                    }
-                  },
+                          await Leaderboards.showLeaderboards(
+                            androidLeaderboardID:
+                                Gamico
+                                    .instance
+                                    .playSettings
+                                    ?.activePlayersLeaderboardId ??
+                                "",
+                            iOSLeaderboardID:
+                                Gamico
+                                    .instance
+                                    .playSettings
+                                    ?.activePlayersLeaderboardId ??
+                                "",
+                          );
+                        } catch (e) {
+                          debugPrint("⚠️ Leaderboards error: $e");
+                        }
+                      },
+                    ),
+                    GamicoIconTextButton(
+                      color: Colors.brown.shade300,
+                      iconWidget: CoinsWidget(
+                        // color: Colors.blue,
+                        size: 50,
+                        color: Colors.white.withAlpha(75),
+                      ),
+                      text: l.homeProfilePopupBestCollectors,
+                      onPressed: () async {
+                        try {
+                          await GamicoGlobalService.waitWhile(
+                            () => !PlayService.gameServicesEnabled,
+                          );
+
+                          await Leaderboards.showLeaderboards(
+                            androidLeaderboardID:
+                                Gamico
+                                    .instance
+                                    .playSettings
+                                    ?.inactivePlayersLeaderboardId ??
+                                "",
+                            iOSLeaderboardID:
+                                Gamico
+                                    .instance
+                                    .playSettings
+                                    ?.inactivePlayersLeaderboardId ??
+                                "",
+                          );
+                        } catch (e) {
+                          debugPrint("⚠️ Leaderboards error: $e");
+                        }
+                      },
+                    ),
+                    GamicoIconTextButton(
+                      color: Colors.brown.shade300,
+                      iconColor: Colors.white.withAlpha(75),
+                      iconData: Icons.star,
+                      text: l.homeProfilePopupCheckAchievements,
+                      onPressed: () async {
+                        try {
+                          await GamicoGlobalService.waitWhile(
+                            () => !PlayService.gameServicesEnabled,
+                          );
+                          await Achievements.showAchievements();
+                        } catch (e) {
+                          debugPrint("⚠️ Achievements error: $e");
+                        }
+                      },
+                    ),
+                  ],
                 ),
-                GamicoIconTextButton(
-                  color: Colors.brown.shade300,
-                  iconWidget: CoinsWidget(
-                    // color: Colors.blue,
-                    size: 50,
-                    color: Colors.white.withAlpha(75),
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: state.user?.premium == true
+                      ? null
+                      : () {
+                          NavigationService.showPopup(
+                            context: context,
+                            builder: (_) =>
+                                const GamicoPopup(child: GamicoPremiumPoster()),
+                          );
+                        },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      color: state.user?.premium == true
+                          ? Colors.orange.withAlpha(50)
+                          : Colors.grey.withAlpha(50),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: state.user?.premium == true
+                            ? Colors.orange
+                            : Colors.grey,
+                      ),
+                    ),
+                    child: Text(
+                      state.user?.premium == true
+                          ? l.premiumPlayer
+                          : l.nonPremiumPlayer,
+                      style: TextStyle(
+                        color: state.user?.premium == true
+                            ? Colors.orange
+                            : Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                  text: l.homeProfilePopupBestCollectors,
-                  onPressed: () async {
-                    try {
-                      await GamicoGlobalService.waitWhile(
-                        () => !PlayService.gameServicesEnabled,
-                      );
-
-                      await Leaderboards.showLeaderboards(
-                        androidLeaderboardID:
-                            Gamico
-                                .instance
-                                .playSettings
-                                ?.inactivePlayersLeaderboardId ??
-                            "",
-                        iOSLeaderboardID:
-                            Gamico
-                                .instance
-                                .playSettings
-                                ?.inactivePlayersLeaderboardId ??
-                            "",
-                      );
-                    } catch (e) {
-                      debugPrint("⚠️ Leaderboards error: $e");
-                    }
-                  },
-                ),
-                GamicoIconTextButton(
-                  color: Colors.brown.shade300,
-                  iconColor: Colors.white.withAlpha(75),
-                  iconData: Icons.star,
-                  text: l.homeProfilePopupCheckAchievements,
-                  onPressed: () async {
-                    try {
-                      await GamicoGlobalService.waitWhile(
-                        () => !PlayService.gameServicesEnabled,
-                      );
-                      await Achievements.showAchievements();
-                    } catch (e) {
-                      debugPrint("⚠️ Achievements error: $e");
-                    }
-                  },
                 ),
               ],
             ),

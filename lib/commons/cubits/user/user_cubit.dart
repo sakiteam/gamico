@@ -64,11 +64,74 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   OnDisconnect? _disconnectionReference;
   // Timer? _pendingSignOutTimer;
 
+  /// The fields watched live once the user has loaded, one listener each.
+  ///
+  /// `users/{uid}` used to be watched whole, for the length of the session.
+  /// RTDB re-sends a node in full on every write to any of its children, and
+  /// this node carries progression, achievements, skins, stars and streak — so
+  /// a `+1 coin`, a presence flip or an `updated_at` bump each re-downloaded
+  /// the entire profile to the very device that had just written it. Profiling
+  /// caught it as the top read of the whole project: 301 writes to
+  /// `/users/$wildcard` against 344 reads over the same window, near 1:1.
+  ///
+  /// What is NOT here is the point of the list. `online`, `online_at`,
+  /// `updated_at`, `current_game`, `current_game_id` and `token` are the
+  /// highest-frequency writes on the node and none of them is read back for
+  /// the local user — presence is something this device tells others about,
+  /// not something it learns. They are still loaded once, by the full-node
+  /// read that precedes the swap; they simply stop being echoed.
+  ///
+  /// `created_at` earns its place as an existence sentinel rather than for its
+  /// value — see [_applyUserField].
+  static const _watchedFields = <String>{
+    "created_at",
+    "name",
+    "formatted_name",
+    "social_name",
+    "photo",
+    "type",
+    "blocked",
+    "coins",
+    "level",
+    "stars",
+    "trophies",
+    "victories",
+    "defeats",
+    "achievements",
+    "progression",
+    "streak",
+    "skins",
+    "active_skin",
+    "premium",
+    "last_gratification",
+    "next_gratification",
+    "gratified_at",
+  };
+
+  final Map<String, StreamSubscription<DatabaseEvent>> _fieldSubscriptions = {};
+
+  /// The uid [_fieldSubscriptions] belong to, so a re-entrant
+  /// [listenToUserChanges] can tell "already watching this user" from a real
+  /// account switch.
+  String? _watchedUid;
+
+  /// Set when `created_at` reports null: the node itself is gone (account
+  /// deleted). See [_applyUserField].
+  bool _nodeGone = false;
+
   void _manageDisconnection() {
     // Never operate on an empty uid: `ref("users/")` resolves to the `users`
     // collection ROOT, and writing online/updated_at there corrupts the shared
     // user store. (Mirrors the guard already in Ludiko's connecto UserCubit.)
     if (UserService.uid.isEmpty) return;
+
+    // The host app may own presence itself — see [UserSettings.managePresence].
+    // Marking it managed keeps [manageUserChanges] from retrying on every
+    // payload.
+    if (!Gamico.instance.userSettings.managePresence) {
+      _managed = true;
+      return;
+    }
 
     _managed = true;
 
@@ -277,12 +340,42 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     // Optimistically update the local state to prevent read-modify-write
     // race conditions when multiple updates are fired synchronously
     // (e.g. setUserStars followed immediately by setUserLevel).
+    final previous = Map<String, dynamic>.from(
+      state.user!.progression ?? const <String, dynamic>{},
+    );
+
     final updatedUser = Gamico.instance.userFromJson(
       state.user!.toJson()..["progression"] = progression,
     );
     emit(state.copyWith(user: () => updatedUser));
 
-    usersRepository.updateUserProgression(UserService.uid, progression);
+    // Only the namespaces that actually changed, each at its own path.
+    //
+    // Callers all follow the same shape: take `state.user.progression`, edit
+    // the one namespace their game owns, hand the whole map back. Persisting
+    // that map wholesale meant a single Crazy Eights win re-uploaded — and had
+    // echoed back to it — Ludo's, Hex's, Awalo's and every other game's stats
+    // as well. The diff below is against the map those callers merged onto, so
+    // it isolates exactly the namespace they touched.
+    //
+    // Comparison is by encoded form: it can call an unchanged namespace changed
+    // (harmless, that is just today's behaviour for that one key) but never the
+    // reverse, so no edit can be silently dropped.
+    final changed = <String, dynamic>{};
+    for (final entry in progression.entries) {
+      final before = previous[entry.key];
+      if (before == null && entry.value == null) continue;
+      if (jsonEncode(before) != jsonEncode(entry.value)) {
+        changed[entry.key] = entry.value;
+      }
+    }
+    // A namespace the caller dropped must still be deleted: setting the whole
+    // node used to remove it implicitly.
+    for (final key in previous.keys) {
+      if (!progression.containsKey(key)) changed[key] = null;
+    }
+
+    usersRepository.updateUserProgressionEntries(UserService.uid, changed);
   }
 
   /// Persists the daily-open streak. Refuses while the user is not loaded, for
@@ -660,12 +753,27 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   }
 
   void listenToUserChanges() async {
-    _streamSubscription?.cancel();
-
     if (!UserService.authenticated) return;
     if (GamicoDatabaseShutdown.shuttingDown) return;
 
-    final ref = FirebaseDatabase.instance.ref("users/${UserService.uid}");
+    final uid = UserService.uid;
+    if (uid.isEmpty) return;
+
+    // [onChange] re-enters here on every null -> non-null user transition,
+    // which includes the one this method's own first payload causes. Without
+    // this guard that re-entry tore the listener down and re-attached it —
+    // and an RTDB attach always re-sends the node in full, so the very first
+    // load used to be paid for twice.
+    if (_watchedUid == uid && (_fieldSubscriptions.isNotEmpty || _streamSubscription != null)) {
+      return;
+    }
+
+    _streamSubscription?.cancel();
+    _cancelFieldSubscriptions();
+    _watchedUid = uid;
+    _nodeGone = false;
+
+    final ref = FirebaseDatabase.instance.ref("users/$uid");
 
     // await ref.keepSynced(false);
 
@@ -696,11 +804,102 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     //       (e) => debugPrint("⚠️ users/${UserService.uid} .get() ERROR => $e"),
     //     );
 
+    // The full node, but only until it has loaded once.
+    //
+    // It stays a listener rather than a one-shot `get()` on purpose: the first
+    // payload can legitimately be refused (see the `partial` guard in
+    // [manageUserChanges] — a cold cache echoing one of our own writes back at
+    // us looks exactly like a corrupted node), and a listener keeps waiting
+    // for a good one where a `get()` would leave `loaded` false for good and
+    // strand the sign-in that waits on it.
     _streamSubscription = ref.onValue.listen(
-      manageUserChanges,
-      onError: (e) =>
-          debugPrint("⚠️ users/${UserService.uid} onValue ERROR => $e"),
+      (event) {
+        manageUserChanges(event);
+        // A user is loaded: the whole node has now been downloaded once, which
+        // is all it was ever needed for. Everything after this arrives leaf by
+        // leaf instead.
+        if (state.user != null) _swapToFieldListeners(ref);
+      },
+      onError: (e) => debugPrint("⚠️ users/$uid onValue ERROR => $e"),
     );
+  }
+
+  /// Drops the full-node listener and replaces it with one listener per
+  /// [_watchedFields] entry, so a write to any single field costs that field
+  /// and not the whole profile.
+  void _swapToFieldListeners(DatabaseReference ref) {
+    if (_fieldSubscriptions.isNotEmpty) return;
+
+    if (_streamSubscription != null) {
+      _streamSubscription!.cancel();
+      _streamSubscription = null;
+    } else {
+      // Called from inside the full-node listener's own callback, so on a
+      // stream that delivered its first event before `listen()` returned there
+      // is nothing to cancel yet. Cancelling a beat later still catches it,
+      // where cancelling now would silently leave the whole-node listener
+      // running alongside the leaves — the one outcome worse than either.
+      scheduleMicrotask(() {
+        _streamSubscription?.cancel();
+        _streamSubscription = null;
+      });
+    }
+
+    for (final field in _watchedFields) {
+      _fieldSubscriptions[field] = ref
+          .child(field)
+          .onValue
+          .listen(
+            (event) => _applyUserField(field, event.snapshot.value),
+            onError: (e) =>
+                debugPrint("⚠️ users/$_watchedUid/$field onValue ERROR => $e"),
+          );
+    }
+  }
+
+  /// Merges one changed field into the loaded user.
+  ///
+  /// Same merge the `partial` branch of [manageUserChanges] performs, and for
+  /// the same reason: identity (`social_id`, `firebase_id`, `created_at`) and
+  /// every unwatched field come from the user already in state, so a single
+  /// leaf can never blank the rest of the profile.
+  void _applyUserField(String field, Object? value) {
+    if (_nodeGone) return;
+
+    // `created_at` is immutable once written, so the only way it can report
+    // null is the node no longer existing at all. A node-level null is
+    // deliberately ignored today (see the commented-out `else` in
+    // [manageUserChanges]); ignoring the leaf storm that a deletion would
+    // otherwise send keeps that behaviour rather than blanking the user field
+    // by field.
+    if (field == "created_at" && value == null) {
+      _nodeGone = true;
+      return;
+    }
+
+    final current = state.user;
+    if (current == null) return;
+
+    final json = Map<String, dynamic>.from(Gamico.instance.userToJson(current));
+    final next = value == null ? null : jsonDecode(jsonEncode(value));
+
+    // Every listener fires once on attach, so without this the swap would emit
+    // one identical state per watched field.
+    if (jsonEncode(json[field]) == jsonEncode(next)) return;
+
+    json[field] = next;
+
+    final merged = Gamico.instance.userFromJson(json);
+    if (merged == null) return;
+
+    setUser(merged, loaded: true);
+  }
+
+  void _cancelFieldSubscriptions() {
+    for (final sub in _fieldSubscriptions.values) {
+      sub.cancel();
+    }
+    _fieldSubscriptions.clear();
   }
 
   void manageUserChanges(DatabaseEvent event) async {
@@ -807,6 +1006,8 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     _managed = false;
     await _streamSubscription?.cancel();
     _streamSubscription = null;
+    _cancelFieldSubscriptions();
+    _watchedUid = null;
     await _disconnectionSubscription?.cancel();
     _disconnectionSubscription = null;
     await _disconnectionReference?.cancel();
@@ -816,6 +1017,9 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   void cancelUserChangesListener() {
     _managed = false;
     _streamSubscription?.cancel();
+    _streamSubscription = null;
+    _cancelFieldSubscriptions();
+    _watchedUid = null;
     _disconnectionSubscription?.cancel();
     _disconnectionReference?.cancel();
     emit(state.copyWith(loaded: false));
@@ -872,6 +1076,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     GamicoDatabaseShutdown.unregister(this);
 
     _streamSubscription?.cancel();
+    _cancelFieldSubscriptions();
     _disconnectionSubscription?.cancel();
     _disconnectionReference?.cancel();
 

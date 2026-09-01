@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -58,6 +59,57 @@ class NotificationService {
       LocalStorageService.getBool("default_topic_subscribed") ?? false;
   static set defaultTopicSubscribed(bool value) =>
       LocalStorageService.setBool("default_topic_subscribed", value);
+
+  /// Serializes every call that mutates awesome_notifications' own state
+  /// (creating, cancelling or dismissing a notification).
+  ///
+  /// The iOS side of the plugin keeps its schedules in a single
+  /// unsynchronized dictionary (`SharedManager`): `createNotification` writes
+  /// it from a background queue while cancels — and the plugin's own
+  /// `applicationDidBecomeActive` schedule refresh — read and rewrite it from
+  /// the main thread. Two of those overlapping corrupt the dictionary, which
+  /// takes the app down either in `CFPropertyListCreateDeepCopy` (a value CF
+  /// can no longer serialize) or on a Swift over-release. Funnelling our own
+  /// calls through one queue keeps at most one of them in flight.
+  static Future<void> _pluginQueue = Future<void>.value();
+
+  /// Runs [action] once every previously queued notification call has
+  /// finished. Failures are reported to the caller without breaking the
+  /// queue for everyone behind them.
+  static Future<T> serialized<T>(Future<T> Function() action) {
+    final completer = Completer<T>();
+
+    _pluginQueue = _pluginQueue.then((_) async {
+      try {
+        completer.complete(await action());
+      } catch (error, stack) {
+        completer.completeError(error, stack);
+      }
+    });
+
+    return completer.future;
+  }
+
+  /// How long a *scheduled* notification waits before it is written.
+  ///
+  /// Serializing our own calls is not enough on iOS: the plugin refreshes its
+  /// stored schedules by itself on `applicationDidBecomeActive`, on the main
+  /// thread, and a schedule being written from the background queue at that
+  /// exact moment races it. Every one of our scheduling call sites sits on
+  /// that edge — the home flow schedules the moment it opens, and again right
+  /// after the player comes back from the native permission dialog or from
+  /// the system settings page. None of these reminders are time-critical, so
+  /// they let the foreground transition finish first.
+  static const Duration scheduleSettleDelay = Duration(seconds: 5);
+
+  /// [serialized], for a call that writes a scheduled notification: waits out
+  /// the foreground transition before queueing. The wait is deliberately
+  /// outside the queue, so a reminder never delays an invitation landing
+  /// behind it.
+  static Future<T> serializedSchedule<T>(Future<T> Function() action) async {
+    await Future.delayed(scheduleSettleDelay);
+    return serialized(action);
+  }
 
   static Future<bool> allowed() =>
       AwesomeNotifications().isNotificationAllowed();
@@ -144,8 +196,10 @@ class NotificationService {
 
     await subscribeToDefaultTopic();
 
-    NotificationService.scheduleNotification();
-    NotificationService.scheduleReminder();
+    // Awaited, and one after the other: fired off together they raced each
+    // other inside the plugin's own schedule store.
+    await NotificationService.scheduleNotification();
+    await NotificationService.scheduleReminder();
   }
 
   static Future<void> subscribeToDefaultTopic({
@@ -190,41 +244,51 @@ class NotificationService {
     }
   }
 
-  static void scheduleNotification() async {
+  static Future<void> scheduleNotification() async {
     try {
       if (!(await allowed())) return;
 
-      await AwesomeNotifications().createNotification(
-        content: NotificationContent(
-          id: 1,
-          channelKey: "default",
-          title: GamicoLanguages.instance.notificationMissTitle,
-          body: GamicoLanguages.instance.notificationMissBody,
-          notificationLayout: NotificationLayout.BigText,
-          wakeUpScreen: true,
+      await serializedSchedule(
+        () => AwesomeNotifications().createNotification(
+          content: NotificationContent(
+            id: 1,
+            channelKey: "default",
+            title: GamicoLanguages.instance.notificationMissTitle,
+            body: GamicoLanguages.instance.notificationMissBody,
+            notificationLayout: NotificationLayout.BigText,
+            wakeUpScreen: true,
+          ),
+          schedule: NotificationInterval(
+            interval: 3.days,
+            allowWhileIdle: true,
+          ),
         ),
-        schedule: NotificationInterval(interval: 3.days, allowWhileIdle: true),
       );
     } catch (e) {
       debugPrint(e.toString());
     }
   }
 
-  static void scheduleReminder() async {
+  static Future<void> scheduleReminder() async {
     try {
       if (!(await allowed())) return;
 
-      await AwesomeNotifications().createNotification(
-        content: NotificationContent(
-          id: 3,
-          channelKey: "default",
-          title: GamicoLanguages.instance.notificationGiftTitle,
-          body: GamicoLanguages.instance.notificationGiftBody,
-          notificationLayout: NotificationLayout.BigText,
-          wakeUpScreen: true,
-          displayOnForeground: true,
+      await serializedSchedule(
+        () => AwesomeNotifications().createNotification(
+          content: NotificationContent(
+            id: 3,
+            channelKey: "default",
+            title: GamicoLanguages.instance.notificationGiftTitle,
+            body: GamicoLanguages.instance.notificationGiftBody,
+            notificationLayout: NotificationLayout.BigText,
+            wakeUpScreen: true,
+            displayOnForeground: true,
+          ),
+          schedule: NotificationInterval(
+            interval: 6.hours,
+            allowWhileIdle: true,
+          ),
         ),
-        schedule: NotificationInterval(interval: 6.hours, allowWhileIdle: true),
       );
     } catch (e) {
       debugPrint(e.toString());
@@ -433,6 +497,17 @@ class NotificationService {
     }
   }
 
+  /// Appends the backend-provided game label ("Ludo — 4 joueurs") to an
+  /// invitation body, so the receiver sees what kind of game is proposed
+  /// straight from the notification. No-op when the backend sent no label
+  /// (unknown game mode) or when it is already part of the body (iOS alert).
+  static String withGameLabel(String body, String? gameLabel) {
+    if (gameLabel == null || gameLabel.isEmpty || body.contains(gameLabel)) {
+      return body;
+    }
+    return "$body\n$gameLabel";
+  }
+
   static Future<void> showGameInvitationNotification({
     required String title,
     required String body,
@@ -441,30 +516,32 @@ class NotificationService {
     if (!(await allowed())) return;
 
     try {
-      await AwesomeNotifications().createNotification(
-        content: NotificationContent(
-          // hashCode can be negative, which awesome_notifications rejects.
-          id: invitationId.hashCode & 0x7fffffff,
-          channelKey: 'invitations',
-          title: title,
-          body: body,
-          payload: {'invitation_id': invitationId},
-          notificationLayout: NotificationLayout.BigText,
-          wakeUpScreen: true,
-          displayOnForeground: true,
+      await serialized(
+        () => AwesomeNotifications().createNotification(
+          content: NotificationContent(
+            // hashCode can be negative, which awesome_notifications rejects.
+            id: invitationId.hashCode & 0x7fffffff,
+            channelKey: 'invitations',
+            title: title,
+            body: body,
+            payload: {'invitation_id': invitationId},
+            notificationLayout: NotificationLayout.BigText,
+            wakeUpScreen: true,
+            displayOnForeground: true,
+          ),
+          actionButtons: [
+            NotificationActionButton(
+              key: "ACCEPT",
+              label: _acceptLabel,
+              color: Colors.green,
+            ),
+            NotificationActionButton(
+              key: "REJECT",
+              label: _rejectLabel,
+              color: Colors.red,
+            ),
+          ],
         ),
-        actionButtons: [
-          NotificationActionButton(
-            key: "ACCEPT",
-            label: _acceptLabel,
-            color: Colors.green,
-          ),
-          NotificationActionButton(
-            key: "REJECT",
-            label: _rejectLabel,
-            color: Colors.red,
-          ),
-        ],
       );
     } catch (e) {
       debugPrint("Error creating invitation notification: $e");
@@ -477,7 +554,9 @@ class NotificationService {
   static Future<void> cancelGameInvitationNotification(
     String invitationId,
   ) async {
-    await AwesomeNotifications().cancel(invitationId.hashCode & 0x7fffffff);
+    await serialized(
+      () => AwesomeNotifications().cancel(invitationId.hashCode & 0x7fffffff),
+    );
   }
 
   static Future<void> showFriendRequestNotification({
@@ -488,30 +567,32 @@ class NotificationService {
     if (!(await allowed())) return;
 
     try {
-      await AwesomeNotifications().createNotification(
-        content: NotificationContent(
-          // hashCode can be negative, which awesome_notifications rejects.
-          id: friendRequestId.hashCode & 0x7fffffff,
-          channelKey: 'invitations',
-          title: title,
-          body: body,
-          payload: {'friend_request_id': friendRequestId},
-          notificationLayout: NotificationLayout.BigText,
-          wakeUpScreen: true,
-          displayOnForeground: true,
+      await serialized(
+        () => AwesomeNotifications().createNotification(
+          content: NotificationContent(
+            // hashCode can be negative, which awesome_notifications rejects.
+            id: friendRequestId.hashCode & 0x7fffffff,
+            channelKey: 'invitations',
+            title: title,
+            body: body,
+            payload: {'friend_request_id': friendRequestId},
+            notificationLayout: NotificationLayout.BigText,
+            wakeUpScreen: true,
+            displayOnForeground: true,
+          ),
+          actionButtons: [
+            NotificationActionButton(
+              key: "ACCEPT_FRIEND",
+              label: _acceptLabel,
+              color: Colors.green,
+            ),
+            NotificationActionButton(
+              key: "REJECT_FRIEND",
+              label: _rejectLabel,
+              color: Colors.red,
+            ),
+          ],
         ),
-        actionButtons: [
-          NotificationActionButton(
-            key: "ACCEPT_FRIEND",
-            label: _acceptLabel,
-            color: Colors.green,
-          ),
-          NotificationActionButton(
-            key: "REJECT_FRIEND",
-            label: _rejectLabel,
-            color: Colors.red,
-          ),
-        ],
       );
     } catch (e) {
       debugPrint("Error creating friend request notification: $e");
@@ -523,7 +604,10 @@ class NotificationService {
   static Future<void> cancelFriendRequestNotification(
     String friendRequestId,
   ) async {
-    await AwesomeNotifications().cancel(friendRequestId.hashCode & 0x7fffffff);
+    await serialized(
+      () =>
+          AwesomeNotifications().cancel(friendRequestId.hashCode & 0x7fffffff),
+    );
   }
 
   /// Informational notification shown to the original sender once the other
@@ -537,16 +621,18 @@ class NotificationService {
     if (!(await allowed())) return;
 
     try {
-      await AwesomeNotifications().createNotification(
-        content: NotificationContent(
-          id: ('accepted_$accepterId').hashCode & 0x7fffffff,
-          channelKey: 'invitations',
-          title: title,
-          body: body,
-          payload: {'accepter_id': accepterId},
-          notificationLayout: NotificationLayout.BigText,
-          wakeUpScreen: true,
-          displayOnForeground: true,
+      await serialized(
+        () => AwesomeNotifications().createNotification(
+          content: NotificationContent(
+            id: ('accepted_$accepterId').hashCode & 0x7fffffff,
+            channelKey: 'invitations',
+            title: title,
+            body: body,
+            payload: {'accepter_id': accepterId},
+            notificationLayout: NotificationLayout.BigText,
+            wakeUpScreen: true,
+            displayOnForeground: true,
+          ),
         ),
       );
     } catch (e) {
@@ -572,17 +658,19 @@ class NotificationService {
 
     try {
       if (await allowed()) {
-        await AwesomeNotifications().createNotification(
-          content: NotificationContent(
-            id: id,
-            channelKey: 'default',
-            title: title,
-            body: body,
-            notificationLayout: NotificationLayout.Default,
-            wakeUpScreen: false,
-            locked: false,
-            autoDismissible: true,
-            displayOnForeground: false,
+        await serialized(
+          () => AwesomeNotifications().createNotification(
+            content: NotificationContent(
+              id: id,
+              channelKey: 'default',
+              title: title,
+              body: body,
+              notificationLayout: NotificationLayout.Default,
+              wakeUpScreen: false,
+              locked: false,
+              autoDismissible: true,
+              displayOnForeground: false,
+            ),
           ),
         );
       }
@@ -602,7 +690,7 @@ class NotificationService {
     if (idStr != null && Platform.isAndroid) {
       final id = int.tryParse(idStr) ?? (idStr.hashCode & 0x7fffffff);
       try {
-        await AwesomeNotifications().cancel(id);
+        await serialized(() => AwesomeNotifications().cancel(id));
       } catch (e) {
         debugPrint("Error cancelling turn notification: $e");
       }
@@ -633,19 +721,21 @@ class NotificationService {
 
     try {
       if (await allowed()) {
-        await AwesomeNotifications().createNotification(
-          content: NotificationContent(
-            id: id,
-            channelKey: 'default',
-            title: title,
-            body: body,
-            notificationLayout: NotificationLayout.Default,
-            category: NotificationCategory.Call,
-            wakeUpScreen: true,
-            locked: false,
-            autoDismissible: true,
-            displayOnForeground: false,
-            payload: {'game_id': data['game_id'] as String? ?? ''},
+        await serialized(
+          () => AwesomeNotifications().createNotification(
+            content: NotificationContent(
+              id: id,
+              channelKey: 'default',
+              title: title,
+              body: body,
+              notificationLayout: NotificationLayout.Default,
+              category: NotificationCategory.Call,
+              wakeUpScreen: true,
+              locked: false,
+              autoDismissible: true,
+              displayOnForeground: false,
+              payload: {'game_id': data['game_id'] as String? ?? ''},
+            ),
           ),
         );
       }
@@ -694,11 +784,13 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     final senderName = message.data['sender_name'] as String?;
     await NotificationService.showGameInvitationNotification(
       title: message.notification?.title ?? NotificationService.invitationTitle,
-      body:
-          message.notification?.body ??
-          (senderName != null
-              ? NotificationService.invitationBodyFrom(senderName)
-              : NotificationService.invitationBody),
+      body: NotificationService.withGameLabel(
+        message.notification?.body ??
+            (senderName != null
+                ? NotificationService.invitationBodyFrom(senderName)
+                : NotificationService.invitationBody),
+        message.data['game_label'] as String?,
+      ),
       invitationId: message.data['invitation_id'],
     );
   } else if (message.data['type'] == 'invitation_cancelled') {
@@ -744,11 +836,13 @@ Future<void> handleForegroundMessage(RemoteMessage message) async {
     final senderName = message.data['sender_name'] as String?;
     await NotificationService.showGameInvitationNotification(
       title: message.notification?.title ?? NotificationService.invitationTitle,
-      body:
-          message.notification?.body ??
-          (senderName != null
-              ? NotificationService.invitationBodyFrom(senderName)
-              : NotificationService.invitationBody),
+      body: NotificationService.withGameLabel(
+        message.notification?.body ??
+            (senderName != null
+                ? NotificationService.invitationBodyFrom(senderName)
+                : NotificationService.invitationBody),
+        message.data['game_label'] as String?,
+      ),
       invitationId: message.data['invitation_id'],
     );
   } else if (message.data['type'] == 'invitation_cancelled') {

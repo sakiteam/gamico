@@ -229,6 +229,15 @@ abstract class GamicoLanguageDe extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "Verbindungsfehler!";
 
   @override
+  String get premiumPopupTitle => "Premium-Modus";
+  @override
+  String get premiumPopupDescription => "Schalten Sie die Vollversion frei, um alle Werbeanzeigen zu entfernen!";
+  @override
+  String get premiumPlayer => "Premium-Spieler";
+  @override
+  String get nonPremiumPlayer => "Nicht-Premium-Spieler";
+
+  @override
   String get homeHelpBasicsA =>
       "Das Königreich der Blauen tritt gegen das Königreich der Orangen an.";
   @override

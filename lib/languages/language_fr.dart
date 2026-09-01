@@ -230,6 +230,16 @@ abstract class GamicoLanguageFr extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "Erreur de connexion !";
 
   @override
+  String get premiumPopupTitle => "Passez Premium !";
+  @override
+  String get premiumPopupDescription =>
+      "Acquérez la version complète du jeu pour supprimer définitivement toutes les publicités interstitielles et profiter d'une expérience de jeu ininterrompue !";
+  @override
+  String get premiumPlayer => "Joueur premium";
+  @override
+  String get nonPremiumPlayer => "Joueur non premium";
+
+  @override
   String get homeHelpBasicsA =>
       "Le royaume des bleus affronte le royaume des oranges.";
   @override
@@ -633,7 +643,7 @@ abstract class GamicoLanguageFr extends GamicoLanguages {
       "Désolé pour votre défaite ! Ne vous découragez pas : vous pouvez toujours vous améliorer en faisant plus de parties !";
   @override
   String get remoteVictoryDescription =>
-      "Félicitations pour votre victoire ! Vous pouvez encore améliorer votre niveau en participant à plus de parties en ligne !";
+      "Félicitations pour votre victoire ! Vous pouvez encore améliorer votre niveau en participant à plus de parties !";
   @override
   String get remoteOpponentUnavailableDescription =>
       "L'autre joueur n'est plus disponible pour disputer une partie. Mais plusieurs autres options s'offrent tout de même à vous !";

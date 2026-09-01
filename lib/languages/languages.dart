@@ -171,6 +171,11 @@ abstract class GamicoLanguages {
   String get homeSpecialOfferPopupProblemClose;
   String get homeSpecialOfferPopupProblemTitle;
 
+  String get premiumPopupTitle;
+  String get premiumPopupDescription;
+  String get premiumPlayer;
+  String get nonPremiumPlayer;
+
   String get homeHelpBasicsA;
   String get homeHelpBasicsB;
   String get homeHelpBasicsC;

@@ -8,6 +8,7 @@ import 'package:gamico/commons/generics/gamico_popup.dart';
 import 'package:gamico/commons/generics/coins_store_poster.dart';
 import 'package:gamico/commons/generics/gratification_poster.dart';
 import 'package:gamico/commons/generics/special_offer_poster.dart';
+import 'package:gamico/commons/generics/premium_poster.dart';
 import 'package:gamico/commons/generics/ad_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -85,6 +86,8 @@ class _CoinsPopupState extends State<CoinsPopup> {
       if (products.isNotEmpty &&
           Gamico.instance.purchasesSettings?.specialPacks.isNotEmpty == true)
         const GamicoSpecialOfferPoster(),
+      if (context.read<GamicoUserCubit>().state.user?.premium != true)
+        const GamicoPremiumPoster(),
     ];
 
     return GamicoPopup(

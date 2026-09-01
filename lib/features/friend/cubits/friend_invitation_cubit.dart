@@ -34,6 +34,10 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
   // never stored, so they could never be cancelled — see listenToInvitations.
   StreamSubscription? _invitationChangedSubscription;
   StreamSubscription? _invitationRemovedSubscription;
+
+  /// Uid the three listeners are currently attached for, or null when nothing
+  /// is attached. See [listenToInvitations].
+  String? _listeningUserId;
   final Map<String, InvitationModel> _invitations = {};
 
   FriendInvitationCubit() : super(const FriendInvitationState()) {
@@ -51,6 +55,7 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
     _invitationChangedSubscription = null;
     await _invitationRemovedSubscription?.cancel();
     _invitationRemovedSubscription = null;
+    _listeningUserId = null;
   }
 
   void listenToInvitations() {
@@ -63,9 +68,17 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
     // the onChildChanged/onChildRemoved listeners (which used to be unstored)
     // stacked on each call — causing duplicated reads and duplicate invitation
     // notifications.
+    //
+    // Cheaper still is not re-subscribing at all: those two calls normally
+    // carry the same uid, and each re-attach replays the whole 30-invitation
+    // window through `onChildAdded`. Only a real uid change (account switch)
+    // needs the listeners rebuilt.
+    if (_listeningUserId == userId && _invitationSubscription != null) return;
+
     _invitationSubscription?.cancel();
     _invitationChangedSubscription?.cancel();
     _invitationRemovedSubscription?.cancel();
+    _listeningUserId = userId;
 
     final invitationsRef = FirebaseDatabase.instance
         .ref()

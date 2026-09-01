@@ -228,6 +228,15 @@ abstract class GamicoLanguagePt extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "Erro de Conexão!";
 
   @override
+  String get premiumPopupTitle => "Modo Premium";
+  @override
+  String get premiumPopupDescription => "Desbloqueie a versão completa para remover todos os anúncios!";
+  @override
+  String get premiumPlayer => "Jogador Premium";
+  @override
+  String get nonPremiumPlayer => "Jogador não premium";
+
+  @override
   String get homeHelpBasicsA =>
       "O reino dos Azuis enfrenta o reino dos Laranjas.";
   @override

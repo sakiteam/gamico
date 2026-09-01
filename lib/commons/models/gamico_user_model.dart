@@ -36,10 +36,11 @@ class GamicoUserModel {
   /// The daily-open streak: `{count, last_day, best}`, where `last_day` is a
   /// `yyyymmdd` integer in the player's local time.
   ///
-  /// Singular and top-level on purpose. There is one streak per player, and it
-  /// lives outside [progression] because progression is rewritten wholesale on
-  /// every write — a per-open streak write must not carry every game's stats
-  /// along with it.
+  /// Singular and top-level on purpose. There is one streak per player, and a
+  /// per-open streak write has no business carrying game stats along with it.
+  /// (Progression writes are themselves now scoped to the namespaces that
+  /// changed — see `GamicoUserCubit.updateUserProgression` — but the streak
+  /// still belongs outside it: it is not a game's progress.)
   final Map<String, dynamic>? streak;
   // final Map<String, dynamic>? skins;
   final List<String>? skins;

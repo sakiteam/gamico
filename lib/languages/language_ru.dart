@@ -229,6 +229,15 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "Проблема с соединением!";
 
   @override
+  String get premiumPopupTitle => "Премиум режим";
+  @override
+  String get premiumPopupDescription => "Разблокируйте полную версию, чтобы убрать всю рекламу!";
+  @override
+  String get premiumPlayer => "Премиум игрок";
+  @override
+  String get nonPremiumPlayer => "Обычный игрок";
+
+  @override
   String get homeHelpBasicsA =>
       "Королевство Синих сталкивается с королевством Оранжевых.";
   @override

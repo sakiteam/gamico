@@ -226,6 +226,15 @@ abstract class GamicoLanguageHi extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "कनेक्शन त्रुटि!";
 
   @override
+  String get premiumPopupTitle => "प्रीमियम मोड";
+  @override
+  String get premiumPopupDescription => "सभी विज्ञापनों को हटाने के लिए पूर्ण संस्करण अनलॉक करें!";
+  @override
+  String get premiumPlayer => "प्रीमियम खिलाड़ी";
+  @override
+  String get nonPremiumPlayer => "नॉन-प्रीमियम खिलाड़ी";
+
+  @override
   String get homeHelpBasicsA =>
       "नीले राजा का राज्य नारंगी राजा के खिलाफ होता है।";
   @override

@@ -118,6 +118,25 @@ class GamicoUsersRepository {
     await usersProvider.updateUser(id, {"progression": progression});
   }
 
+  /// Writes only the progression namespaces in [changed], each under its own
+  /// `progression/{key}` path, and deletes the ones mapped to null.
+  ///
+  /// [updateUserProgression] sets the whole `progression` node, which means one
+  /// game recording a single win uploads — and has echoed back to it — every
+  /// other game's stats too. It is also why that path needs its "user not
+  /// loaded" guard: a caller merging onto an empty map replaces the entire
+  /// node, taking every other game down with it. Writing per namespace is both
+  /// smaller and structurally unable to touch a game it was not given.
+  Future<void> updateUserProgressionEntries(
+    String id,
+    Map<String, dynamic> changed,
+  ) async {
+    if (changed.isEmpty) return;
+    await usersProvider.updateUser(id, {
+      for (final entry in changed.entries) "progression/${entry.key}": entry.value,
+    });
+  }
+
   /// Writes only the `streak` node. Unlike [updateUserProgression] this is a
   /// narrow update: it cannot take another part of the account down with it,
   /// which matters for a write that fires on every app open.

@@ -230,6 +230,15 @@ abstract class GamicoLanguageEs extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "Error de Conexión!";
 
   @override
+  String get premiumPopupTitle => "Modo Premium";
+  @override
+  String get premiumPopupDescription => "¡Desbloquea la versión completa para eliminar todos los anuncios!";
+  @override
+  String get premiumPlayer => "Jugador Premium";
+  @override
+  String get nonPremiumPlayer => "Jugador no premium";
+
+  @override
   String get homeHelpBasicsA =>
       "El reino de los Azules se enfrenta al reino de los Naranjas.";
   @override

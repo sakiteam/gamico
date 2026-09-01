@@ -637,6 +637,7 @@ class RemoteCubit extends Cubit<RemoteState> {
     );
     attempt.gameId = matchedGameId ?? joinedGameId ?? freshGameId;
     createdGameStatus = room["status"]?.toString() ?? "PENDING";
+    debugPrint("🔍 [MM] joinLobby: gameId=${attempt.gameId} roomKey=${attempt.roomKey} playerKey=${attempt.playerKey} roomStatus=$createdGameStatus isInfinite=$isInfinite myUid=${UserService.uid}");
 
     // Leave only our own slot behind on disconnect — for every player, creator
     // included — so one player quitting the lobby never ends it for the others.
@@ -656,20 +657,28 @@ class RemoteCubit extends Cubit<RemoteState> {
     attempt.roomSubscription = roomRef.onValue.listen(
       (event) {
         final value = event.snapshot.value;
-        if (value == null || isClosed || _committed || _launching) return;
+        if (value == null || isClosed || _committed || _launching) {
+          debugPrint("🔍 [MM] roomSub skip: value=$value closed=$isClosed committed=$_committed launching=$_launching");
+          return;
+        }
         final data = Map<String, dynamic>.from(
           jsonDecode(jsonEncode(value)) as Map,
         );
         final roomNextGameId = data["next_game_id"]?.toString();
-        if (roomNextGameId != attempt.gameId) return;
+        if (roomNextGameId != attempt.gameId) {
+          debugPrint("🔍 [MM] roomSub gameId mismatch: room=$roomNextGameId attempt=${attempt.gameId}");
+          return;
+        }
 
         final players = Map<String, dynamic>.from(
           data["players"] as Map? ?? <String, dynamic>{},
         );
         attempt.playerIds = players.values
+            .where((p) => p is Map)
             .map((p) => (p as Map)["user_id"]?.toString())
             .whereType<String>()
             .toSet();
+        debugPrint("🔍 [MM] roomSub: ${players.length} players, status=${data["status"]}, countdown=${data["countdown_end_at"]}");
         _refreshPlayersFound();
 
         if (data["status"]?.toString() == "STARTED") {
@@ -686,31 +695,72 @@ class RemoteCubit extends Cubit<RemoteState> {
 
     // The single authoritative launch signal: the graduated game node going
     // STARTED. Never races, and is never overwritten by later batches.
+    //
+    // Scoped to `/status` on purpose. The node this points at is the live game
+    // node: it also carries `events`, the per-move log every player appends to
+    // for the whole match. Subscribing to the parent downloaded that entire log
+    // on attach and re-delivered every move appended to it — the same traffic
+    // the game's own `events` listener is already paying for — just to read one
+    // string. `players` is read once, on the single tick that matters.
     attempt.gameSubscription = db
-        .ref("games/${attempt.gameId}")
+        .ref("games/${attempt.gameId}/status")
         .onValue
         .listen(
-          (event) {
-            final value = event.snapshot.value;
-            if (value == null) return;
-            final data = Map<String, dynamic>.from(
-              jsonDecode(jsonEncode(value)) as Map,
-            );
-            if (data["status"]?.toString() != "STARTED") return;
+          (event) async {
+            debugPrint("🔍 [MM] gameSub: status=${event.snapshot.value} gameId=${attempt.gameId}");
+            if (event.snapshot.value?.toString() != "STARTED") return;
+            if (isClosed || _launching) {
+              debugPrint("🔍 [MM] gameSub skip: closed=$isClosed launching=$_launching");
+              return;
+            }
 
-            final players = Map<String, dynamic>.from(
-              data["players"] as Map? ?? <String, dynamic>{},
-            );
+            debugPrint("🔍 [MM] gameSub: waiting for players node...");
+            DataSnapshot? playersSnap;
+            try {
+              final event = await db
+                  .ref("games/${attempt.gameId}/players")
+                  .onValue
+                  .firstWhere((e) {
+                    final val = e.snapshot.value;
+                    return val != null && val is Map && val.isNotEmpty;
+                  })
+                  .timeout(const Duration(seconds: 5));
+              playersSnap = event.snapshot;
+            } catch (_) {
+              debugPrint("🔍 [MM] gameSub: timeout waiting for players, falling back to get()");
+              playersSnap = await db.ref("games/${attempt.gameId}/players").get();
+            }
+
+            if (isClosed || _launching) {
+              debugPrint("🔍 [MM] gameSub skip after get: closed=$isClosed launching=$_launching");
+              return;
+            }
+
+            final rawPlayers = playersSnap.value;
+            final players = rawPlayers is Map
+                ? Map<String, dynamic>.from(
+                    jsonDecode(jsonEncode(rawPlayers)) as Map,
+                  )
+                : <String, dynamic>{};
+            // Seats written by [enableBotFallback] carry a synthetic
+            // `bot_<key>` id and no account behind them: they must not count
+            // as real players, or a table finished by the bot fallback would
+            // be rewarded as a full human match.
             final realIds = players.values
+                .where((p) => p is Map)
                 .map((p) => (p as Map)["user_id"]?.toString())
                 .whereType<String>()
+                .where((id) => !id.startsWith("bot_"))
                 .toSet();
+
+            debugPrint("🔍 [MM] gameSub players: $realIds, myUid=${UserService.uid}");
 
             // The batch graduated without us. Launching anyway drops us into a
             // table whose engines never seated us: no hand, no turn, and a
             // defeat at the end. Go back to the pool instead — same treatment
             // as a batch that moved on while we were reconnecting.
             if (!realIds.contains(UserService.uid)) {
+              debugPrint("🔍 [MM] gameSub: NOT SEATED → _rejoinIfUnseated");
               unawaited(_rejoinIfUnseated(attempt));
               return;
             }
@@ -721,8 +771,14 @@ class RemoteCubit extends Cubit<RemoteState> {
                 orderedKeys.isNotEmpty &&
                 orderedKeys.first == attempt.playerKey;
 
-            final minRequired = isInfinite ? 2 : required;
-            _launchWith(attempt, fakeOpponent: realIds.length < minRequired);
+            // "Fake opponent" means nobody real to play against — not "some
+            // seats are bots". It gates move broadcasting and the replay
+            // handshake, so a table where two humans sit among bot-filled
+            // seats has to read as genuine, or those two would stop exchanging
+            // moves entirely. On the 2-seat pools this flag was written for,
+            // `< 2` is exactly the old `< minRequired`.
+            debugPrint("🔍 [MM] gameSub → _launchWith (realIds=${realIds.length})");
+            _launchWith(attempt, fakeOpponent: realIds.length < 2);
           },
           onError: (error, stackTrace) {
             debugPrint("⚠️ RemoteCubit gameSubscription error: $error");
@@ -748,6 +804,7 @@ class RemoteCubit extends Cubit<RemoteState> {
     _LobbyAttempt attempt, {
     required bool fakeOpponent,
   }) async {
+    debugPrint("🔍 [MM] _launchWith: closed=$isClosed launching=$_launching chosen=${_chosen != null} identical=${identical(_chosen, attempt)}");
     if (isClosed || _launching) return;
     if (_chosen == null) {
       // The game node went STARTED without us ever seeing the room flip (the
@@ -757,11 +814,13 @@ class RemoteCubit extends Cubit<RemoteState> {
     } else if (!identical(_chosen, attempt)) {
       // Already committed to another room; _withdrawOthers told this game we
       // are not coming.
+      debugPrint("🔍 [MM] _launchWith: ABORT - chosen is a different attempt");
       return;
     }
 
     gameId = attempt.gameId;
     matchedMode = attempt.mode;
+    debugPrint("🔍 [MM] _launchWith → launchGame(gameId=$gameId, fakeOpponent=$fakeOpponent)");
     launchGame(fakeOpponent: fakeOpponent);
   }
 
@@ -1117,8 +1176,13 @@ class RemoteCubit extends Cubit<RemoteState> {
     for (final uid in ordered) {
       if (_localProfileFor(uid) != null) continue;
       try {
+        // `profiles/$uid`, the name+photo projection, rather than the whole
+        // user node: the two fields read just below are all this needs, and the
+        // full node (~1.9 kB, carrying `progression`, `achievements`, `skins`,
+        // `stars` and the FCM token) is fetched here once per player found, on
+        // every matchmaking session, purely to draw a name under an avatar.
         final snap = await FirebaseDatabase.instance
-            .ref('users/$uid')
+            .ref('profiles/$uid')
             .get()
             .timeout(const Duration(seconds: 5));
         final data = snap.value;

@@ -340,6 +340,10 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
   }
 
   Future<bool> _onWillPop(BuildContext context) async {
+    if (!mounted) {
+      return false;
+    }
+
     final l = GamicoLanguages.of(context);
 
     final gameCubit = context.read<GamicoGameCubit>();
@@ -392,6 +396,14 @@ class _GamicoGamePageState extends State<GamicoGamePage> {
 
   /// Determine whether one can go back or not
   Future<bool> _managePop(BuildContext context) async {
+    // maybePop can reach here from an async callback (end of an online game,
+    // host leaving), or after awaiting the confirmation popup: the page may
+    // already be defunct, and reading a provider off a deactivated element
+    // throws.
+    if (!mounted) {
+      return false;
+    }
+
     final gameCubit = context.read<GamicoGameCubit>();
     final musicCubit = context.read<GamicoMusicCubit>();
 
