@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/commons/services/local_storage.dart';
 import 'package:gamico/commons/settings/matchmaking_settings.dart';
 
 @immutable
@@ -20,15 +20,19 @@ class RemoteUtility {
     bool locked,
     void Function()? replay,
     void Function()? newGame,
-  )? levelsBuilder;
+  )?
+  levelsBuilder;
 
   bool get isDeveloper {
-    return [developerAppleId, developerAndroidId].contains(UserService.uid);
+    return [
+      developerAppleId,
+      developerAndroidId,
+    ].contains(LocalStorageService.uid);
   }
 
   String get developerId {
     if (isDeveloper) {
-      return UserService.uid == developerAndroidId
+      return LocalStorageService.uid == developerAndroidId
           ? developerAppleId
           : developerAndroidId;
     }

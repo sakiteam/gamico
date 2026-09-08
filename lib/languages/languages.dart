@@ -607,4 +607,23 @@ abstract class GamicoLanguages {
   String get passAndPlayTeam1VictoryDescription;
   String get passAndPlayTeam2VictoryDescription;
   String get passAndPlayDrawDescription;
+
+  /// WiFi-local: the guest's end-of-match popup, where only the host deals.
+  String get localNetworkWaitingForHost;
+
+  /// WiFi-local: the host left, so the table cannot continue.
+  String get localNetworkHostLeftDescription;
+
+  /// Online end of game: header of the rematch option picker.
+  String get replayVoteChooseOption;
+
+  /// Online end of game: seconds left before the rematch starts without the
+  /// players who have not answered.
+  String replayVoteCountdown(int seconds);
+
+  /// Online end of game: what happens when that countdown runs out.
+  String get replayVoteStartingSoon;
+
+  /// Online end of game: the rematch is waiting on the other players.
+  String get replayVoteWaitingForPlayers;
 }

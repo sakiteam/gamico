@@ -39,7 +39,8 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
   @override
   String get notificationInvitationBody => "Вы получили приглашение в игру!";
   @override
-  String notificationInvitationFrom(String name) => "$name приглашает вас сыграть!";
+  String notificationInvitationFrom(String name) =>
+      "$name приглашает вас сыграть!";
 
   /* ADVENTURE */
 
@@ -231,7 +232,8 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
   @override
   String get premiumPopupTitle => "Премиум режим";
   @override
-  String get premiumPopupDescription => "Разблокируйте полную версию, чтобы убрать всю рекламу!";
+  String get premiumPopupDescription =>
+      "Разблокируйте полную версию, чтобы убрать всю рекламу!";
   @override
   String get premiumPlayer => "Премиум игрок";
   @override
@@ -1305,4 +1307,25 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
 
   @override
   String get premiumButtonRemoveAds => "Убрать рекламу";
+
+  @override
+  String get localNetworkWaitingForHost => "Ожидание хоста…";
+
+  @override
+  String get localNetworkHostLeftDescription =>
+      "Хост покинул игру: стол закрыт. Вы можете начать новую партию из меню.";
+
+  @override
+  String get replayVoteChooseOption => "Выберите режим для реванша";
+
+  @override
+  String replayVoteCountdown(int seconds) =>
+      "Старт через $seconds с с готовыми игроками";
+
+  @override
+  String get replayVoteStartingSoon =>
+      "Игра начнётся с игроками, которые согласились";
+
+  @override
+  String get replayVoteWaitingForPlayers => "Ожидание других игроков";
 }

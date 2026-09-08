@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/services/admob.dart';
 import 'package:gamico/commons/services/music.dart';
 import 'package:gamico/commons/services/global.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
@@ -161,7 +162,7 @@ class AdmobCubit extends Cubit<AdmobState> {
 
   Future<void> loadRewardedAd() async {
     try {
-      await Gamico.mobileAdsInitFuture;
+      await AdmobService.initFuture;
     } catch (_) {}
 
     if (isClosed) return;
@@ -222,7 +223,7 @@ class AdmobCubit extends Cubit<AdmobState> {
 
   Future<void> loadInterstitialAd() async {
     try {
-      await Gamico.mobileAdsInitFuture;
+      await AdmobService.initFuture;
     } catch (_) {}
 
     if (isClosed) return;
@@ -401,4 +402,3 @@ extension ShowAdAfterGame on AdmobCubit {
     await showInterstitialAd();
   }
 }
-

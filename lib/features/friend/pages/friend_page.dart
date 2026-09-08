@@ -10,14 +10,12 @@ import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/remote_utility.dart';
 import 'package:gamico/commons/services/layout.dart';
 import 'package:gamico/commons/services/navigation.dart';
-import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/commons/services/local_storage.dart';
 import 'package:gamico/commons/settings/matchmaking_settings.dart';
 import 'package:gamico/commons/utilities/game/game_utility.dart';
 import 'package:gamico/features/friend/cubits/friend_invitation_cubit.dart';
 import 'package:gamico/features/friend/cubits/invitation_cubit.dart';
 import 'package:gamico/features/friend/models/invitation_model.dart';
-import 'package:gamico/commons/repositories/gamico_users_repository.dart';
-import 'package:gamico/commons/providers/gamico_users_provider.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:remove_diacritic/remove_diacritic.dart';
 import 'package:gamico/commons/services/notification.dart';
@@ -46,7 +44,7 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
       context.read<InvitationCubit>().startListening(currentUser.uid);
 
       // Mettre à jour le token de notification
-      NotificationService.updateUserToken(UserService.uid);
+      NotificationService.updateUserToken(LocalStorageService.uid);
     }
   }
 
@@ -138,7 +136,7 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
       // final invitation =
       await context.read<InvitationCubit>().sendInvitation(
         receiverId,
-        UserService.uid,
+        LocalStorageService.uid,
       );
 
       ScaffoldMessenger.of(context)
@@ -246,7 +244,7 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
                       itemBuilder: (context, index) {
                         final user = _searchResults[index];
 
-                        if (user['id'] == UserService.uid) {
+                        if (user['id'] == LocalStorageService.uid) {
                           return const SizedBox();
                         }
 
@@ -336,18 +334,14 @@ class _GamicoFriendPageState extends State<GamicoFriendPage> {
                               final invitation =
                                   state.pendingInvitations[index];
                               return FutureBuilder(
-                                future: GamicoUsersRepository(
-                                  usersProvider: GamicoUsersProvider(),
-                                  fromJson: (json) => json,
-                                  toJson: (user) =>
-                                      user as Map<String, dynamic>,
-                                ).readUser(invitation.senderId),
+                                future: Gamico.instance.usersRepository
+                                    .readUser(invitation.senderId),
                                 builder: (context, snapshot) {
                                   return ListTile(
                                     title: Text(l.friendPageGameInvitation),
                                     subtitle: Text(
                                       l.friendPageInvitationFrom(
-                                        snapshot.data?['name'] ??
+                                        snapshot.data?.name ??
                                             l.friendPageUnknown,
                                       ),
                                     ),

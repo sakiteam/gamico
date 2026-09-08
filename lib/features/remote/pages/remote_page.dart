@@ -39,6 +39,29 @@ class GamicoRemotePage extends StatefulWidget {
 class _GamicoRemotePageState extends State<GamicoRemotePage> {
   late final RemoteCubit remoteCubit;
 
+  /// The match whose table this page has already opened.
+  ///
+  /// The launch used to be a one-shot `listenWhen` on the `success`
+  /// transition, additionally gated on [RemoteState.enabled] (an animation
+  /// flag). A player whose flag happened to be down at that exact instant —
+  /// `animGame` left up by a previous launch, `animInit` taken down by a back
+  /// press whose pop never completed — was matched, seated in
+  /// `games/<id>/players` and then simply never taken to the table: the
+  /// matchmaking screen stayed up for good while the opponents burned the
+  /// readiness grace waiting on a player whose device had already given up on
+  /// showing them the game.
+  ///
+  /// The launch is now driven by the state alone, and keyed by the game it
+  /// launches: every `success` state is a chance to open the table, each match
+  /// opens exactly once, and a rematch (a brand-new game id) opens again.
+  String? _pushedMatchKey;
+
+  /// Key identifying the match carried by [state]: the game id, or the search
+  /// generation for the (unexpected) case of a success without one.
+  String _matchKeyOf(RemoteState state) => state.gameId.isNotEmpty
+      ? state.gameId
+      : "search-${state.searchGeneration}";
+
   @override
   void initState() {
     super.initState();
@@ -104,7 +127,11 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
               // preference" search hands the game its real mode.
               final remoteUtility = remoteCubit.matchedRemoteUtility;
 
-              if (remoteState.enabled) {
+              final matchKey = _matchKeyOf(remoteState);
+
+              if (_pushedMatchKey != matchKey) {
+                _pushedMatchKey = matchKey;
+
                 remoteCubit.setAnimGame(true);
                 remoteCubit.setAnimated(true);
 
@@ -144,6 +171,17 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
                     ),
                   );
 
+                  // The push above completes when the game page is popped: the
+                  // player is looking at this waiting screen again (a rematch
+                  // search, or a genuine exit whose own pop is on its way).
+                  // `animGame` has to come back down with it — it used to stay
+                  // up for the life of the page, and with it `enabled` stayed
+                  // false, which is one of the ways a matched player ended up
+                  // stranded on the search screen.
+                  if (!remoteCubit.isClosed) {
+                    remoteCubit.setAnimGame(false);
+                  }
+
                   await Future.delayed(AnimationService.animationDuration);
 
                   if (!mounted) return;
@@ -155,6 +193,8 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
                   debugPrint(
                     "⚠️ Exception launching remote game page: $e\n$stack",
                   );
+                  // Nothing was opened: let a later state retry this match.
+                  _pushedMatchKey = null;
                   if (!mounted) return;
                   remoteCubit.setAnimGame(false);
                   remoteCubit.setAnimated(false);
@@ -162,9 +202,12 @@ class _GamicoRemotePageState extends State<GamicoRemotePage> {
                 }
               }
             },
+            // Deliberately not restricted to the `success` transition: a state
+            // change that arrives while the push is still being set up (or one
+            // that follows a launch this page could not act on) must be able to
+            // open the table too. `_gamePagePushed` is what keeps it to one.
             listenWhen: (oldState, newState) {
-              return oldState.status != RemoteGameStatus.success &&
-                  newState.status == RemoteGameStatus.success;
+              return newState.status == RemoteGameStatus.success;
             },
           ),
         ],

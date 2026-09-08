@@ -4,7 +4,6 @@ import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/generics/poster.dart';
 import 'package:gamico/commons/generics/gamico_popup.dart';
 import 'package:gamico/commons/generics/ad_button.dart';
-import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/features/game/modes/remote_mode_settings.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
@@ -57,20 +56,10 @@ class GamicoGamePopup extends StatelessWidget {
           ? null
           : GamicoAdButton(
               color: tripleAd ? ColorService.accentColor : null,
-              onPressed: () async {
-                final AdmobCubit admobCubit = context.read<AdmobCubit>();
-
-                await admobCubit.ensureRewardedAdLoaded();
-
-                admobCubit.showRewardedAd(() {
-                  context.read<GamicoUserCubit>().incrementCowries(
-                    tripleAd
-                        ? Gamico.instance.gameSettings.playMinimumCoins
-                        : 1,
-                  );
-                  context.read<GamicoGameCubit>().enabledTripleAd();
-                });
-              },
+              onPressed: () => context.read<GamicoGameCubit>().claimAdReward(
+                admob: context.read<AdmobCubit>(),
+                tripleAd: tripleAd,
+              ),
               text: tripleAd
                   ? l.gamePopupWatchAd(
                       Gamico.instance.gameSettings.playMinimumCoins,

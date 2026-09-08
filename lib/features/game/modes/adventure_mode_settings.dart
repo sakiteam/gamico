@@ -9,7 +9,6 @@ import 'package:gamico/commons/models/gamico_user_model.dart';
 import 'package:gamico/features/game/modes/game_mode_settings.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/navigation.dart';
-import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/features/game/cubits/adventure/adventure_game_cubit.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:gamico/languages/languages.dart';
@@ -26,7 +25,11 @@ class AdventureModeSettings implements GameModeSettings {
 
   @override
   GamicoUserModel localPlayerProfile(BuildContext context) {
-    return UserService.getUser() ?? const GamicoUserModel();
+    // Straight from the cubit: it is the account, and `GamicoAccountGate` has
+    // already waited for it. Reading a persisted copy here is what used to hand
+    // the game a profile from the last session.
+    return context.read<GamicoUserCubit>().state.user ??
+        const GamicoUserModel();
   }
 
   @override

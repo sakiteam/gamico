@@ -17,10 +17,45 @@ class GamicoRemoteGameState {
   final int? nextLevel;
 
   String get opponentId => opponent?.id ?? "";
+
+  /// How many of the seated players have asked to play again.
+  int get replayReadyCount =>
+      replayVotes.keys.where(replayPlayerIds.contains).length;
+
+  /// How many are expected to.
+  int get replayTotalCount => replayPlayerIds.length;
+
+  /// Whether a rematch with these players is still on the table: it takes two.
+  bool get replayVotePossible => replayPlayerIds.length >= 2;
+
+  /// How many players picked [optionId].
+  int votesForReplayOption(String optionId) => replayVotes.entries
+      .where((e) => e.value == optionId && replayPlayerIds.contains(e.key))
+      .length;
   final dynamic opponent;
   final List<dynamic> opponents;
   final bool friend;
   final bool fakeOpponent;
+
+  /// Who asked to play again, and with which option: uid → option id. Every
+  /// device rebuilds the same map from the shared event log, so the counts
+  /// under the "Rejouer" button are the same on every phone at the table.
+  final Map<String, String> replayVotes;
+
+  /// The players the rematch is still waiting on: everyone seated who has not
+  /// left. Ids, so the popup can show "2/4" and grey the button out when a
+  /// rematch is no longer possible.
+  final List<String> replayPlayerIds;
+
+  /// When the local countdown started, i.e. when at least two players agreed
+  /// on the same option while somebody was still undecided. Null while there
+  /// is nothing to count down to.
+  final DateTime? replayCountdownStartedAt;
+
+  /// The option the resolved rematch is played with (null until it resolves).
+  /// Games read it to build the new match — Ludo carries it into the new
+  /// game's config so a table that voted "Élimination" gets élimination.
+  final String? replayOption;
 
   const GamicoRemoteGameState({
     required this.adventureUtility,
@@ -28,6 +63,10 @@ class GamicoRemoteGameState {
     this.opponent,
     this.opponents = const [],
     required this.fakeOpponent,
+    this.replayVotes = const {},
+    this.replayPlayerIds = const [],
+    this.replayCountdownStartedAt,
+    this.replayOption,
     required this.creator,
     this.friend = false,
     this.newGameId = "",
@@ -55,6 +94,10 @@ class GamicoRemoteGameState {
     List<dynamic>? opponents,
     bool? fakeOpponent,
     bool? friend,
+    Map<String, String>? replayVotes,
+    List<String>? replayPlayerIds,
+    DateTime? Function()? replayCountdownStartedAt,
+    String? Function()? replayOption,
     RemoteUtility? remoteUtility,
     int? Function()? level,
     AdventureUtility? Function()? adventureUtility,
@@ -81,6 +124,12 @@ class GamicoRemoteGameState {
           remoteGameInternetError ?? this.remoteGameInternetError,
       fakeOpponent: fakeOpponent ?? this.fakeOpponent,
       friend: friend ?? this.friend,
+      replayVotes: replayVotes ?? this.replayVotes,
+      replayPlayerIds: replayPlayerIds ?? this.replayPlayerIds,
+      replayCountdownStartedAt: replayCountdownStartedAt != null
+          ? replayCountdownStartedAt()
+          : this.replayCountdownStartedAt,
+      replayOption: replayOption != null ? replayOption() : this.replayOption,
       opponent: opponent != null ? opponent() : this.opponent,
       opponents: opponents ?? this.opponents,
       nextLevel: nextLevel != null ? nextLevel() : this.nextLevel,

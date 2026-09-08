@@ -36,9 +36,11 @@ abstract class GamicoLanguagePt extends GamicoLanguages {
   @override
   String get friendPageUnknown => "Desconhecido";
   @override
-  String get notificationInvitationBody => "Você recebeu um convite para jogar!";
+  String get notificationInvitationBody =>
+      "Você recebeu um convite para jogar!";
   @override
-  String notificationInvitationFrom(String name) => "$name convida você para jogar!";
+  String notificationInvitationFrom(String name) =>
+      "$name convida você para jogar!";
 
   /* ADVENTURE */
 
@@ -230,7 +232,8 @@ abstract class GamicoLanguagePt extends GamicoLanguages {
   @override
   String get premiumPopupTitle => "Modo Premium";
   @override
-  String get premiumPopupDescription => "Desbloqueie a versão completa para remover todos os anúncios!";
+  String get premiumPopupDescription =>
+      "Desbloqueie a versão completa para remover todos os anúncios!";
   @override
   String get premiumPlayer => "Jogador Premium";
   @override
@@ -1304,4 +1307,25 @@ abstract class GamicoLanguagePt extends GamicoLanguages {
 
   @override
   String get premiumButtonRemoveAds => "Remover anúncios";
+
+  @override
+  String get localNetworkWaitingForHost => "A aguardar o anfitrião…";
+
+  @override
+  String get localNetworkHostLeftDescription =>
+      "O anfitrião saiu do jogo: a mesa terminou. Podes começar outra a partir do menu.";
+
+  @override
+  String get replayVoteChooseOption => "Escolhe um modo para a desforra";
+
+  @override
+  String replayVoteCountdown(int seconds) =>
+      "Começa em ${seconds}s com os jogadores prontos";
+
+  @override
+  String get replayVoteStartingSoon =>
+      "O jogo vai começar com os jogadores que aceitaram";
+
+  @override
+  String get replayVoteWaitingForPlayers => "À espera dos outros jogadores";
 }

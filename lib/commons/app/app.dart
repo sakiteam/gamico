@@ -1,47 +1,33 @@
 import 'dart:io';
 
-import 'package:gamico/commons/cubits/admob/admob_cubit.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:awesome_notifications/awesome_notifications.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:gamico/commons/cubits/authentication/authentication_cubit.dart';
-import 'package:gamico/commons/cubits/character/character_cubit.dart';
-import 'package:gamico/commons/cubits/gratification/gratification_cubit.dart';
-import 'package:gamico/commons/cubits/internet/internet_cubit.dart';
+import 'package:gamico/commons/app/app_hooks.dart';
+import 'package:gamico/commons/app/app_initializer.dart';
+import 'package:gamico/commons/app/app_providers.dart';
+import 'package:gamico/commons/app/asset_preloader.dart';
 import 'package:gamico/commons/cubits/locale/locale_cubit.dart';
-import 'package:gamico/commons/cubits/music/music_cubit.dart';
-import 'package:gamico/commons/cubits/purchases/purchases_cubit.dart';
-import 'package:gamico/commons/cubits/referral/referral_cubit.dart';
-import 'package:gamico/commons/cubits/showcase/showcase_cubit.dart';
-import 'package:gamico/commons/cubits/user/user_cubit.dart';
-import 'package:gamico/commons/global/gamico.dart';
-import 'package:gamico/commons/providers/gamico_games_provider.dart';
-import 'package:gamico/commons/providers/gamico_purchases_provider.dart';
-import 'package:gamico/commons/repositories/gamico_games_repository.dart';
-import 'package:gamico/commons/repositories/gamico_purchases_repository.dart';
-import 'package:gamico/commons/services/color.dart';
-import 'package:gamico/commons/services/game.dart';
-import 'package:gamico/commons/services/gif.dart';
-import 'package:gamico/commons/services/locale.dart';
-import 'package:gamico/commons/services/navigation.dart';
-import 'package:gamico/commons/services/notification.dart';
-import 'package:gamico/commons/services/time_zone.dart';
-import 'package:gamico/commons/services/version.dart';
-import 'package:gamico/commons/utilities/game/game_utility.dart';
 import 'package:gamico/commons/generics/content_wrapper.dart';
 import 'package:gamico/commons/generics/material_app_wrapper.dart';
-import 'package:gamico/commons/models/remote_utility.dart';
-import 'package:gamico/commons/settings/matchmaking_settings.dart';
-import 'package:gamico/features/friend/cubits/friend_invitation_cubit.dart';
-import 'package:gamico/features/remote/cubits/remote_cubit.dart';
+import 'package:gamico/commons/app/account_gate.dart';
+import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/services/color.dart';
+import 'package:gamico/commons/services/game.dart';
+import 'package:gamico/commons/services/locale.dart';
+import 'package:gamico/commons/services/navigation.dart';
+import 'package:gamico/commons/utilities/game/game_utility.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:gamico/languages/localizations.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
+export 'app_hooks.dart';
+export 'app_initializer.dart';
+export 'app_providers.dart';
+export 'asset_preloader.dart';
+
+/// Root widget for Gamico applications.
+/// Configures MaterialApp, theme styling, localization resolution, and root layout structure.
 class GamicoApp extends StatefulWidget {
   final List<Widget>? decorations;
   final Widget? background;
@@ -86,156 +72,19 @@ class GamicoApp extends StatefulWidget {
   State<GamicoApp> createState() => _GamicoAppState();
 }
 
-class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
-  ValueNotifier<bool> loadingNotifier = ValueNotifier(true);
-  LocaleCubit localeCubit = LocaleCubit();
+class _GamicoAppState extends State<GamicoApp> {
+  final ValueNotifier<bool> _loadingNotifier = ValueNotifier(true);
+  final LocaleCubit _localeCubit = LocaleCubit();
 
-  void _load() async {
-    loadingNotifier.value = true;
-
-    // Initilize plugins for the proper functioning of the app
-    // try {
-    //   // Handle message processings
-    //   // FirebaseMessaging.onMessage.listen(foregroundNotificationHandler);
-    //   // FirebaseMessaging.onBackgroundMessage(backgroundNotificationHandler);
-
-    //   // await
-    //   // Future.wait([
-
-    //   // ]);
-
-    //   print("aaa ${DateTime.now()}");
-
-    //   print("bbb ${DateTime.now()}");
-
-    //   // GlobalService.dynamicLink =
-    //   //     await FirebaseDynamicLinks.instance.getInitialLink();
-    // } catch (e) {
-    //   debugPrint(e.toString());
-    // }
-
-    await VersionService.init();
-    TimeZoneService.initTimeZone();
-
-    try {
-      await AwesomeNotifications().initialize(
-        "resource://drawable/ic_stat_${Gamico.instance.title.toLowerCase()}",
-        [
-          NotificationChannel(
-            channelKey: "default",
-            channelName: "Généralités",
-            channelDescription: "Ces notifications servent à informer le joueur des nouveautés et de toutes les informations d'ordre général !",
-            playSound: true,
-            enableVibration: true,
-            channelShowBadge: true,
-            onlyAlertOnce: false,
-            importance: NotificationImportance.Max,
-          ),
-          NotificationChannel(
-            channelKey: 'invitations',
-            channelName: 'Invitations',
-            channelDescription: 'Ces notifications servent à informer le joueur des invitations reçues !',
-            playSound: true,
-            enableVibration: true,
-            channelShowBadge: true,
-            onlyAlertOnce: false,
-            importance: NotificationImportance.Max,
-          ),
-          // Channel for active game turn updates.
-          // Importance Max ensures it appears in the active/prominent section of the
-          // Android shade (NOT tucked away in "Silencieux").
-          // onlyAlertOnce: true ensures silent progress updates without repeated sounds.
-          NotificationChannel(
-            channelKey: 'game',
-            channelName: 'Parties',
-            channelDescription: "Ces notifications servent à donner des informations au joueur au cours d'une partie !",
-            enableVibration: false,
-            playSound: false,
-            onlyAlertOnce: true,
-            channelShowBadge: true,
-            importance: NotificationImportance.Max,
-          ),
-        ],
-        debug: kDebugMode,
-      );
-    } catch (e) {
-      debugPrint(e.toString());
-    }
-
-    // Package info
-    PackageInfo packageInfo = await PackageInfo.fromPlatform();
-    VersionService.versionString = packageInfo.version;
-
-    loadingNotifier.value = false;
+  Future<void> _initApp() async {
+    _loadingNotifier.value = true;
+    await GamicoAppInitializer.initialize();
+    _loadingNotifier.value = false;
   }
 
-  @override
-  void initState() {
-    super.initState();
-
-    NavigationService.onPopupOpen = (ctx) {
-      try {
-        ctx.read<GamicoMusicCubit>().playPopupOpenBruitage();
-      } catch (_) {}
-    };
-    NavigationService.onPopupClose = (ctx) {
-      try {
-        ctx.read<GamicoMusicCubit>().playPopupCloseBruitage();
-      } catch (_) {}
-    };
-
-    NotificationService.onAcceptInvitation = (acceptContext, invitationId) {
-      NavigationService.closePopups();
-
-      final remoteUtility = RemoteUtility(
-        adventure: false,
-        developerAndroidId: "",
-        developerAppleId: "",
-        levelsBuilder: null,
-        matchmakingSettings: MatchmakingSettings(
-          minLevel: 0,
-          maxLevel: 0,
-          getMatchmakingLevel: (_) => 0,
-          increment: 0,
-        ),
-      );
-
-      final remoteCubit = RemoteCubit(
-        userCubit: acceptContext.read<GamicoUserCubit>(),
-        gamesRepository: acceptContext.read<GamicoGamesRepository>(),
-        remoteUtility: remoteUtility,
-        level: null,
-      );
-
-      NavigationService.pushPageWithAnimation(
-        acceptContext,
-        BlocProvider.value(
-          value: remoteCubit,
-          child: Gamico.instance.pagesSettings.gamePage(
-            acceptContext,
-            RemoteGameUtility(
-              level: null,
-              gameId: invitationId,
-              fakeOpponent: false,
-              friend: true,
-              remoteUtility: remoteUtility,
-              adventureUtility: null,
-              creatorOfCurrentGame: false,
-              onBackButtonPressed: () async {},
-            ),
-          ),
-        ),
-      );
-    };
-
-    WidgetsBinding.instance.addObserver(this);
-    // Clear any stale app-icon badge on launch (see [didChangeAppLifecycleState]).
-    NotificationService.clearBadge();
-
-    _load();
-
+  void _initLocale() {
     if (LocaleService.language.isNotEmpty) {
-      localeCubit.setLocale(Locale(LocaleService.language));
+      _localeCubit.setLocale(Locale(LocaleService.language));
     } else {
       final defaultLanguageCode = Platform.localeName.substring(0, 2);
       Locale defaultLocale = Locale(defaultLanguageCode);
@@ -244,29 +93,30 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
         defaultLocale = GamicoLanguages.fallbackLocale;
       }
 
-      localeCubit.setLocale(defaultLocale);
+      _localeCubit.setLocale(defaultLocale);
     }
   }
 
-  /// Reset the app-icon badge every time the app returns to the foreground.
-  /// iOS never decrements the badge on its own, so without this it keeps
-  /// climbing as scheduled reminders and pushed invitations arrive.
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
+  void initState() {
+    super.initState();
+    GamicoAppHooks.setupGlobalHooks();
+    _initLocale();
+    _initApp();
+  }
 
-    if (state == AppLifecycleState.resumed) {
-      NotificationService.clearBadge();
-    }
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    GamicoAssetPreloader.precache(context);
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    _loadingNotifier.dispose();
     super.dispose();
   }
 
-  /// Build.
   @override
   Widget build(BuildContext context) {
     // Disable landscape mode
@@ -275,91 +125,9 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
       DeviceOrientation.portraitDown,
     ]);
 
-    // Return concrete app content
-    return MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider.value(
-          value: Gamico.instance.usersRepository,
-          // create: (context) => UsersRepository(
-          //   usersProvider: UsersProvider(),
-          // ),
-        ),
-        RepositoryProvider(
-          create: (context) =>
-              GamicoGamesRepository(gamesProvider: GamicoGamesProvider()),
-        ),
-        RepositoryProvider(
-          create: (context) => GamicoPurchasesRepository(
-            purchasesProvider: GamicoPurchasesProvider(),
-          ),
-        ),
-      ],
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider(
-            lazy: false,
-            create: (context) => FriendInvitationCubit(),
-          ),
-          BlocProvider(
-            lazy: false,
-            create: (context) => GamicoUserCubit(
-              usersRepository: Gamico.instance.usersRepository,
-              // fromJson: Gamico.instance.userFromJson,
-              // toJson: Gamico.instance.userToJson,
-            ),
-          ),
-          // BlocProvider(
-          //   lazy: false,
-          //   create: (context) => UserCubit(
-          //     usersRepository: context.read<UsersRepository>(),
-          //     fromJson: gamico.userFromJson,
-          //     toJson: gamico.userToJson,
-          //   ),
-          // ),
-          BlocProvider(lazy: false, create: (context) => GamicoMusicCubit()),
-          BlocProvider(
-            lazy: false,
-            create: (context) => AuthenticationCubit(
-              onAuthenticated: () =>
-                  context.read<FriendInvitationCubit>().listenToInvitations(),
-              userCubit: context.read<GamicoUserCubit>(),
-              usersRepository: Gamico.instance.usersRepository,
-            ),
-          ),
-          BlocProvider(lazy: false, create: (context) => InternetCubit()),
-          BlocProvider(
-            lazy: false,
-            create: (context) =>
-                AdmobCubit(userCubit: context.read<GamicoUserCubit>()),
-          ),
-          BlocProvider(lazy: false, create: (context) => ShowcaseCubit()),
-          BlocProvider(
-            lazy: false,
-            create: (context) => PurchasesCubit(
-              userCubit: context.read<GamicoUserCubit>(),
-              purchasesRepository: context.read<GamicoPurchasesRepository>(),
-            ),
-          ),
-          BlocProvider(
-            lazy: false,
-            create: (context) => ReferralCubit(
-              // authenticationCubit: context.read<AuthenticationCubit>(),
-              // internetCubit: context.read<InternetCubit>(),
-            ),
-          ),
-          BlocProvider(lazy: false, create: (context) => CharacterCubit()),
-          BlocProvider(
-            lazy: false,
-            create: (context) => GratificationCubit(
-              userCubit: context.read<GamicoUserCubit>(),
-              internetCubit: context.read<InternetCubit>(),
-            ),
-          ),
-          BlocProvider.value(
-            value: localeCubit,
-            // create: (context) => localeCubit,
-          ),
-        ],
+    return GamicoLifecycleManager(
+      child: GamicoProviders(
+        localeCubit: _localeCubit,
         child: BlocBuilder<LocaleCubit, LocaleState>(
           builder: (context, localeState) {
             // A null cubit locale means "follow the system": resolve it so
@@ -367,27 +135,39 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
             final Locale effectiveLocale =
                 localeState.locale ??
                 WidgetsBinding.instance.platformDispatcher.locale;
+
             return GamicoMaterialAppWrapper(
               child: MaterialApp(
                 navigatorKey: NavigationService.globalNavigatorKey,
                 showPerformanceOverlay: widget.showPerformanceOverlay,
-                home: ValueListenableBuilder(
-                  valueListenable: loadingNotifier,
+                home: ValueListenableBuilder<bool>(
+                  valueListenable: _loadingNotifier,
                   builder: (context, loading, child) {
                     if (loading) {
                       return Gamico.instance.pagesSettings.loadingPage(context);
                     }
 
-                    if (GameService.tutorialPassed) {
-                      return Gamico.instance.pagesSettings.homePage(context);
-                    }
+                    // Plugins are up, but the account may not be. Stay on the
+                    // loading screen rather than paint a home page over a user
+                    // that has not arrived — see [GamicoAccountGate].
+                    return GamicoAccountGate(
+                      loading: (context) =>
+                          Gamico.instance.pagesSettings.loadingPage(context),
+                      builder: (context) {
+                        if (GameService.tutorialPassed) {
+                          return Gamico.instance.pagesSettings.homePage(
+                            context,
+                          );
+                        }
 
-                    return Gamico.instance.pagesSettings.gamePage(
-                      context,
-                      const TutorialGameUtility(
-                        tutorialLessonIndex: 0,
-                        onBackButtonPressed: null,
-                      ),
+                        return Gamico.instance.pagesSettings.gamePage(
+                          context,
+                          const TutorialGameUtility(
+                            tutorialLessonIndex: 0,
+                            onBackButtonPressed: null,
+                          ),
+                        );
+                      },
                     );
                   },
                 ),
@@ -475,28 +255,4 @@ class _GamicoAppState extends State<GamicoApp> with WidgetsBindingObserver {
       ),
     );
   }
-
-  /// Did changed dependencies.
-  @override
-  void didChangeDependencies() {
-    // Precache asset images
-    for (final image in (Gamico.instance.cacheSettings?.images ?? <String>[])) {
-      final imageProvider = AssetImage(image);
-
-      precacheImage(imageProvider, context);
-
-      if (image.endsWith("gif")) {
-        GifService.precacheImage(imageProvider);
-      }
-    }
-
-    // Call inherited method
-    super.didChangeDependencies();
-  }
 }
-
-// Manage notification that comes from background
-Future<void> backgroundNotificationHandler(RemoteMessage remoteMessage) async {}
-
-// Manage notification that comes from foreground
-Future<void> foregroundNotificationHandler(RemoteMessage remoteMessage) async {}

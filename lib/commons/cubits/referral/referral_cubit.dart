@@ -17,7 +17,7 @@ class ReferralCubit extends Cubit<ReferralState> {
     // required this.internetCubit,
     // }
   ) : super(const ReferralState()) {
-    // if (UserService.authenticated) {
+    // if (LocalStorageService.authenticated) {
     //   () async {
     //     _generateLink(await SimpleConnectionChecker.isConnectedToInternet());
     //   }();
@@ -37,7 +37,7 @@ class ReferralCubit extends Cubit<ReferralState> {
     // });
 
     // _internetSubscription = internetCubit.stream.listen((event) {
-    //   if (event.connected && UserService.authenticated) {
+    //   if (event.connected && LocalStorageService.authenticated) {
     //     _generateLink();
     //   }
     // });
@@ -50,7 +50,7 @@ class ReferralCubit extends Cubit<ReferralState> {
   // StreamSubscription<InternetState>? _internetSubscription;
 
   // String _link = "";
-  // bool _authenticated = UserService.authenticated;
+  // bool _authenticated = LocalStorageService.authenticated;
 
   // void _emitLink(String link) {
   //   emit(state.copyWith(
@@ -68,7 +68,7 @@ class ReferralCubit extends Cubit<ReferralState> {
   //       final DynamicLinkParameters parameters = DynamicLinkParameters(
   //         uriPrefix: 'https://tactico.page.link',
   //         link: Uri.parse(
-  //           'https://saki-hub.web.app?referrer_id=${UserService.uid}',
+  //           'https://saki-hub.web.app?referrer_id=${LocalStorageService.uid}',
   //         ),
   //         androidParameters: const AndroidParameters(
   //           packageName: "com.saki.tactico",

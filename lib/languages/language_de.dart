@@ -37,9 +37,11 @@ abstract class GamicoLanguageDe extends GamicoLanguages {
   @override
   String get friendPageUnknown => "Unbekannt";
   @override
-  String get notificationInvitationBody => "Du hast eine Spieleinladung erhalten!";
+  String get notificationInvitationBody =>
+      "Du hast eine Spieleinladung erhalten!";
   @override
-  String notificationInvitationFrom(String name) => "$name lädt dich zum Spielen ein!";
+  String notificationInvitationFrom(String name) =>
+      "$name lädt dich zum Spielen ein!";
 
   /* ADVENTURE */
 
@@ -231,7 +233,8 @@ abstract class GamicoLanguageDe extends GamicoLanguages {
   @override
   String get premiumPopupTitle => "Premium-Modus";
   @override
-  String get premiumPopupDescription => "Schalten Sie die Vollversion frei, um alle Werbeanzeigen zu entfernen!";
+  String get premiumPopupDescription =>
+      "Schalten Sie die Vollversion frei, um alle Werbeanzeigen zu entfernen!";
   @override
   String get premiumPlayer => "Premium-Spieler";
   @override
@@ -1305,4 +1308,25 @@ abstract class GamicoLanguageDe extends GamicoLanguages {
 
   @override
   String get premiumButtonRemoveAds => "Werbung entfernen";
+
+  @override
+  String get localNetworkWaitingForHost => "Warten auf den Gastgeber…";
+
+  @override
+  String get localNetworkHostLeftDescription =>
+      "Der Gastgeber hat das Spiel verlassen: Der Tisch ist beendet. Du kannst über das Menü ein neues starten.";
+
+  @override
+  String get replayVoteChooseOption => "Wähle einen Modus für die Revanche";
+
+  @override
+  String replayVoteCountdown(int seconds) =>
+      "Start in ${seconds}s mit den bereiten Spielern";
+
+  @override
+  String get replayVoteStartingSoon =>
+      "Das Spiel startet mit den Spielern, die zugesagt haben";
+
+  @override
+  String get replayVoteWaitingForPlayers => "Warten auf die anderen Spieler";
 }

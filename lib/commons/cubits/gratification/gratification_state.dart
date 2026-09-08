@@ -18,6 +18,18 @@ class GratificationState {
     this.offerRemainingDuration = Duration.zero,
   });
 
+  /// Whether the device clock is significantly out of sync with the world time (>= 5 minutes).
+  bool get isClockDesynchronized => worldDateTimeDifference.inMinutes >= 5;
+
+  /// Computes the reward coins based on user state and elapsed duration.
+  int calculateRewardCoins(int? nextGratification) {
+    int next = nextGratification ?? GratificationCubit.hour1Gratification;
+    if (durationDifference.inHours > 1) {
+      next = GratificationCubit.hour1Gratification;
+    }
+    return next;
+  }
+
   GratificationState copyWith({
     bool? loading,
     Duration? worldDateTimeDifference,

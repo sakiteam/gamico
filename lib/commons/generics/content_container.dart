@@ -4,6 +4,7 @@ import 'package:defer_pointer/defer_pointer.dart';
 import 'package:gamico/commons/services/layout.dart';
 import 'package:gamico/commons/generics/character.dart';
 import 'package:gamico/commons/cubits/character/character_cubit.dart';
+import 'package:gamico/commons/generics/ink_fitted_box.dart';
 
 class GamicoContentContainer extends StatefulWidget {
   final bool enabled;
@@ -77,21 +78,19 @@ class _GamicoContentContainerState extends State<GamicoContentContainer> {
             // Background
             if (widget.backgroundChild != null)
               Positioned.fill(
-                child: FittedBox(
-                  child: DeferredPointerHandler(
-                    child: Container(
-                      width: LayoutService.referenceWidth,
-                      height: LayoutService.referenceHeight,
-                      alignment: Alignment.center,
-                      child: OverflowBox(
-                        maxWidth: LayoutService.scaledTotalWidth,
-                        maxHeight: LayoutService.scaledTotalHeight,
-                        child: DeferPointer(
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: double.infinity,
-                            child: widget.backgroundChild,
-                          ),
+                child: InkDeferredFittedBox(
+                  child: Container(
+                    width: LayoutService.referenceWidth,
+                    height: LayoutService.referenceHeight,
+                    alignment: Alignment.center,
+                    child: OverflowBox(
+                      maxWidth: LayoutService.scaledTotalWidth,
+                      maxHeight: LayoutService.scaledTotalHeight,
+                      child: DeferPointer(
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: double.infinity,
+                          child: widget.backgroundChild,
                         ),
                       ),
                     ),
@@ -102,7 +101,7 @@ class _GamicoContentContainerState extends State<GamicoContentContainer> {
             // Child
             if (widget.child != null)
               Positioned.fill(
-                child: FittedBox(
+                child: InkFittedBox(
                   child: SizedBox(
                     width: LayoutService.referenceWidth,
                     height: LayoutService.referenceHeight,
@@ -119,21 +118,19 @@ class _GamicoContentContainerState extends State<GamicoContentContainer> {
                     top: LayoutService.realUselessSpacing.top,
                     bottom: LayoutService.realUselessSpacing.bottom,
                   ),
-                  child: FittedBox(
-                    child: DeferredPointerHandler(
-                      child: Container(
-                        width: LayoutService.referenceWidth,
-                        height: LayoutService.referenceHeight,
-                        alignment: Alignment.center,
-                        child: OverflowBox(
-                          maxWidth: LayoutService.scaledUsefulWidth,
-                          maxHeight: LayoutService.scaledUsefulHeight,
-                          child: DeferPointer(
-                            child: SizedBox(
-                              width: double.infinity,
-                              height: double.infinity,
-                              child: widget.safeChild,
-                            ),
+                  child: InkDeferredFittedBox(
+                    child: Container(
+                      width: LayoutService.referenceWidth,
+                      height: LayoutService.referenceHeight,
+                      alignment: Alignment.center,
+                      child: OverflowBox(
+                        maxWidth: LayoutService.scaledUsefulWidth,
+                        maxHeight: LayoutService.scaledUsefulHeight,
+                        child: DeferPointer(
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: double.infinity,
+                            child: widget.safeChild,
                           ),
                         ),
                       ),
@@ -145,21 +142,19 @@ class _GamicoContentContainerState extends State<GamicoContentContainer> {
             // Foreground
             if (widget.foregroundChild != null)
               Positioned.fill(
-                child: FittedBox(
-                  child: DeferredPointerHandler(
-                    child: Container(
-                      width: LayoutService.referenceWidth,
-                      height: LayoutService.referenceHeight,
-                      alignment: Alignment.center,
-                      child: OverflowBox(
-                        maxWidth: LayoutService.scaledTotalWidth,
-                        maxHeight: LayoutService.scaledTotalHeight,
-                        child: DeferPointer(
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: double.infinity,
-                            child: widget.foregroundChild,
-                          ),
+                child: InkDeferredFittedBox(
+                  child: Container(
+                    width: LayoutService.referenceWidth,
+                    height: LayoutService.referenceHeight,
+                    alignment: Alignment.center,
+                    child: OverflowBox(
+                      maxWidth: LayoutService.scaledTotalWidth,
+                      maxHeight: LayoutService.scaledTotalHeight,
+                      child: DeferPointer(
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: double.infinity,
+                          child: widget.foregroundChild,
                         ),
                       ),
                     ),

@@ -19,6 +19,38 @@ class MatchmakingSettings<T extends GamicoUserModel> {
   final int? maxPlayers;
   final bool isInfinite;
 
+  /// Namespace of the server-driven pool this search queues in
+  /// (`pools/<poolKey>_<seats>`), for [MatchmakingMigration].
+  ///
+  /// Game modes are deliberately NOT part of it: they travel inside each queue
+  /// entry, and the server groups compatible players. That is what lets a
+  /// player who picked one mode and a player with no preference sit at the
+  /// same table — under the legacy scheme the latter had to queue in every
+  /// mode's room at once to achieve the same thing.
+  ///
+  /// Defaults to [mode], which is right for every single-mode game (there the
+  /// mode string is a namespace, not a choice). Games whose [mode]/[modes]
+  /// encode a real player choice must set it explicitly.
+  final String? poolKey;
+
+  /// Seat count as it appears in a pool key: `00` for an infinite pool.
+  String get poolSeats =>
+      (isInfinite || (maxPlayers ?? 2) == 0) ? "00" : "${maxPlayers ?? 2}";
+
+  /// Full `pools/` key: namespace plus seat count.
+  String get resolvedPoolKey {
+    final base = (poolKey ?? mode ?? "default")
+        .replaceAll(RegExp(r'[.#$/\[\]\s]'), '_');
+    return "${base}_$poolSeats";
+  }
+
+  /// Mode identifiers this player accepts, as sent in the queue entry.
+  List<String> get queueModes {
+    final list = modes;
+    if (list != null && list.isNotEmpty) return List<String>.from(list);
+    return [mode ?? "default"];
+  }
+
   const MatchmakingSettings({
     required this.minLevel,
     required this.maxLevel,
@@ -28,6 +60,7 @@ class MatchmakingSettings<T extends GamicoUserModel> {
     this.modes,
     this.maxPlayers,
     this.isInfinite = false,
+    this.poolKey,
   });
 
   /// Copy of these settings pinned to a single resolved [mode] — what the
@@ -41,6 +74,7 @@ class MatchmakingSettings<T extends GamicoUserModel> {
       mode: mode,
       maxPlayers: maxPlayers,
       isInfinite: isInfinite,
+      poolKey: poolKey,
     );
   }
 }

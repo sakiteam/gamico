@@ -5,6 +5,7 @@ library;
 // ==========================================
 export 'commons/app/app.dart';
 export 'commons/global/gamico.dart';
+export 'commons/global/gamico_bootstrap.dart';
 export 'commons/constants/constants.dart';
 
 // ==========================================
@@ -31,6 +32,7 @@ export 'commons/settings/game_settings.dart';
 export 'commons/settings/gratification_settings.dart';
 export 'commons/settings/languages_settings.dart';
 export 'commons/settings/matchmaking_settings.dart';
+export 'commons/settings/music_settings.dart';
 export 'commons/settings/pages_settings.dart';
 export 'commons/settings/play_settings.dart';
 export 'commons/settings/purchases_settings.dart';
@@ -42,9 +44,11 @@ export 'commons/settings/user_settings.dart';
 // SERVICES & ANALYTICS
 // ==========================================
 export 'commons/analytics/analytics_utils.dart';
+export 'commons/services/admob.dart';
 export 'commons/services/animation.dart';
 export 'commons/services/collection.dart';
 export 'commons/services/color.dart';
+export 'commons/services/crashlytics.dart';
 export 'commons/services/database_shutdown.dart';
 export 'commons/services/formatting.dart';
 export 'commons/services/game.dart';
@@ -60,11 +64,13 @@ export 'commons/services/navigation.dart';
 export 'commons/services/notification.dart';
 export 'commons/services/paint.dart';
 export 'commons/services/play.dart';
+export 'commons/app/account_gate.dart';
+export 'commons/services/pending_progression.dart';
+export 'commons/services/progression.dart';
 export 'commons/services/showcase.dart';
 export 'commons/services/store.dart';
 export 'commons/services/time_zone.dart';
 export 'commons/services/timestamp.dart';
-export 'commons/services/user.dart';
 export 'commons/services/version.dart';
 
 // ==========================================
@@ -101,10 +107,12 @@ export 'commons/generics/ad_button.dart';
 export 'commons/generics/animated_number.dart';
 export 'commons/generics/authentication_popup.dart';
 export 'commons/generics/beam.dart';
+export 'commons/generics/blocked_account_poster.dart';
 export 'commons/generics/button.dart';
 export 'commons/generics/card.dart';
 export 'commons/generics/character.dart';
 export 'commons/generics/coins_popup.dart';
+export 'commons/generics/coins_popup_index_manager.dart';
 export 'commons/generics/coins_store_poster.dart';
 export 'commons/generics/coins_widget.dart';
 export 'commons/generics/confetti.dart';
@@ -115,6 +123,7 @@ export 'commons/generics/disabler.dart';
 export 'commons/generics/elevated_button.dart';
 export 'commons/generics/elevated_container.dart';
 export 'commons/generics/fader.dart';
+export 'commons/generics/ink_fitted_box.dart';
 export 'commons/generics/finger.dart';
 export 'commons/generics/finite_scaler.dart';
 export 'commons/generics/gamico_popup.dart';
@@ -186,20 +195,24 @@ export 'commons/utilities/tutorial/tutorial_step_utility.dart';
 // Feature: Game
 export 'features/game/cubits/game_cubit.dart';
 export 'features/game/cubits/adventure/adventure_game_cubit.dart';
+export 'features/game/cubits/local_network/local_network_game_cubit.dart';
 export 'features/game/cubits/pass_and_play/pass_and_play_game_cubit.dart';
 export 'features/game/cubits/remote/remote_game_cubit.dart';
 export 'features/game/cubits/tutorial/tutorial_game_cubit.dart';
 export 'features/game/modes/game_mode_settings.dart';
 export 'features/game/modes/adventure_mode_settings.dart';
+export 'features/game/modes/local_network_mode_settings.dart';
 export 'features/game/modes/pass_and_play_mode_settings.dart';
 export 'features/game/modes/remote_mode_settings.dart';
 export 'features/game/modes/tutorial_mode_settings.dart';
 export 'features/game/pages/game_page.dart';
 export 'features/game/pages/adventure_game_page.dart';
+export 'features/game/pages/local_network_game_page.dart';
 export 'features/game/pages/pass_and_play_game_page.dart';
 export 'features/game/pages/remote_game_page.dart';
 export 'features/game/pages/tutorial_game_page.dart';
 export 'features/game/utilities/gamico_game_cubit_settings.dart';
+export 'features/game/utilities/replay_option.dart';
 export 'features/game/utilities/replay_utility.dart';
 export 'features/game/utilities/tile_utility.dart';
 export 'features/game/widgets/game_abandonment_button.dart';
@@ -209,6 +222,11 @@ export 'features/game/widgets/game_congratulations_text.dart';
 export 'features/game/widgets/game_congratulations_tutorial_popup.dart';
 export 'features/game/widgets/game_end_button.dart';
 export 'features/game/widgets/game_exit_button.dart';
+export 'features/game/widgets/game_host_waiting_indicator.dart';
+export 'features/game/widgets/game_remote_end_game_actions.dart';
+export 'features/game/widgets/game_replay_countdown_dial.dart';
+export 'features/game/widgets/game_replay_options_panel.dart';
+export 'features/game/widgets/game_replay_vote_button.dart';
 export 'features/game/widgets/game_explanation_popup.dart';
 export 'features/game/widgets/game_initial_tutorial_popup.dart';
 export 'features/game/widgets/game_line.dart';
@@ -243,6 +261,7 @@ export 'features/friend/models/invitation_model.dart';
 export 'features/friend/pages/friend_page.dart';
 
 // Feature: Home
+export 'features/home/cubits/home_cubit.dart';
 export 'features/home/pages/home_page.dart';
 export 'features/home/widgets/about_button.dart';
 export 'features/home/widgets/help_button.dart';
@@ -278,20 +297,3 @@ export 'languages/language_hi.dart';
 export 'languages/language_pt.dart';
 export 'languages/language_ru.dart';
 export 'languages/language_zh.dart';
-
-// ==========================================
-// NOTES & ROADMAP
-// ==========================================
-// ORGANISATIONNEL :
-// - Bien gérer la logique des tutos avec Gamico (supprimer la dépendance cyclique)
-// - Permettre de pouvoir utiliser un utilisateur générique dans Gamico
-// - Déplacer la logique de GamicoGamePage dans le cubit
-// - Déplacer la logique de GamicoHomePage dans le cubit
-// - Theming : pouvoir donner des couleurs (fore/back) aux IconTextButton dans tous les endroits où il le faut
-// - Rendre GamicoMusicCubit facilement utilisable pour intégrer d'autres musiques
-//
-// FONCTIONNEL :
-// - _iap.restorePurchases() a été commenté (vérifier que ça ne pose pas de problème)
-// - OptionButtonSlider doit afficher le contenu si option est enabled
-// - Si user a déjà ouvert GamePopup à la fin du jeu, ne pas ouvrir encore grâce au code qui le fait automatiquement
-// - Gérer plus correctement le prix de l'offre à côté de l'offre spéciale

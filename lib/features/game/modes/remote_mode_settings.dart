@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/features/game/widgets/game_exit_button.dart';
+import 'package:gamico/features/game/widgets/game_remote_end_game_actions.dart';
 import 'package:gamico/features/game/widgets/game_replay_button.dart';
 import 'package:gamico/commons/generics/icon_text_button.dart';
 import 'package:gamico/commons/generics/loader.dart';
@@ -11,7 +12,6 @@ import 'package:gamico/commons/models/gamico_user_model.dart';
 import 'package:gamico/features/game/modes/game_mode_settings.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/navigation.dart';
-import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:gamico/features/game/cubits/remote/remote_game_cubit.dart';
 import 'package:gamico/features/remote/cubits/remote_cubit.dart';
@@ -39,7 +39,11 @@ class RemoteModeSettings implements GameModeSettings {
 
   @override
   GamicoUserModel localPlayerProfile(BuildContext context) {
-    return UserService.getUser() ?? const GamicoUserModel();
+    // Straight from the cubit: it is the account, and `GamicoAccountGate` has
+    // already waited for it. Reading a persisted copy here is what used to hand
+    // the game a profile from the last session.
+    return context.read<GamicoUserCubit>().state.user ??
+        const GamicoUserModel();
   }
 
   @override
@@ -339,6 +343,13 @@ class RemoteModeSettings implements GameModeSettings {
       default:
         final l = GamicoLanguages.of(context);
 
+        // Vote-based rematch: the three actions are the framework's own
+        // ([GamicoRemoteEndGameActions]), so a game that draws its own result
+        // screen closes a match exactly the way this popup does.
+        if (context.read<GamicoRemoteGameCubit>().replayVoteEnabled) {
+          return GamicoRemoteEndGameActions.buttons(context);
+        }
+
         final newGameButton = GamicoIconTextButton(
           text: l.gamePopupNewGame,
           iconData: Icons.sports_esports,
@@ -594,7 +605,7 @@ class RemoteModeSettings implements GameModeSettings {
     final user = context.select(
       (GamicoUserCubit gamicoUserCubit) => gamicoUserCubit.state.user,
     );
-    final userStars = (user?.stars as List<int>?) ?? [];
+    final userStars = user?.stars ?? [];
 
     final userCurrentLevel = adventureUtility.getUserLevel(user);
 

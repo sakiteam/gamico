@@ -42,8 +42,7 @@ class GamicoUserModel {
   /// changed — see `GamicoUserCubit.updateUserProgression` — but the streak
   /// still belongs outside it: it is not a game's progress.)
   final Map<String, dynamic>? streak;
-  // final Map<String, dynamic>? skins;
-  final List<String>? skins;
+  final Map<String, dynamic>? skins;
   final bool? premium;
   final String? activeSkin;
 
@@ -127,10 +126,16 @@ class GamicoUserModel {
       updatedAt: DateTime.tryParse(json["updated_at"]?.toString() ?? ""),
       token: json["token"]?.toString(),
       name: json["name"] is String? ? json["name"] : json["name"]?.toString(),
-      formattedName: json["formatted_name"] is String? ? json["formatted_name"] : json["formatted_name"]?.toString(),
-      socialName: json["social_name"] is String? ? json["social_name"] : json["social_name"]?.toString(),
+      formattedName: json["formatted_name"] is String?
+          ? json["formatted_name"]
+          : json["formatted_name"]?.toString(),
+      socialName: json["social_name"] is String?
+          ? json["social_name"]
+          : json["social_name"]?.toString(),
       type: json["type"]?.toString(),
-      photo: json["photo"] is String? ? json["photo"] : json["photo"]?.toString(),
+      photo: json["photo"] is String?
+          ? json["photo"]
+          : json["photo"]?.toString(),
       coins: json["coins"]?.toInt(),
       level: json["level"]?.toInt(),
       victories: json["victories"]?.toInt(),
@@ -184,16 +189,36 @@ class GamicoUserModel {
         }(),
         _ => null,
       },
-      // `skins` is now a List<String> of owned skin ids, but legacy users (and
-      // the current `updateUserSkins` writer) store it as a Map { id: owned }.
-      // Tolerate both so reading a legacy user never throws (which would null
-      // the whole user). Map → keys whose value is truthy.
+      // `skins` is a Map<String, dynamic> structured by categories (e.g. {"ball": {"equipped": "classic", "unlocked": {...}}}).
+      // Tolerate legacy formats (flat Map or List) so older accounts migrate cleanly.
       skins: switch (json["skins"]) {
-        final List list => list.map((e) => e.toString()).toList(),
-        final Map map => map.entries
-            .where((e) => e.value == true || e.value == 1)
-            .map((e) => e.key.toString())
-            .toList(),
+        final Map map => () {
+          Map<String, dynamic> deepCast(Map m) {
+            return m.map((k, v) {
+              if (v is Map) {
+                return MapEntry(k.toString(), deepCast(v));
+              }
+              return MapEntry(k.toString(), v);
+            });
+          }
+
+          final casted = deepCast(map);
+          if (casted.containsKey("ball")) {
+            return casted;
+          }
+          return <String, dynamic>{
+            "ball": {
+              "equipped": json["active_skin"]?.toString() ?? "classic",
+              "unlocked": casted,
+            },
+          };
+        }(),
+        final List list => <String, dynamic>{
+          "ball": {
+            "equipped": json["active_skin"]?.toString() ?? "classic",
+            "unlocked": {for (final e in list) e.toString(): true},
+          },
+        },
         _ => null,
       },
       progression: json["progression"],

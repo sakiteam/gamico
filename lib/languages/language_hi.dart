@@ -38,7 +38,8 @@ abstract class GamicoLanguageHi extends GamicoLanguages {
   @override
   String get notificationInvitationBody => "आपको खेलने का निमंत्रण मिला है!";
   @override
-  String notificationInvitationFrom(String name) => "$name आपको खेलने के लिए आमंत्रित करते हैं!";
+  String notificationInvitationFrom(String name) =>
+      "$name आपको खेलने के लिए आमंत्रित करते हैं!";
 
   /* ADVENTURE */
 
@@ -228,7 +229,8 @@ abstract class GamicoLanguageHi extends GamicoLanguages {
   @override
   String get premiumPopupTitle => "प्रीमियम मोड";
   @override
-  String get premiumPopupDescription => "सभी विज्ञापनों को हटाने के लिए पूर्ण संस्करण अनलॉक करें!";
+  String get premiumPopupDescription =>
+      "सभी विज्ञापनों को हटाने के लिए पूर्ण संस्करण अनलॉक करें!";
   @override
   String get premiumPlayer => "प्रीमियम खिलाड़ी";
   @override
@@ -1300,4 +1302,25 @@ abstract class GamicoLanguageHi extends GamicoLanguages {
 
   @override
   String get premiumButtonRemoveAds => "विज्ञापन हटाएं";
+
+  @override
+  String get localNetworkWaitingForHost => "होस्ट की प्रतीक्षा…";
+
+  @override
+  String get localNetworkHostLeftDescription =>
+      "होस्ट ने खेल छोड़ दिया: यह टेबल समाप्त हो गई। आप मेनू से नया खेल शुरू कर सकते हैं।";
+
+  @override
+  String get replayVoteChooseOption => "बदले के लिए मोड चुनें";
+
+  @override
+  String replayVoteCountdown(int seconds) =>
+      "${seconds}s में तैयार खिलाड़ियों के साथ शुरू";
+
+  @override
+  String get replayVoteStartingSoon =>
+      "खेल उन खिलाड़ियों के साथ शुरू होगा जिन्होंने स्वीकार किया";
+
+  @override
+  String get replayVoteWaitingForPlayers => "अन्य खिलाड़ियों की प्रतीक्षा";
 }

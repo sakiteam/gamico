@@ -37,7 +37,8 @@ abstract class GamicoLanguageEs extends GamicoLanguages {
   @override
   String get friendPageUnknown => "Desconocido";
   @override
-  String get notificationInvitationBody => "¡Has recibido una invitación para jugar!";
+  String get notificationInvitationBody =>
+      "¡Has recibido una invitación para jugar!";
   @override
   String notificationInvitationFrom(String name) => "¡$name te invita a jugar!";
 
@@ -232,7 +233,8 @@ abstract class GamicoLanguageEs extends GamicoLanguages {
   @override
   String get premiumPopupTitle => "Modo Premium";
   @override
-  String get premiumPopupDescription => "¡Desbloquea la versión completa para eliminar todos los anuncios!";
+  String get premiumPopupDescription =>
+      "¡Desbloquea la versión completa para eliminar todos los anuncios!";
   @override
   String get premiumPlayer => "Jugador Premium";
   @override
@@ -1305,4 +1307,25 @@ abstract class GamicoLanguageEs extends GamicoLanguages {
 
   @override
   String get premiumButtonRemoveAds => "Eliminar anuncios";
+
+  @override
+  String get localNetworkWaitingForHost => "Esperando al anfitrión…";
+
+  @override
+  String get localNetworkHostLeftDescription =>
+      "El anfitrión ha salido de la partida: la mesa ha terminado. Puedes empezar otra desde el menú.";
+
+  @override
+  String get replayVoteChooseOption => "Elige un modo para la revancha";
+
+  @override
+  String replayVoteCountdown(int seconds) =>
+      "Empieza en ${seconds}s con los jugadores listos";
+
+  @override
+  String get replayVoteStartingSoon =>
+      "La partida comenzará con los jugadores que aceptaron";
+
+  @override
+  String get replayVoteWaitingForPlayers => "Esperando a los demás jugadores";
 }

@@ -2,30 +2,33 @@
 import 'dart:core';
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:bloc/bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:gamico/commons/services/play.dart';
-import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/commons/services/local_storage.dart';
 import 'package:gamico/commons/global/gamico.dart';
-import 'package:games_services/games_services.dart';
 import 'package:gamico/commons/services/global.dart';
 import 'package:firebase_database/firebase_database.dart';
 // import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:games_services/games_services.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/repositories/gamico_users_repository.dart';
 
 part 'authentication_state.dart';
 
 class AuthenticationCubit extends Cubit<AuthenticationState> {
-  static PlayerData? gameServicesPlayer;
+  /// Backward-compatibility aliases for [PlayService.player].
+  static PlayerData? get gameServicesPlayer => PlayService.player;
+  static PlayerData? get player => PlayService.player;
 
   final GamicoUserCubit userCubit;
   final GamicoUsersRepository usersRepository;
   final void Function()? onAuthenticated;
 
   StreamSubscription<User?>? _authSubscription;
-  StreamSubscription<PlayerData?>? _playerSubscription;
+  StreamSubscription? _playerSubscription;
 
   AuthenticationCubit({
     required this.userCubit,
@@ -34,14 +37,16 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
   }) : super(
          AuthenticationState(
            status: AuthenticationStateStatus.initial,
-           authenticated: UserService.authenticated,
+           authenticated: LocalStorageService.authenticated,
          ),
        ) {
     _authSubscription = FirebaseAuth.instance.authStateChanges().listen((
       User? firebaseUser,
     ) async {
       if (firebaseUser != null) {
-        await GamicoGlobalService.waitWhile(() => !UserService.authenticated);
+        await GamicoGlobalService.waitWhile(
+          () => !LocalStorageService.authenticated,
+        );
 
         userCubit.listenToUserChanges();
 
@@ -63,20 +68,26 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
           state.copyWith(
             status: AuthenticationStateStatus.success,
             authenticated: true,
+            deliberateSignOut: false,
           ),
         );
       } else {
-        // [GAMICO-FIX] name/level-loss investigation.
-        // Instrumentation: authStateChanges emitted null (no persisted user,
-        // a signOut(), or a token-refresh failure). This clears the user — log
-        // it so a vanished name/level can be traced back here.
+        // authStateChanges emitted null: no persisted Firebase user, a
+        // signOut(), a deleted account — or a token-refresh failure, which is
+        // transient and indistinguishable from the rest.
+        //
+        // The session is cleared because this IS the signed-out signal, but the
+        // account stays reachable: `LocalStorageService.uid`'s setter mirrors every
+        // non-empty value to `last_uid`, which nothing here touches, and the
+        // next sign-in restores the pointer from it (see [_recoverSession]).
+        // Without that, a transient token failure orphaned the account.
         debugPrint(
           "⚠️ authStateChanges -> null: clearing session\n${StackTrace.current}",
         );
 
         userCubit.cancelUserChangesListener();
 
-        UserService.uid = "";
+        LocalStorageService.uid = "";
         userCubit.setUser(null);
 
         emit(
@@ -88,16 +99,15 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
       }
     });
 
-    _playerSubscription = GameAuth.player.listen(
+    _playerSubscription = PlayService.playerStream.listen(
       (player) async {
-        gameServicesPlayer = player;
         // Writes `social_name` only. The player-facing `name` is seeded from it
         // once (first sign-in) and then belongs to the player, who can rename
         // themselves from the profile popup.
-        userCubit.setUserSocialName(gameServicesPlayer?.displayName ?? "");
+        userCubit.setUserSocialName(player?.displayName ?? "");
       },
       onError: (error, stackTrace) {
-        debugPrint("⚠️ GameAuth.player stream error: $error");
+        debugPrint("⚠️ PlayService.playerStream error: $error");
       },
     );
   }
@@ -120,7 +130,7 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
     try {
       if (await PlayService.enableGameServices()) {
         String firebaseId = FirebaseAuth.instance.currentUser?.uid ?? "";
-        String socialId = gameServicesPlayer?.playerID ?? "";
+        String socialId = PlayService.playerId;
 
         // [GAMICO-FIX] name/level-loss investigation.
         // Guard: an unstable game services layer (typically the simulator's
@@ -134,28 +144,72 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
           );
           emit(
             state.copyWith(
-              status: UserService.authenticated
+              status: LocalStorageService.authenticated
                   ? AuthenticationStateStatus.success
                   : AuthenticationStateStatus.failure,
-              authenticated: UserService.authenticated,
+              authenticated: LocalStorageService.authenticated,
             ),
           );
           return;
         }
 
-        final snapshot = await FirebaseDatabase.instance
-            .ref()
-            .child("users")
-            .orderByChild("social_id")
-            .equalTo(socialId)
-            .limitToFirst(1)
-            .get();
+        // The lookup gets its own try/catch. Letting it fall through to the
+        // outer one meant a flaky network erased the account pointer — see
+        // [handleError].
+        final DataSnapshot snapshot;
+        try {
+          snapshot = await FirebaseDatabase.instance
+              .ref()
+              .child("users")
+              .orderByChild("social_id")
+              .equalTo(socialId)
+              .limitToFirst(1)
+              .get();
+        } catch (e) {
+          debugPrint("⚠️ signIn: users lookup failed => $e");
+          _recoverSession();
+          if (!isClosed) {
+            emit(
+              state.copyWith(
+                status: LocalStorageService.authenticated
+                    ? AuthenticationStateStatus.success
+                    : AuthenticationStateStatus.failure,
+                authenticated: LocalStorageService.authenticated,
+              ),
+            );
+          }
+          return;
+        }
+
+        // An empty result is only trustworthy when it came from the server.
+        // Offline, `get()` answers from a disk cache that does not hold the
+        // `users` index, so "no match" is indistinguishable from "not asked" —
+        // and the branch below would spawn a second account and orphan the
+        // player's real one.
+        if (!snapshot.exists && !await _databaseReachable()) {
+          debugPrint(
+            "⚠️ signIn: no match for social_id but the database is not "
+            "reachable; refusing to create a second account",
+          );
+          _recoverSession();
+          if (!isClosed) {
+            emit(
+              state.copyWith(
+                status: LocalStorageService.authenticated
+                    ? AuthenticationStateStatus.success
+                    : AuthenticationStateStatus.failure,
+                authenticated: LocalStorageService.authenticated,
+              ),
+            );
+          }
+          return;
+        }
 
         if (snapshot.exists) {
           final data = jsonDecode(jsonEncode(snapshot.value));
           final userData = Map<String, dynamic>.from(data.values.first);
 
-          UserService.uid = data.keys.first;
+          LocalStorageService.uid = data.keys.first;
 
           userCubit.setUser(
             Gamico.instance.userFromJson(userData),
@@ -174,9 +228,10 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
           // in sync on every sign-in so server-side lookups stay correct.
           if (userData["firebase_id"] != firebaseId) {
             unawaited(
-              usersRepository.usersProvider.updateUser(UserService.uid, {
-                "firebase_id": firebaseId,
-              }),
+              usersRepository.usersProvider.updateUser(
+                LocalStorageService.uid,
+                {"firebase_id": firebaseId},
+              ),
             );
           }
         } else {
@@ -185,7 +240,7 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
             socialId,
           );
 
-          UserService.uid = await usersRepository.createUser(user);
+          LocalStorageService.uid = await usersRepository.createUser(user);
 
           // Save user information
           userCubit.setUser(user, loaded: true);
@@ -199,6 +254,7 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
           state.copyWith(
             status: AuthenticationStateStatus.success,
             authenticated: true,
+            deliberateSignOut: false,
           ),
         );
       } else {
@@ -211,24 +267,82 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
   }
 
   Future<void> signOut() async {
+    // Flagged BEFORE the await: `authStateChanges` fires its null from inside
+    // FirebaseAuth.signOut(), so anything reacting to the session ending must
+    // already be able to tell this apart from a token-refresh failure.
+    emit(state.copyWith(deliberateSignOut: true));
+
     await FirebaseAuth.instance.signOut();
 
-    UserService.uid = "";
+    LocalStorageService.uid = "";
     userCubit.setUser(null);
 
     emit(state.copyWith(authenticated: false));
   }
 
+  /// A sign-in attempt failed. It does NOT clear the session.
+  ///
+  /// This used to erase `LocalStorageService.uid` and null the persisted user on ANY
+  /// exception raised anywhere in [signIn] — a game services hiccup, a timeout
+  /// on the `users` lookup, a transient rules error. Since
+  /// `LocalStorageService.authenticated` is `uid.isNotEmpty`, that left the player
+  /// signed out of their own account with no way back except another sign-in,
+  /// which could then create a fresh account and orphan the real one. A failed
+  /// attempt is not a sign-out: only [signOut] clears, and even that keeps
+  /// [LocalStorageService.lastUid] so the account stays recoverable.
   void handleError() {
-    UserService.uid = "";
-    userCubit.setUser(null);
+    _recoverSession();
+
+    if (isClosed) return;
 
     emit(
       state.copyWith(
-        status: AuthenticationStateStatus.failure,
-        authenticated: false,
+        status: LocalStorageService.authenticated
+            ? AuthenticationStateStatus.success
+            : AuthenticationStateStatus.failure,
+        authenticated: LocalStorageService.authenticated,
       ),
     );
+  }
+
+  /// Puts the account pointer back when something erased it.
+  ///
+  /// `uid` can be empty here after a sign-out, or after an older build's error
+  /// path wiped it. [LocalStorageService.lastUid] survives both, so the device can
+  /// reattach to the account it already owns instead of the sign-in creating a
+  /// new one.
+  void _recoverSession() {
+    if (LocalStorageService.uid.isNotEmpty) return;
+
+    final recovered = LocalStorageService.lastUid;
+    if (recovered.isEmpty) return;
+
+    debugPrint("ℹ️ signIn: restoring account pointer from lastUid");
+
+    LocalStorageService.uid = recovered;
+    userCubit.listenToUserChanges();
+  }
+
+  /// Whether the RTDB backend is actually reachable right now.
+  ///
+  /// `.info/connected` is a local node: it answers immediately with the current
+  /// socket state. A cold start can legitimately still be connecting, so give
+  /// it a short grace period before concluding the backend is out of reach.
+  Future<bool> _databaseReachable() async {
+    final ref = FirebaseDatabase.instance.ref(".info/connected");
+
+    for (var attempt = 0; attempt < 12; attempt++) {
+      try {
+        final snapshot = await ref.get();
+        if (snapshot.value == true) return true;
+      } catch (e) {
+        debugPrint("⚠️ .info/connected probe failed => $e");
+      }
+
+      await Future.delayed(const Duration(milliseconds: 250));
+    }
+
+    return false;
   }
 
   @override

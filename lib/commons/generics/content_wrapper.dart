@@ -6,6 +6,7 @@ import 'package:gamico/commons/generics/scroll_behavior.dart';
 import 'package:gamico/commons/services/layout.dart';
 import 'package:gamico/commons/generics/character.dart';
 import 'package:gamico/commons/generics/only_one_pointer_recognizer_widget.dart';
+import 'package:gamico/commons/generics/ink_fitted_box.dart';
 
 class GamicoContentWrapper extends StatelessWidget {
   final Widget? child;
@@ -77,21 +78,19 @@ class GamicoContentWrapper extends StatelessWidget {
                   //   child: background,
                   // ),
                   Positioned.fill(
-                    child: FittedBox(
-                      child: DeferredPointerHandler(
-                        child: Container(
-                          width: LayoutService.referenceWidth,
-                          height: LayoutService.referenceHeight,
-                          alignment: Alignment.center,
-                          child: OverflowBox(
-                            maxWidth: LayoutService.scaledTotalWidth,
-                            maxHeight: LayoutService.scaledTotalHeight,
-                            child: DeferPointer(
-                              child: SizedBox(
-                                width: double.infinity,
-                                height: double.infinity,
-                                child: background,
-                              ),
+                    child: InkDeferredFittedBox(
+                      child: Container(
+                        width: LayoutService.referenceWidth,
+                        height: LayoutService.referenceHeight,
+                        alignment: Alignment.center,
+                        child: OverflowBox(
+                          maxWidth: LayoutService.scaledTotalWidth,
+                          maxHeight: LayoutService.scaledTotalHeight,
+                          child: DeferPointer(
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: double.infinity,
+                              child: background,
                             ),
                           ),
                         ),
@@ -128,30 +127,28 @@ class GamicoContentWrapper extends StatelessWidget {
 
                   // Character
                   Positioned.fill(
-                    child: FittedBox(
-                      child: DeferredPointerHandler(
-                        child: SizedBox(
-                          // color: Colors.blue.withAlpha(100),
-                          width: LayoutService.referenceWidth,
-                          height: LayoutService.referenceHeight,
-                          child: OverflowBox(
-                            minWidth: 0,
-                            minHeight: 0,
-                            maxWidth: double.infinity,
-                            maxHeight: double.infinity,
-                            child: SizedBox(
-                              // color: Colors.red,
-                              width: LayoutService.scaledTotalWidth,
-                              height: LayoutService.scaledTotalHeight,
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  ...(decorations ?? []),
-                                  ...GamicoCharacterPosition.values.map(
-                                    (e) => GamicoCharacter(position: e),
-                                  ),
-                                ],
-                              ),
+                    child: InkDeferredFittedBox(
+                      child: SizedBox(
+                        // color: Colors.blue.withAlpha(100),
+                        width: LayoutService.referenceWidth,
+                        height: LayoutService.referenceHeight,
+                        child: OverflowBox(
+                          minWidth: 0,
+                          minHeight: 0,
+                          maxWidth: double.infinity,
+                          maxHeight: double.infinity,
+                          child: SizedBox(
+                            // color: Colors.red,
+                            width: LayoutService.scaledTotalWidth,
+                            height: LayoutService.scaledTotalHeight,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                ...(decorations ?? []),
+                                ...GamicoCharacterPosition.values.map(
+                                  (e) => GamicoCharacter(position: e),
+                                ),
+                              ],
                             ),
                           ),
                         ),

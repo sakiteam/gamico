@@ -39,9 +39,11 @@ abstract class GamicoLanguageEn extends GamicoLanguages {
   @override
   String get friendPageUnknown => "Unknown";
   @override
-  String get notificationInvitationBody => "You have received a game invitation!";
+  String get notificationInvitationBody =>
+      "You have received a game invitation!";
   @override
-  String notificationInvitationFrom(String name) => "$name invites you to play!";
+  String notificationInvitationFrom(String name) =>
+      "$name invites you to play!";
 
   /* ADVENTURE */
 
@@ -228,7 +230,8 @@ abstract class GamicoLanguageEn extends GamicoLanguages {
   @override
   String get premiumPopupTitle => "Premium Mode";
   @override
-  String get premiumPopupDescription => "Unlock the full version to remove all ads!";
+  String get premiumPopupDescription =>
+      "Unlock the full version to remove all ads!";
   @override
   String get premiumPlayer => "Premium Player";
   @override
@@ -1296,4 +1299,25 @@ abstract class GamicoLanguageEn extends GamicoLanguages {
 
   @override
   String get premiumButtonRemoveAds => "Remove Ads";
+
+  @override
+  String get localNetworkWaitingForHost => "Waiting for the host…";
+
+  @override
+  String get localNetworkHostLeftDescription =>
+      "The host left the game: this table is over. You can start a new one from the menu.";
+
+  @override
+  String get replayVoteChooseOption => "Choose a mode for the rematch";
+
+  @override
+  String replayVoteCountdown(int seconds) =>
+      "Starting in ${seconds}s with the ready players";
+
+  @override
+  String get replayVoteStartingSoon =>
+      "The game will start with the players who accepted";
+
+  @override
+  String get replayVoteWaitingForPlayers => "Waiting for the other players";
 }

@@ -12,9 +12,9 @@ class AdventureUtility<T extends GamicoUserModel> extends Equatable {
   final int initialLevelsLimit;
   final Widget explanationPopup;
 
-  final bool Function(T user) isUserBroke;
-  final int Function(T user) getUserLevel;
-  final List<int> Function(T user) getUserStars;
+  final bool Function(T? user) isUserBroke;
+  final int Function(T? user) getUserLevel;
+  final List<int> Function(T? user) getUserStars;
 
   /// Optional mode-aware writers, symmetric to [getUserLevel]/[getUserStars].
   ///

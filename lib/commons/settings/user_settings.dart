@@ -7,12 +7,18 @@ import 'package:gamico/commons/utilities/couple/couple_utility.dart';
 @immutable
 class UserSettings {
   final GamicoUsersRepository usersRepository;
-  final dynamic Function(String firebaseId, String socialId) createNewUser;
-  final dynamic Function(dynamic, dynamic) userCreateFakeOpponent;
+  final GamicoUserModel Function(String firebaseId, String socialId)
+  createNewUser;
+  final GamicoUserModel Function(
+    GamicoUserModel? currentUser,
+    GamicoUserModel finalOpponent,
+  )
+  userCreateFakeOpponent;
   final List<GamicoCoupleUtility<String>> Function(
     BuildContext context,
-    dynamic user,
-  ) userProfile;
+    GamicoUserModel? user,
+  )
+  userProfile;
 
   /// Whether the user cubit writes `online`/`updated_at` on `users/{uid}`
   /// itself.

@@ -1,20 +1,18 @@
 import 'dart:math';
+
 import 'package:defer_pointer/defer_pointer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/cubits/character/character_cubit.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
-import 'package:gamico/commons/services/color.dart';
+import 'package:gamico/commons/generics/blocked_account_poster.dart';
+import 'package:gamico/commons/generics/character.dart';
+import 'package:gamico/commons/generics/only_one_pointer_recognizer_widget.dart';
+import 'package:gamico/commons/generics/page_indicator.dart';
 import 'package:gamico/commons/services/layout.dart';
 import 'package:gamico/commons/services/navigation.dart';
-import 'package:gamico/commons/generics/character.dart';
-import 'package:gamico/commons/generics/page_indicator.dart';
-import 'package:gamico/commons/generics/poster.dart';
-import 'package:gamico/commons/generics/icon_text_button.dart';
-import 'package:gamico/commons/generics/only_one_pointer_recognizer_widget.dart';
-import 'package:gamico/languages/languages.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:gamico/commons/generics/ink_fitted_box.dart';
 
 class GamicoSimplePopup extends StatefulWidget {
   final Widget child;
@@ -69,7 +67,6 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
   @override
   void initState() {
     super.initState();
-
     _characterCubit = context.read<CharacterCubit>();
   }
 
@@ -78,14 +75,20 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
     if (_characterPositions != null) {
       _characterCubit?.deletePositionsList(_characterPositions!);
     }
-
     super.dispose();
+  }
+
+  void _syncCharacterPositions(List<GamicoCharacterPosition> positions) {
+    if ("$_characterPositions" != "$positions") {
+      _characterPositions ??= [];
+      _characterPositions!.clear();
+      _characterPositions!.addAll(positions);
+      _characterCubit?.upsertPositionsList(_characterPositions!);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final l = GamicoLanguages.of(context);
-
     const topPadding = 24.0;
     final bottomPadding = max(36.0, MediaQuery.of(context).padding.bottom);
 
@@ -97,14 +100,7 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
             GamicoCharacterPosition.centerRight,
         ];
 
-    if ("$_characterPositions" != "$widgetCharacterPositions") {
-      _characterPositions ??= [];
-
-      _characterPositions!.clear();
-      _characterPositions!.addAll(widgetCharacterPositions);
-
-      _characterCubit?.upsertPositionsList(_characterPositions!);
-    }
+    _syncCharacterPositions(widgetCharacterPositions);
 
     final blocked = context.select(
       (GamicoUserCubit userCubit) => userCubit.state.user?.blocked ?? false,
@@ -142,7 +138,7 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
             transform: Matrix4.translationValues(0, -keyboardLift, 0),
             width: double.infinity,
             height: double.infinity,
-            child: FittedBox(
+            child: InkFittedBox(
               child: Container(
                 width: LayoutService.referenceWidth,
                 height: LayoutService.referenceHeight,
@@ -229,35 +225,7 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
                                           fit: StackFit.expand,
                                           children: [
                                             blocked
-                                                ? GamicoPoster(
-                                                    icon: Icons.error,
-                                                    title:
-                                                        l.blockedAccountTitle,
-                                                    description: l
-                                                        .blockedAccountDescription,
-                                                    expandContent: true,
-                                                    content: Center(
-                                                      child: GamicoIconTextButton(
-                                                        text: l
-                                                            .blockedAccountContactSakiHub,
-                                                        color: ColorService
-                                                            .accentColor,
-                                                        iconData: Icons.mail,
-                                                        onPressed: () async {
-                                                          try {
-                                                            await launchUrl(
-                                                              Uri.parse(
-                                                                "mailto:sakihub@gmail.com",
-                                                              ),
-                                                              mode: LaunchMode.externalApplication,
-                                                            );
-                                                          } catch (e) {
-                                                            debugPrint("Failed to launch mailto: $e");
-                                                          }
-                                                        },
-                                                      ),
-                                                    ),
-                                                  )
+                                                ? const GamicoBlockedAccountPoster()
                                                 : widget.child,
                                             Align(
                                               alignment: Alignment.topLeft,

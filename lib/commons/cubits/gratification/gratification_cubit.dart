@@ -12,7 +12,7 @@ import 'package:gamico/commons/services/time_zone.dart';
 import 'package:flutter/foundation.dart';
 import 'package:gamico/commons/settings/gratification_settings.dart';
 import 'package:http/http.dart' as http;
-import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/commons/services/local_storage.dart';
 
 part 'gratification_state.dart';
 
@@ -25,6 +25,7 @@ class GratificationCubit extends Cubit<GratificationState> {
   static int get hour3Gratification => gratificationSettings.hour3Gratification;
 
   Timer? countdownTimer;
+  StreamSubscription<InternetState>? _internetSubscription;
   InternetCubit internetCubit;
   GamicoUserCubit userCubit;
 
@@ -32,8 +33,14 @@ class GratificationCubit extends Cubit<GratificationState> {
     : super(const GratificationState()) {
     loadWorldDate();
 
+    _internetSubscription = internetCubit.stream.listen((internetState) {
+      if (internetState.connected) {
+        loadWorldDate();
+      }
+    });
+
     countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (UserService.authenticated) {
+      if (LocalStorageService.authenticated) {
         final gratifiedAt =
             GratificationService.gratifiedAt ??
             userCubit.state.user?.gratifiedAt ??
@@ -106,6 +113,7 @@ class GratificationCubit extends Cubit<GratificationState> {
 
   @override
   Future<void> close() {
+    _internetSubscription?.cancel();
     countdownTimer?.cancel();
     return super.close();
   }

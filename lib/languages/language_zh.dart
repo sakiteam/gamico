@@ -121,8 +121,7 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
   @override
   String get homeNotificationsReminderTitle => "开启通知";
   @override
-  String get homeNotificationsReminderDescription =>
-      "通知有助于提升您的游戏体验。您想现在开启吗？";
+  String get homeNotificationsReminderDescription => "通知有助于提升您的游戏体验。您想现在开启吗？";
   @override
   String get homeUpdateTitle => "有更新可用！";
   @override
@@ -1193,4 +1192,22 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
 
   @override
   String get premiumButtonRemoveAds => "去除广告";
+
+  @override
+  String get localNetworkWaitingForHost => "等待房主…";
+
+  @override
+  String get localNetworkHostLeftDescription => "房主已离开游戏：本桌结束。你可以从菜单开始新的一局。";
+
+  @override
+  String get replayVoteChooseOption => "选择再战的模式";
+
+  @override
+  String replayVoteCountdown(int seconds) => "$seconds 秒后与已准备的玩家开始";
+
+  @override
+  String get replayVoteStartingSoon => "游戏将与已接受的玩家开始";
+
+  @override
+  String get replayVoteWaitingForPlayers => "等待其他玩家";
 }

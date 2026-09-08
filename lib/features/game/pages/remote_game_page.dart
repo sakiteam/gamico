@@ -12,10 +12,17 @@ class GamicoRemoteGamePage extends StatelessWidget {
   final Widget child;
   final void Function()? onBackButtonPressed;
 
+  /// Carried into the rematch so a game that declared its own result screen at
+  /// launch still has it after "Rejouer". Only what the utility declared — a
+  /// builder a game installed on its page belongs to that page and is
+  /// reinstalled by the next one.
+  final Widget? Function(BuildContext context)? endGamePopupBuilder;
+
   const GamicoRemoteGamePage({
     super.key,
     required this.child,
     required this.onBackButtonPressed,
+    this.endGamePopupBuilder,
   });
 
   @override
@@ -72,6 +79,18 @@ class GamicoRemoteGamePage extends StatelessWidget {
                 // flag here sent those players down the matchmaking paths of
                 // the game screens they land on.
                 friend: gameState.friend,
+                // The rematch closes the same way this match did, on the
+                // option the table just voted for.
+                replayOptions: context
+                    .read<GamicoRemoteGameCubit>()
+                    .replayOptions,
+                currentReplayOption:
+                    gameState.replayOption ??
+                    context.read<GamicoRemoteGameCubit>().currentReplayOption,
+                replayVote: context
+                    .read<GamicoRemoteGameCubit>()
+                    .replayVoteEnabled,
+                endGamePopupBuilder: endGamePopupBuilder,
               ),
             );
 

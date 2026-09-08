@@ -1,11 +1,12 @@
 import 'package:firebase_database/firebase_database.dart';
+import 'package:gamico/commons/models/gamico_user_model.dart';
 import 'package:gamico/commons/providers/gamico_users_provider.dart';
 
 class GamicoUsersRepository {
   final GamicoUsersProvider usersProvider;
 
-  final dynamic Function(Map<String, dynamic>) fromJson;
-  final Map<String, dynamic> Function(dynamic) toJson;
+  final GamicoUserModel Function(Map<String, dynamic>) fromJson;
+  final Map<String, dynamic> Function(GamicoUserModel) toJson;
 
   const GamicoUsersRepository({
     required this.usersProvider,
@@ -13,15 +14,15 @@ class GamicoUsersRepository {
     required this.toJson,
   });
 
-  Future<String> createUser(dynamic user) async {
+  Future<String> createUser(GamicoUserModel user) async {
     return await usersProvider.createUser(toJson(user));
   }
 
-  Future<dynamic> readUser(String id) async {
+  Future<GamicoUserModel> readUser(String id) async {
     return fromJson(await usersProvider.readUser(id));
   }
 
-  Future<void> updateUser(String id, dynamic user) async {
+  Future<void> updateUser(String id, GamicoUserModel user) async {
     await usersProvider.updateUser(id, toJson(user));
   }
 
@@ -67,6 +68,20 @@ class GamicoUsersRepository {
 
   Future<void> incrementUserLevel(String id) async {
     await usersProvider.updateUser(id, {"level": ServerValue.increment(1)});
+  }
+
+  /// Raises the account level to [level], never lowers it.
+  ///
+  /// A level is an absolute value computed from what the device believes the
+  /// player has reached, so a stale local copy could publish a level BELOW the
+  /// real one — the regression players reported. The transaction compares
+  /// against the value on the server and aborts when it is already ahead, so
+  /// no device can ever walk a level backwards.
+  Future<bool> raiseUserLevel(String id, int level) async {
+    return usersProvider.transactData("users/$id/level", (current) {
+      final server = (current as num?)?.toInt() ?? 0;
+      return level > server ? level : null;
+    });
   }
 
   // Stars
@@ -133,17 +148,103 @@ class GamicoUsersRepository {
   ) async {
     if (changed.isEmpty) return;
     await usersProvider.updateUser(id, {
-      for (final entry in changed.entries) "progression/${entry.key}": entry.value,
+      for (final entry in changed.entries)
+        "progression/${entry.key}": entry.value,
+    });
+  }
+
+  /// Writes a single field inside one progression namespace
+  /// (`progression/{gameKey}/{field}`), leaving the rest of the namespace — and
+  /// every other game — untouched.
+  Future<void> updateUserProgressionField(
+    String id,
+    String gameKey,
+    String field,
+    Object? value,
+  ) async {
+    await usersProvider.updateUser(id, {"progression/$gameKey/$field": value});
+  }
+
+  /// Applies relative deltas to counters inside one progression namespace.
+  ///
+  /// [deltas] is keyed by path relative to `progression/{gameKey}` — e.g.
+  /// `"victories"` or `"online/defeats"`. Each one is written as a
+  /// `ServerValue.increment`, so the value on the server is the one being
+  /// incremented and two devices (or a device holding a stale copy) can never
+  /// overwrite each other's count.
+  Future<void> incrementUserProgressionFields(
+    String id,
+    String gameKey,
+    Map<String, num> deltas,
+  ) async {
+    final effective = {
+      for (final entry in deltas.entries)
+        if (entry.value != 0)
+          "progression/$gameKey/${entry.key}": ServerValue.increment(
+            entry.value,
+          ),
+    };
+
+    if (effective.isEmpty) return;
+
+    await usersProvider.updateUser(id, effective);
+  }
+
+  /// Raises one progression field to [value], never lowers it. The per-game
+  /// counterpart of [raiseUserLevel].
+  Future<bool> raiseUserProgressionField(
+    String id,
+    String gameKey,
+    String field,
+    int value,
+  ) async {
+    return usersProvider.transactData("users/$id/progression/$gameKey/$field", (
+      current,
+    ) {
+      final server = (current as num?)?.toInt() ?? 0;
+      return value > server ? value : null;
+    });
+  }
+
+  /// Merges a star list element-wise, keeping the better score of each entry.
+  ///
+  /// Adventure stars have the same regression problem as the level: the list
+  /// is written whole, so a device replaying an early chapter with a stale copy
+  /// could publish fewer stars than the player actually earned.
+  Future<bool> mergeUserProgressionStars(
+    String id,
+    String gameKey,
+    List<int> stars,
+  ) async {
+    return usersProvider.transactData("users/$id/progression/$gameKey/stars", (
+      current,
+    ) {
+      final server = current is List
+          ? current.map((e) => e is num ? e.toInt() : 0).toList()
+          : <int>[];
+
+      final length = stars.length > server.length
+          ? stars.length
+          : server.length;
+      final merged = <int>[];
+      var changed = server.length != length;
+
+      for (var i = 0; i < length; i++) {
+        final mine = i < stars.length ? stars[i] : 0;
+        final theirs = i < server.length ? server[i] : 0;
+        final best = mine > theirs ? mine : theirs;
+        if (best != theirs) changed = true;
+        merged.add(best);
+      }
+
+      return changed ? merged : null;
     });
   }
 
   /// Writes only the `streak` node. Unlike [updateUserProgression] this is a
   /// narrow update: it cannot take another part of the account down with it,
   /// which matters for a write that fires on every app open.
-  Future<void> updateUserStreak(
-    String id,
-    Map<String, dynamic> streak,
-  ) async {
+  Future<void> updateUserStreak(String id, Map<String, dynamic> streak) async {
     await usersProvider.updateUser(id, {"streak": streak});
   }
 

@@ -7,6 +7,7 @@ import 'package:gamico/features/game/widgets/game_replay_button.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/gamico_user_model.dart';
 import 'package:gamico/features/game/modes/adventure_mode_settings.dart';
+import 'package:gamico/features/game/modes/local_network_mode_settings.dart';
 import 'package:gamico/features/game/modes/pass_and_play_mode_settings.dart';
 import 'package:gamico/features/game/modes/remote_mode_settings.dart';
 import 'package:gamico/features/game/modes/tutorial_mode_settings.dart';
@@ -162,6 +163,7 @@ abstract class GameModeSettings {
       GameType.adventure => AdventureModeSettings(),
       GameType.remote => RemoteModeSettings(),
       GameType.passAndPlay => PassAndPlayModeSettings(),
+      GameType.localNetwork => LocalNetworkModeSettings(),
       GameType.tutorial => TutorialModeSettings(),
     };
   }

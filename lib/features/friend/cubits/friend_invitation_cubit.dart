@@ -4,7 +4,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/services/database_shutdown.dart';
-import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/commons/services/local_storage.dart';
 import 'package:gamico/features/friend/models/invitation_model.dart';
 import 'package:gamico/commons/services/notification.dart';
 
@@ -59,7 +59,7 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
   }
 
   void listenToInvitations() {
-    final userId = UserService.uid;
+    final userId = LocalStorageService.uid;
     if (userId.isEmpty) return;
     if (GamicoDatabaseShutdown.shuttingDown) return;
 
@@ -202,7 +202,9 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
     // dismissed notification is a no-op.
     if (status != InvitationStatus.pending) {
       try {
-        await NotificationService.cancelGameInvitationNotification(invitationId);
+        await NotificationService.cancelGameInvitationNotification(
+          invitationId,
+        );
       } catch (e) {
         debugPrint("⚠️ FriendInvitationCubit cancelNotification error => $e");
       }

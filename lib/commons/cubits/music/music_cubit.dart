@@ -1,7 +1,9 @@
 import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gamico/commons/services/admob.dart';
 import 'package:gamico/commons/services/game.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/global.dart';
@@ -39,18 +41,65 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   /// the background without blocking widget creation.
   Future<void> _initAdsMuteState() async {
     try {
-      await Gamico.mobileAdsInitFuture;
+      await AdmobService.initFuture;
       MobileAds.instance.setAppMuted(state.mute);
     } catch (e) {
       debugPrint('MobileAds.setAppMuted failed: $e');
     }
   }
 
+  /// The session an in-game voice call needs.
+  ///
+  /// Only the iOS half differs from [AudioSessionConfiguration.music]: the
+  /// `playback` category that one uses has no input path at all, so the moment
+  /// it is applied the microphone goes silent. The Android half is left
+  /// untouched on purpose — routing and focus there are WebRTC's own audio
+  /// manager's business, and asking for `voiceCommunication` attributes would
+  /// send the game music out of the earpiece.
+  static const AudioSessionConfiguration _voiceChatSession =
+      AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+        // No `defaultToSpeaker`: the call sets its own route through
+        // `Helper.setSpeakerphoneOn`, and making the speaker the category
+        // default would swallow the "earpiece" half of that toggle.
+        avAudioSessionCategoryOptions:
+            AVAudioSessionCategoryOptions.allowBluetooth,
+        avAudioSessionMode: AVAudioSessionMode.voiceChat,
+        androidAudioAttributes: AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.music,
+          usage: AndroidAudioUsage.media,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+      );
+
+  /// True between [duckForVoiceChat] and [restoreAfterVoiceChat].
+  bool _voiceChatActive = false;
+
+  /// The session configuration that currently applies. Every player activation
+  /// re-applies it (see [_applyAudioSessionConfiguration]), so it has to
+  /// follow whether a call is running.
+  AudioSessionConfiguration get _sessionConfiguration => _voiceChatActive
+      ? _voiceChatSession
+      : const AudioSessionConfiguration.music();
+
+  /// Applies [_sessionConfiguration] to the shared AVAudioSession.
+  ///
+  /// This matters far more than it looks: `just_audio` calls
+  /// `AudioSession.setActive(true)` on **every** `play()` — the music, but
+  /// also every single sound effect — and that re-applies whatever
+  /// configuration is on file. With the music configuration on file, the first
+  /// card sound of a match dropped the session back to `playback` and cut the
+  /// microphone mid-call, on a table where the call had connected perfectly.
+  Future<void> _applyAudioSessionConfiguration() async {
+    final session = await AudioSession.instance;
+    await session.configure(_sessionConfiguration);
+  }
+
   /// Configures the iOS AVAudioSession and handles audio interruptions (calls, Siri, etc.).
   Future<void> _initAudioSession() async {
     try {
       final session = await AudioSession.instance;
-      await session.configure(const AudioSessionConfiguration.music());
+      await session.configure(_sessionConfiguration);
 
       _interruptionSub?.cancel();
       _interruptionSub = session.interruptionEventStream.listen((event) {
@@ -92,42 +141,42 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   // Music player
   final _mainPlayer = AudioPlayer();
 
-  // Bruitage players
-  final _winPlayer = AudioPlayer();
-  final _drawPlayer = AudioPlayer();
-  final _losePlayer = AudioPlayer();
-  final _clockPlayer = AudioPlayer();
-  final _firePlayer = AudioPlayer();
-  final _voicePlayer = AudioPlayer();
-
-  // Fixed pool of 2 players for one-shot bruitages (click, lock, move, etc.).
-  // Reusing a pool avoids creating a new ExoPlayer pipeline on every call,
-  // which would cause OOM on low-end devices (128 MB heap).
+  // Fixed pool of 2 players for every one-shot bruitage (click, lock, move,
+  // win, lose, voices…).
+  //
+  // A `just_audio` player builds a whole ExoPlayer pipeline — around three
+  // native threads — the first time it is handed an asset, and a 32-bit
+  // low-end device runs out of thread stacks long before it runs out of heap
+  // (`OutOfMemoryError: pthread_create (1040KB stack) failed`). Two pipelines
+  // shared by every one-shot sound, rather than one dedicated player per
+  // sound, is what keeps that budget in hand.
   final _oneShotPool = [AudioPlayer(), AudioPlayer()];
   int _oneShotIndex = 0;
 
+  static const String _clockAsset = "assets/bruitages/clock.opus";
+  static const String _fireAsset = "assets/bruitages/fire.opus";
+
+  /// Looping sound effects are the only ones that need a player of their own,
+  /// and only while they actually loop: they are built on first use and
+  /// released [_loopReleaseDelay] after they stop, so an app sitting in a menu
+  /// holds no audio pipeline it isn't using.
+  ///
+  /// [_loopPlayers] holds the in-flight creation so two concurrent starts share
+  /// one player; [_readyLoopPlayers] holds the ones that exist right now (used
+  /// for volume, ducking and shutdown).
+  final Map<String, Future<AudioPlayer>> _loopPlayers = {};
+  final Map<String, AudioPlayer> _readyLoopPlayers = {};
+  final Map<String, Timer> _loopReleaseTimers = {};
+  static const Duration _loopReleaseDelay = Duration(seconds: 30);
+
   // Bruitage players list
   List<AudioPlayer> get _bruitagePlayers => [
-    _winPlayer,
-    _drawPlayer,
-    _losePlayer,
-    _voicePlayer,
-    _clockPlayer,
-    _firePlayer,
     ..._oneShotPool,
+    ..._readyLoopPlayers.values,
   ];
 
   // All players list
-  List<AudioPlayer> get _allPlayers => [
-    _mainPlayer,
-    _winPlayer,
-    _drawPlayer,
-    _losePlayer,
-    _voicePlayer,
-    _clockPlayer,
-    _firePlayer,
-    ..._oneShotPool,
-  ];
+  List<AudioPlayer> get _allPlayers => [_mainPlayer, ..._bruitagePlayers];
 
   double _currentVolume = 1;
 
@@ -145,22 +194,29 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     }
   }
 
-  /// An in-game voice chat started: lower the music to 10% of its volume and
-  /// the sound effects to 50%.
+  /// An in-game voice chat started: hand the audio session over to the call
+  /// and lower the music to 10% of its volume, the sound effects to 50%.
   Future<void> duckForVoiceChat() async {
+    _voiceChatActive = true;
+    try {
+      await _applyAudioSessionConfiguration();
+    } catch (e) {
+      debugPrint('AudioSession duckForVoiceChat failed: $e');
+    }
     _musicDuck = 0.1;
     _bruitageDuck = 0.5;
     await _applyDucking();
   }
 
-  /// The voice chat ended: music and sound effects return to normal volume.
+  /// The voice chat ended: the session goes back to plain music playback, and
+  /// music and sound effects return to normal volume.
   Future<void> restoreAfterVoiceChat() async {
+    _voiceChatActive = false;
     _musicDuck = 1;
     _bruitageDuck = 1;
     await _applyDucking();
     try {
-      final session = await AudioSession.instance;
-      await session.configure(const AudioSessionConfiguration.music());
+      await _applyAudioSessionConfiguration();
     } catch (e) {
       debugPrint('AudioSession restoreAfterVoiceChat failed: $e');
     }
@@ -178,12 +234,10 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   // Init music
   Future<void> _initMusic() async {
     if (GameService.tutorialPassed) {
-      await _mainPlayer.safelySetAsset("assets/musics/main.opus");
+      await _mainPlayer.safelySetAsset(
+        Gamico.instance.musicSettings.mainMusicAsset,
+      );
     }
-
-    // else {
-    //   await _mainPlayer.setAsset("assets/musics/game.opus");
-    // }
 
     await _mainPlayer.setLoopMode(LoopMode.all);
 
@@ -199,20 +253,34 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     }
   }
 
+  /// Sets any music asset with loop mode.
+  Future<void> setMusicAsset(String assetPath, {bool loop = true}) async {
+    await _mainPlayer.safelySetAsset(assetPath);
+    await _mainPlayer.setLoopMode(loop ? LoopMode.all : LoopMode.off);
+  }
+
   Future<void> setMainMusicAsset() async {
-    await _mainPlayer.safelySetAsset("assets/musics/main.opus");
+    await _mainPlayer.safelySetAsset(
+      Gamico.instance.musicSettings.mainMusicAsset,
+    );
   }
 
   Future<void> setVictoryMusicAsset() async {
-    await _mainPlayer.safelySetAsset("assets/musics/victory.opus");
+    await _mainPlayer.safelySetAsset(
+      Gamico.instance.musicSettings.victoryMusicAsset,
+    );
   }
 
   Future<void> setDefeatMusicAsset() async {
-    await _mainPlayer.safelySetAsset("assets/musics/defeat.opus");
+    await _mainPlayer.safelySetAsset(
+      Gamico.instance.musicSettings.defeatMusicAsset,
+    );
   }
 
   Future<void> setDrawMusicAsset() async {
-    await _mainPlayer.safelySetAsset("assets/musics/draw.aac");
+    await _mainPlayer.safelySetAsset(
+      Gamico.instance.musicSettings.drawMusicAsset,
+    );
   }
 
   //
@@ -221,54 +289,66 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     await _mainPlayer.safelyPlay();
   }
 
+  /// Plays any music asset track in loop or one-shot mode.
+  Future<void> playMusic(String assetPath, {bool loop = true}) async {
+    if (!state.mute) {
+      await _mainPlayer.safelySetAsset(assetPath);
+      await _mainPlayer.setLoopMode(loop ? LoopMode.all : LoopMode.off);
+      await _mainPlayer.safelyPlay();
+    }
+  }
+
   Future<void> playMainMusic() async {
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset("assets/musics/main.opus");
+      await _mainPlayer.safelySetAsset(
+        Gamico.instance.musicSettings.mainMusicAsset,
+      );
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playVictoryMusic() async {
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset("assets/musics/victory.opus");
+      await _mainPlayer.safelySetAsset(
+        Gamico.instance.musicSettings.victoryMusicAsset,
+      );
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playDrawMusic() async {
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset("assets/musics/draw.aac");
+      await _mainPlayer.safelySetAsset(
+        Gamico.instance.musicSettings.drawMusicAsset,
+      );
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playDefeatMusic() async {
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset("assets/musics/defeat.opus");
+      await _mainPlayer.safelySetAsset(
+        Gamico.instance.musicSettings.defeatMusicAsset,
+      );
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playGameMusic() async {
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset("assets/musics/game.opus");
+      await _mainPlayer.safelySetAsset(
+        Gamico.instance.musicSettings.gameMusicAsset,
+      );
       await _mainPlayer.safelyPlay();
     }
   }
 
   // Init bruitages
+  //
+  // Nothing is preloaded any more: one-shots set their asset on a pool player
+  // at play time and looping effects are built on demand, so no audio pipeline
+  // exists until a sound is actually played.
   Future<void> _initBruitages() async {
-    await Future.wait([
-      _winPlayer.safelySetAsset("assets/bruitages/win.opus"),
-      _drawPlayer.safelySetAsset("assets/bruitages/draw.opus"),
-      _losePlayer.safelySetAsset("assets/bruitages/lose.opus"),
-      _clockPlayer.safelySetAsset("assets/bruitages/clock.opus"),
-      _firePlayer.safelySetAsset("assets/bruitages/fire.opus"),
-    ]);
-
-    await _clockPlayer.setLoopMode(LoopMode.all);
-    await _firePlayer.setLoopMode(LoopMode.all);
-
     bruitagesInitialized = true;
   }
 
@@ -317,15 +397,87 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     }
   }
 
-  Future<void> _playBruitageDirectly(AudioPlayer bruitagePlayer) async {
-    if (!state.mute) {
-      await GamicoGlobalService.waitWhile(() => !bruitagesInitialized);
-      if (_isDisposed) return;
+  /// Returns the player looping [asset], building it on first use.
+  ///
+  /// The future is memoised, so two starts racing each other share one player
+  /// instead of leaving an orphaned pipeline behind.
+  Future<AudioPlayer> _loopPlayer(String asset) {
+    _loopReleaseTimers.remove(asset)?.cancel();
 
-      await bruitagePlayer.stop();
-      await bruitagePlayer.seek(Duration.zero);
-      await bruitagePlayer.safelyPlay(false, _isDisposed);
+    return _loopPlayers.putIfAbsent(asset, () async {
+      final player = AudioPlayer();
+      await player.safelySetAsset(asset);
+      await player.setLoopMode(LoopMode.all);
+      await player.setVolume(_currentVolume * _bruitageDuck);
+      _readyLoopPlayers[asset] = player;
+      return player;
+    });
+  }
+
+  /// Starts [asset] looping, unless it already is.
+  Future<void> _startLoop(String asset) async {
+    if (_isDisposed || state.mute) return;
+
+    final player = await _loopPlayer(asset);
+    if (_isDisposed) return;
+    if (player.playing) return;
+
+    await player.setVolume(_currentVolume * _bruitageDuck);
+    await player.seek(Duration.zero);
+    await player.safelyPlay(false, _isDisposed);
+  }
+
+  /// Stops [asset] and schedules its player for release.
+  ///
+  /// The delay matters: a clock effect is stopped and restarted on every turn,
+  /// and rebuilding the pipeline each time would cost more than it saves. Only
+  /// a loop that stays silent for [_loopReleaseDelay] gives its threads back.
+  Future<void> _stopLoop(String asset, {bool immediate = false}) async {
+    final player = _readyLoopPlayers[asset];
+    if (player == null) {
+      // Still being built: wait for it, then stop it like any other — without
+      // this the pipeline would outlive the sound that asked for it.
+      final pending = _loopPlayers[asset];
+      if (pending == null) return;
+
+      await pending;
+      if (immediate) {
+        await _releaseLoop(asset);
+      } else {
+        await _stopLoop(asset);
+      }
+      return;
     }
+
+    try {
+      await player.stop();
+      await player.seek(Duration.zero);
+    } catch (_) {}
+
+    if (immediate) {
+      await _releaseLoop(asset);
+      return;
+    }
+
+    _loopReleaseTimers.remove(asset)?.cancel();
+    _loopReleaseTimers[asset] = Timer(_loopReleaseDelay, () {
+      _loopReleaseTimers.remove(asset);
+      final current = _readyLoopPlayers[asset];
+      if (current == null || current.playing) return;
+      _releaseLoop(asset);
+    });
+  }
+
+  /// Disposes the player of [asset], handing its native threads back.
+  Future<void> _releaseLoop(String asset) async {
+    _loopReleaseTimers.remove(asset)?.cancel();
+    _loopPlayers.remove(asset);
+    final player = _readyLoopPlayers.remove(asset);
+    if (player == null) return;
+
+    try {
+      await player.dispose();
+    } catch (_) {}
   }
 
   // Toggle muting state
@@ -374,7 +526,6 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
       ..._bruitagePlayers.map((bruitagePlayer) {
         return bruitagePlayer.stop();
       }),
-      _clockPlayer.stop(),
     ]);
   }
 
@@ -412,17 +563,17 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   // Play win bruitage
   Future<void> playWinBruitage() async {
-    await _playBruitageDirectly(_winPlayer);
+    await playBruitage("assets/bruitages/win.opus");
   }
 
   // Play draw bruitage
   Future<void> playDrawBruitage() async {
-    await _playBruitageDirectly(_drawPlayer);
+    await playBruitage("assets/bruitages/draw.opus");
   }
 
   // Play lose bruitage
   Future<void> playLoseBruitage() async {
-    await _playBruitageDirectly(_losePlayer);
+    await playBruitage("assets/bruitages/lose.opus");
   }
 
   // Play voice bruitage
@@ -440,34 +591,30 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   }
 
   Future<void> playClockBruitage() async {
-    if (!_clockPlayer.playing) {
-      await _playBruitageDirectly(_clockPlayer);
-    }
+    await _startLoop(_clockAsset);
   }
 
   Future<void> stopClockBruitage() async {
-    await _clockPlayer.stop();
+    await _stopLoop(_clockAsset);
   }
 
   Future<void> playFireBruitage() async {
-    if (!_firePlayer.playing) {
-      await _playBruitageDirectly(_firePlayer);
-    }
+    await _startLoop(_fireAsset);
   }
 
   Future<void> stopFireBruitage() async {
-    await _firePlayer.stop();
-    await _firePlayer.seek(Duration.zero);
+    await _stopLoop(_fireAsset);
   }
 
-  /// Stops every looping in-game sound effect at once (fire + clock). Called
-  /// when leaving a game so no bruitage keeps playing past the game screen.
+  /// Stops every looping in-game sound effect at once (fire + clock) and gives
+  /// their pipelines back right away. Called when leaving a game, so no
+  /// bruitage keeps playing past the game screen and nothing keeps a native
+  /// audio pipeline alive in the menus.
   Future<void> stopGameBruitages() async {
     await Future.wait([
-      _firePlayer.stop(),
-      _clockPlayer.stop(),
+      _stopLoop(_fireAsset, immediate: true),
+      _stopLoop(_clockAsset, immediate: true),
     ]);
-    await _firePlayer.seek(Duration.zero);
   }
 
   // Close cubit
@@ -476,6 +623,11 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     _isDisposed = true;
     await _interruptionSub?.cancel();
     _interruptionSub = null;
+
+    for (final timer in _loopReleaseTimers.values) {
+      timer.cancel();
+    }
+    _loopReleaseTimers.clear();
 
     for (final player in _allPlayers) {
       try {
@@ -488,6 +640,9 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
         await player.dispose();
       } catch (_) {}
     }
+
+    _loopPlayers.clear();
+    _readyLoopPlayers.clear();
 
     return super.close();
   }

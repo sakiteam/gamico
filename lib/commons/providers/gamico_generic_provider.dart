@@ -1,14 +1,12 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 class GamicoGenericProvider {
   final ref = FirebaseDatabase.instance.ref();
 
-  Future<String> createData(
-    String col,
-    Map<String, dynamic> doc,
-  ) async {
+  Future<String> createData(String col, Map<String, dynamic> doc) async {
     try {
       final pushRef = ref.child(col).push();
       final now = DateTime.now().toString();
@@ -18,9 +16,14 @@ class GamicoGenericProvider {
       doc["created_at"] = now;
       doc["updated_at"] = now;
 
-      final jsonDoc = jsonDecode(jsonEncode(doc, toEncodable: (dynamic item) {
-        return item?.toString();
-      }));
+      final jsonDoc = jsonDecode(
+        jsonEncode(
+          doc,
+          toEncodable: (dynamic item) {
+            return item?.toString();
+          },
+        ),
+      );
 
       await pushRef.set(jsonDoc);
 
@@ -31,10 +34,7 @@ class GamicoGenericProvider {
     }
   }
 
-  Future<Map<String, dynamic>> readData(
-    String col,
-    String id,
-  ) async {
+  Future<Map<String, dynamic>> readData(String col, String id) async {
     try {
       final snapshot = await ref.child("$col/$id").get();
       final value = snapshot.value;
@@ -42,8 +42,7 @@ class GamicoGenericProvider {
         return <String, dynamic>{"id": snapshot.key};
       }
 
-      final data =
-          Map<String, dynamic>.from(jsonDecode(jsonEncode(value)));
+      final data = Map<String, dynamic>.from(jsonDecode(jsonEncode(value)));
       data["id"] = snapshot.key;
 
       return data;
@@ -63,19 +62,50 @@ class GamicoGenericProvider {
       doc.remove("id");
       doc.remove("created_at");
       doc["updated_at"] = DateTime.now().toString();
-      final jsonDoc = jsonDecode(jsonEncode(doc, toEncodable: (dynamic item) {
-        return item?.toString();
-      }));
+      final jsonDoc = jsonDecode(
+        jsonEncode(
+          doc,
+          toEncodable: (dynamic item) {
+            return item?.toString();
+          },
+        ),
+      );
       await ref.child("$col/$id").update(jsonDoc);
     } catch (e) {
       debugPrint("Error updating data $col/$id: $e");
     }
   }
 
-  Future<void> deleteData(
-    String col,
-    String id,
+  /// Atomically rewrites a single node through an RTDB transaction.
+  ///
+  /// [update] receives the value currently on the server and returns the value
+  /// to store, or null to abort the transaction and leave the node untouched.
+  /// Unlike [updateData] this is immune to the read-modify-write race that a
+  /// stale local copy causes: the server value is the one being edited, never
+  /// whatever this device happens to hold.
+  /// Resolves to true once the server has settled the transaction — whether it
+  /// committed or aborted, both mean the server value is now known-good. It
+  /// does NOT resolve while offline: RTDB holds the transaction until it
+  /// reconnects, which is exactly the signal a caller queuing an unconfirmed
+  /// gain needs. Resolves to false when the write errored outright.
+  Future<bool> transactData(
+    String path,
+    Object? Function(Object? current) update,
   ) async {
+    try {
+      await ref.child(path).runTransaction((current) {
+        final next = update(current);
+        if (next == null) return Transaction.abort();
+        return Transaction.success(next);
+      });
+      return true;
+    } catch (e) {
+      debugPrint("Error transacting data $path: $e");
+      return false;
+    }
+  }
+
+  Future<void> deleteData(String col, String id) async {
     try {
       await ref.child("$col/$id").remove();
     } catch (e) {

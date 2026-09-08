@@ -19,6 +19,7 @@ class GamicoAdventurePage extends StatefulWidget {
   final RemoteUtility? remoteUtility;
 
   final double? viewportFraction;
+  final int? initialPage;
 
   /// Page on which game levels are selected.
   const GamicoAdventurePage({
@@ -27,6 +28,7 @@ class GamicoAdventurePage extends StatefulWidget {
     required this.adventureUtility,
     required this.remoteUtility,
     this.viewportFraction,
+    this.initialPage,
   });
 
   @override
@@ -48,14 +50,18 @@ class _GamicoAdventurePageState extends State<GamicoAdventurePage> {
         ? (widget.adventureUtility.endChapter - 1) - currentChapter
         : currentChapter - widget.adventureUtility.startChapter;
 
+    final initial =
+        widget.initialPage ??
+        relativeChapter.clamp(
+          0,
+          widget.adventureUtility.endChapter -
+              widget.adventureUtility.startChapter -
+              1,
+        );
+
     pageController = PageController(
       viewportFraction: widget.viewportFraction ?? 1.0,
-      initialPage: relativeChapter.clamp(
-        0,
-        widget.adventureUtility.endChapter -
-            widget.adventureUtility.startChapter -
-            1,
-      ),
+      initialPage: initial,
     );
   }
 

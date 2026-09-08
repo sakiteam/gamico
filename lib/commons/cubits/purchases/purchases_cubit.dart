@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:bloc/bloc.dart';
 import 'package:gamico/commons/analytics/analytics_utils.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
@@ -10,7 +11,7 @@ import 'package:gamico/commons/services/global.dart';
 import 'package:flutter/material.dart';
 import 'package:gamico/commons/services/gratification.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
-import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/commons/services/local_storage.dart';
 part 'purchases_state.dart';
 
 class PurchasesCubit extends Cubit<PurchasesState> {
@@ -82,7 +83,7 @@ class PurchasesCubit extends Cubit<PurchasesState> {
 
   Future<void> _confirmPurchase(PurchaseDetails purchase) async {
     await GamicoGlobalService.waitWhile(
-      () => !UserService.authenticated,
+      () => !LocalStorageService.authenticated,
       const Duration(seconds: 5),
     );
 
@@ -94,7 +95,7 @@ class PurchasesCubit extends Cubit<PurchasesState> {
         _iap.completePurchase(purchase),
         purchasesRepository.createPurchase(
           GamicoPurchaseModel(
-            userId: UserService.uid,
+            userId: LocalStorageService.uid,
             productId: purchase.productID,
             purchaseId: purchase.purchaseID,
             error: error == null

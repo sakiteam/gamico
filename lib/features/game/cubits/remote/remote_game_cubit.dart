@@ -9,10 +9,11 @@ import 'package:gamico/commons/repositories/gamico_games_repository.dart';
 import 'package:gamico/commons/services/database_shutdown.dart';
 import 'package:gamico/commons/services/game.dart';
 import 'package:gamico/commons/services/global.dart';
-import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/commons/services/local_storage.dart';
 import 'package:gamico/commons/models/adventure_utility.dart';
 import 'package:gamico/commons/models/remote_utility.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
+import 'package:gamico/features/game/utilities/replay_option.dart';
 
 part 'remote_game_state.dart';
 
@@ -27,7 +28,11 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     required int? level,
     required this.adventureUtility,
     bool friend = false,
-  }) : super(
+    this.replayOptions = const [],
+    this.currentReplayOption,
+    bool replayVote = false,
+  }) : _replayVoteEnabled = replayVote || replayOptions.isNotEmpty,
+       super(
          GamicoRemoteGameState(
            creator: creator,
            fakeOpponent: fakeOpponent,
@@ -70,6 +75,52 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
   final RemoteUtility remoteUtility;
   final AdventureUtility? adventureUtility;
+
+  /// What players may pick from for the rematch, and what is being played now
+  /// (see [GamicoReplayVoteButton]). Empty leaves "Rejouer" a plain vote.
+  ///
+  /// Declared on the [RemoteGameUtility] when the launcher already knows them,
+  /// or handed over later through [configureReplayVote] — a game whose modes
+  /// only become known once the table's config has loaded (Ludo reads them off
+  /// its board) configures them from its own page.
+  List<GamicoReplayOption> replayOptions;
+  String? currentReplayOption;
+
+  bool _replayVoteEnabled;
+
+  /// Whether this match closes on the vote-based rematch rather than the older
+  /// invitation exchange.
+  bool get replayVoteEnabled => _replayVoteEnabled;
+
+  /// Declares (or updates) what the rematch may be played with. Safe to call
+  /// on every build: it only touches the cubit when something actually
+  /// changed, and never once a resolved rematch is already on its way.
+  void configureReplayVote({
+    List<GamicoReplayOption> options = const [],
+    String? currentOption,
+    bool enabled = true,
+  }) {
+    if (_replayLaunched) return;
+
+    final bool nextEnabled = enabled || options.isNotEmpty;
+    if (_replayVoteEnabled == nextEnabled &&
+        currentReplayOption == currentOption &&
+        _sameOptions(replayOptions, options)) {
+      return;
+    }
+
+    replayOptions = options;
+    currentReplayOption = currentOption;
+    _replayVoteEnabled = nextEnabled;
+  }
+
+  bool _sameOptions(List<GamicoReplayOption> a, List<GamicoReplayOption> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   // Usual repository
   final GamicoGamesRepository gamesRepository;
@@ -139,17 +190,36 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     _readinessFallbackTimer = Timer(_readinessGrace, () {
       if (isClosed || gameCubit.state.ready) return;
 
+      final myUid = LocalStorageService.uid;
+
+      // Never strike ourselves. Our own READINESS is a fact, not a message we
+      // need delivered back to us — yet it was only ever recorded when our own
+      // event came back through the (windowed, prunable) log, so a lost echo
+      // used to put us in this list. Striking every player, ourselves
+      // included, empties the expected set, which [_checkReadiness] reads as
+      // "nothing to do": the table then sat on the pre-deal loader forever
+      // instead of starting or cancelling.
       final unready = _expectedPlayerIds
           .difference(_readyPlayerIds)
-          .difference(_exitedPlayerIds);
+          .difference(_exitedPlayerIds)
+          .where((uid) => uid != myUid)
+          .toSet();
 
-      if (unready.isNotEmpty) {
-        for (final uid in unready) {
-          _exitedPlayerIds.add(uid);
-          gameCubit.settings?.onRemoteUserDisconnectedDuringGame(uid);
-        }
+      for (final uid in unready) {
+        _exitedPlayerIds.add(uid);
+        gameCubit.settings?.onRemoteUserDisconnectedDuringGame(uid);
       }
+      if (myUid.isNotEmpty) _readyPlayerIds.add(myUid);
+
       _checkReadiness();
+
+      // Still nothing? Then there is nobody left to wait for at all (an
+      // unseated player, a table everyone left). Start anyway: the game layer
+      // answers that with its "match cancelled" verdict — penalty-free — which
+      // is a great deal better than a spinner that never stops.
+      if (!isClosed && !gameCubit.state.ready) {
+        gameCubit.startGame();
+      }
     });
   }
 
@@ -163,12 +233,88 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     }
   }
 
-  // Remote game seeds
-  late final int seed1;
-  late final int seed2;
+  // Remote game seeds.
+  //
+  // Derived on read from the shared `createdAt` timestamp rather than assigned
+  // once during init: as `late final` fields they were a crash waiting to
+  // happen — a game whose `initGame()` ran before (or without) the assignment
+  // threw a fatal LateInitializationError from deep inside the game's own
+  // engine construction, and a second init threw "already initialized". The
+  // value is identical either way, and still identical on every device, since
+  // `createdAt` is written once by the host.
+  int get _seedBase => currentGame?.createdAt?.microsecondsSinceEpoch ?? 0;
+  int get seed1 => _seedBase & 0x7FFFFFFF;
+  int get seed2 => (_seedBase ~/ 7) & 0x7FFFFFFF;
 
   // Holds the id of a new hypothetical game
   String newGameId = "";
+
+  /// Arms the abandonment penalty that fires if this device drops off the
+  /// network mid-match.
+  ///
+  /// Called only once the table is actually dealt. It used to be armed during
+  /// `onInit`, i.e. while the player was still on the pre-deal loader waiting
+  /// for the readiness roll-call: a match that never started — because a
+  /// matched opponent never made it to the table — cost the players who *did*
+  /// show up their coins, their trophy and a defeat, for a game they never
+  /// got to play.
+  Future<void> _armDisconnectionPenalty() async {
+    if (isClosed || _disconnectionPenaltyArmed) return;
+    _disconnectionPenaltyArmed = true;
+
+    userDisconnectionReference = FirebaseDatabase.instance
+        .ref("users")
+        .child(LocalStorageService.uid)
+        .onDisconnect();
+
+    if (Gamico.instance.playSettings?.exitUserWhenDisconnected == true ||
+        !state.fakeOpponent) {
+      // For moded games (e.g. an embedded game), the disconnection penalty
+      // targets that mode's own progression namespace instead of the
+      // top-level stats. Coins stay a single shared wallet.
+      final mode = state.remoteUtility.matchmakingSettings.mode;
+
+      _armedDisconnectionPenalty = {
+        "coins": -Gamico.instance.gameSettings.playMinimumCoins,
+        if (mode == null) "defeats": 1,
+        if (mode == null) "trophies": -1,
+        if (mode != null) "progression/$mode/defeats": 1,
+        if (mode != null) "progression/$mode/trophies": -1,
+      };
+
+      try {
+        await userDisconnectionReference?.update(
+          _disconnectionPenaltyPayload(_armedDisconnectionPenalty!),
+        );
+      } catch (e) {
+        // onDisconnect().update() peut échouer si l'utilisateur est
+        // hors-ligne ou si les règles Firebase bloquent l'écriture.
+        // Non-fatal : on continue l'initialisation de la partie.
+        debugPrint('[GamicoRemoteGameCubit] onDisconnect update failed: $e');
+      }
+
+      // Self-healing: a brief background trip drops the database connection
+      // (see field doc above) and fires the penalty above almost instantly.
+      // Refund and re-arm on every genuine reconnection while the match is
+      // still active, so only a real, lasting abandonment is ever scored.
+      _sawInitialConnected = false;
+      _disconnectionPenaltySubscription?.cancel();
+      _disconnectionPenaltySubscription = FirebaseDatabase.instance
+          .ref(".info/connected")
+          .onValue
+          .listen((event) {
+            if (event.snapshot.value != true) return;
+            if (!_sawInitialConnected) {
+              _sawInitialConnected = true;
+              return;
+            }
+            _refundAndRearmDisconnectionPenalty();
+          });
+    }
+  }
+
+  /// Guards a single arming of the penalty above.
+  bool _disconnectionPenaltyArmed = false;
 
   void resetGameEndStatus() {
     emit(state.copyWith(gameEndStatus: ""));
@@ -177,21 +323,24 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   void withdraw() {
     gamesRepository.addGameEvent(
       gameId,
-      GamicoGameEventModel(type: "WITHDRAW", userId: UserService.uid),
+      GamicoGameEventModel(type: "WITHDRAW", userId: LocalStorageService.uid),
     );
   }
 
   void acceptInvitation() {
     gamesRepository.addGameEvent(
       gameId,
-      GamicoGameEventModel(type: "ACCEPTATION", userId: UserService.uid),
+      GamicoGameEventModel(
+        type: "ACCEPTATION",
+        userId: LocalStorageService.uid,
+      ),
     );
   }
 
   void rejectInvitation() {
     gamesRepository.addGameEvent(
       gameId,
-      GamicoGameEventModel(type: "REJECTION", userId: UserService.uid),
+      GamicoGameEventModel(type: "REJECTION", userId: LocalStorageService.uid),
     );
   }
 
@@ -212,11 +361,237 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         gameId,
         GamicoGameEventModel(
           type: "REPLAY",
-          userId: UserService.uid,
+          userId: LocalStorageService.uid,
           data: level == null ? null : {"level": level},
         ),
       );
     }
+  }
+
+  /* ---------------------------------------------------- REPLAY VOTES ---- */
+
+  /// How long a rematch waits for the undecided once at least two players
+  /// agree on the same option. When it runs out the majority plays without
+  /// them, rather than the whole table being held hostage by one player who
+  /// walked away from their phone without leaving the match.
+  static const Duration replayCountdown = Duration(seconds: 15);
+
+  /// Local countdown, purely for the dial the popup draws. The decision it
+  /// leads to is written by one device only (see [_replayRefereeId]), so a
+  /// couple of hundred milliseconds of drift between phones changes nothing.
+  Timer? _replayCountdownTimer;
+
+  /// Guards against replaying the same resolution twice — the launch is
+  /// triggered from the shared event log, which can redeliver.
+  bool _replayLaunched = false;
+
+  /// The players a rematch is still waiting on: everyone seated who has
+  /// neither left the match nor been dropped by an expired countdown.
+  List<String> get activePlayerIds {
+    final ids = _expectedPlayerIds.difference(_exitedPlayerIds).toList()
+      ..sort();
+    return ids;
+  }
+
+  /// The single device that writes the verdict when the countdown expires.
+  ///
+  /// Deterministic on every phone (the lowest uid still at the table) and it
+  /// survives departures, so there is always exactly one referee and never
+  /// two devices resolving a split vote differently.
+  String? get _replayRefereeId {
+    final ids = activePlayerIds;
+    return ids.isEmpty ? null : ids.first;
+  }
+
+  /// The option the local player voted for, if any.
+  String? get myReplayVote => state.replayVotes[LocalStorageService.uid];
+
+  /// Asks to play again with [optionId]. Voting for the option already chosen
+  /// takes the vote back, so the button is a toggle.
+  void voteReplay([String optionId = kGamicoSameGameReplayOption]) {
+    if (!gameCubit.state.over) return;
+    if (myReplayVote == optionId) {
+      cancelReplayVote();
+      return;
+    }
+
+    _applyReplayVote(LocalStorageService.uid, optionId);
+
+    gamesRepository.addGameEvent(
+      gameId,
+      GamicoGameEventModel(
+        type: "REPLAY_VOTE",
+        userId: LocalStorageService.uid,
+        data: <String, dynamic>{"option": optionId},
+      ),
+    );
+  }
+
+  /// Takes back a "Rejouer" before the rematch starts.
+  void cancelReplayVote() {
+    if (myReplayVote == null) return;
+
+    _applyReplayVote(LocalStorageService.uid, null);
+
+    gamesRepository.addGameEvent(
+      gameId,
+      GamicoGameEventModel(
+        type: "REPLAY_VOTE_CANCEL",
+        userId: LocalStorageService.uid,
+      ),
+    );
+  }
+
+  /// Records one player's vote (or its withdrawal) and re-reads the table.
+  /// Applied locally the moment the player taps and again when their own
+  /// event comes back — writing the same value twice changes nothing, which
+  /// is the point: votes are keyed by uid, never counted.
+  void _applyReplayVote(String userId, String? optionId) {
+    if (userId.isEmpty) return;
+
+    final votes = Map<String, String>.from(state.replayVotes);
+    if (optionId == null) {
+      if (votes.remove(userId) == null) {
+        // Nothing changed, but the roll-call may still have (a player left).
+        _evaluateReplayVotes();
+        return;
+      }
+    } else {
+      if (votes[userId] == optionId) {
+        _evaluateReplayVotes();
+        return;
+      }
+      votes[userId] = optionId;
+    }
+
+    emit(state.copyWith(replayVotes: votes, replayPlayerIds: activePlayerIds));
+
+    _evaluateReplayVotes();
+  }
+
+  /// Reads the table after every change and decides what happens next:
+  /// everybody agrees → the rematch starts at once; two or more agree while
+  /// somebody is undecided → the countdown runs; nobody agrees → it stops.
+  void _evaluateReplayVotes() {
+    if (_replayLaunched) return;
+
+    final active = activePlayerIds;
+    final votes = Map<String, String>.from(state.replayVotes)
+      ..removeWhere((uid, _) => !active.contains(uid));
+
+    if (votes.length != state.replayVotes.length ||
+        !_sameList(state.replayPlayerIds, active)) {
+      emit(state.copyWith(replayVotes: votes, replayPlayerIds: active));
+    }
+
+    if (active.length < 2) {
+      _stopReplayCountdown();
+      return;
+    }
+
+    final counts = <String, int>{};
+    for (final option in votes.values) {
+      counts[option] = (counts[option] ?? 0) + 1;
+    }
+
+    // Unanimous: nothing left to wait for, and every device reaches this
+    // conclusion from the same event log, so they all launch together.
+    for (final entry in counts.entries) {
+      if (entry.value >= 2 && entry.value == active.length) {
+        _stopReplayCountdown();
+        _launchReplay(entry.key, active);
+        return;
+      }
+    }
+
+    final bool contested = counts.values.any((count) => count >= 2);
+    if (contested) {
+      _startReplayCountdown();
+    } else {
+      _stopReplayCountdown();
+    }
+  }
+
+  bool _sameList(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  void _startReplayCountdown() {
+    if (state.replayCountdownStartedAt != null) return;
+
+    emit(state.copyWith(replayCountdownStartedAt: () => DateTime.now()));
+
+    _replayCountdownTimer?.cancel();
+    _replayCountdownTimer = Timer(replayCountdown, _onReplayCountdownExpired);
+  }
+
+  void _stopReplayCountdown() {
+    _replayCountdownTimer?.cancel();
+    _replayCountdownTimer = null;
+    if (state.replayCountdownStartedAt != null) {
+      emit(state.copyWith(replayCountdownStartedAt: () => null));
+    }
+  }
+
+  /// The undecided ran out of time: the referee names the winning option and
+  /// the players who go on with it. Everyone else — including the referee —
+  /// acts on the event it writes, so all devices drop exactly the same seats.
+  void _onReplayCountdownExpired() {
+    _replayCountdownTimer = null;
+    if (isClosed || _replayLaunched) return;
+    if (_replayRefereeId != LocalStorageService.uid) return;
+
+    final active = activePlayerIds;
+    final votes = Map<String, String>.from(state.replayVotes)
+      ..removeWhere((uid, _) => !active.contains(uid));
+
+    String? winner;
+    int best = 0;
+    for (final entry in votes.entries) {
+      final count = votes.values.where((o) => o == entry.value).length;
+      if (count >= 2 && count > best) {
+        best = count;
+        winner = entry.value;
+      }
+    }
+
+    if (winner == null) return;
+
+    final retained =
+        votes.entries.where((e) => e.value == winner).map((e) => e.key).toList()
+          ..sort();
+
+    gamesRepository.addGameEvent(
+      gameId,
+      GamicoGameEventModel(
+        type: "REPLAY_START",
+        userId: LocalStorageService.uid,
+        data: <String, dynamic>{"option": winner, "players": retained},
+      ),
+    );
+  }
+
+  /// Starts the rematch: the players left out are struck from the table so the
+  /// new game only deals to those who asked for it.
+  void _launchReplay(String optionId, List<String> players) {
+    if (_replayLaunched) return;
+    _replayLaunched = true;
+
+    _stopReplayCountdown();
+
+    for (final uid in _expectedPlayerIds) {
+      if (!players.contains(uid)) _exitedPlayerIds.add(uid);
+    }
+
+    emit(
+      state.copyWith(replayOption: () => optionId, replayPlayerIds: players),
+    );
+
+    _launchNewGame();
   }
 
   void setRemoteGameInternetError(bool remoteGameInternetError) {
@@ -245,7 +620,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         //   "col": tile.col,
         // },
         type: "EXIT",
-        userId: UserService.uid,
+        userId: LocalStorageService.uid,
       ),
     );
   }
@@ -255,7 +630,22 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       emit(state.copyWith(gameEndStatus: "INVITATION_ACCEPTATION"));
     }
 
-    final playersEntries = (currentGame?.players?.entries.toList() ?? [])
+    // A rematch resolved by vote leaves out whoever did not ask for it (see
+    // [_launchReplay]); everything below then works off the shortened table.
+    final retainedPlayers = _replayLaunched
+        ? Map<String, GamicoGamePlayerModel>.fromEntries(
+            (currentGame?.players?.entries ??
+                    const <MapEntry<String, GamicoGamePlayerModel>>[])
+                .where(
+                  (e) =>
+                      e.value.userId == null ||
+                      e.value.userId.toString().startsWith("bot_") ||
+                      state.replayPlayerIds.contains(e.value.userId),
+                ),
+          )
+        : currentGame?.players;
+
+    final playersEntries = (retainedPlayers?.entries.toList() ?? [])
       ..sort((a, b) => a.key.compareTo(b.key));
     // Bot-filled seats have no device to create the new game — see the note on
     // `playersIds` in [init].
@@ -264,13 +654,14 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         .where((id) => id == null || !id.toString().startsWith("bot_"))
         .toList();
     final isFirstJoiner =
-        sortedPlayerUids.length > 1 && sortedPlayerUids[1] == UserService.uid;
+        sortedPlayerUids.length > 1 &&
+        sortedPlayerUids[1] == LocalStorageService.uid;
 
     if (isFirstJoiner) {
       newGameId = await gamesRepository.createGame(
         GamicoGameModel(
           events: const {},
-          players: currentGame?.players,
+          players: retainedPlayers,
           status: "CREATED",
         ),
       );
@@ -302,7 +693,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         GamicoGameEventModel(
           data: <String, dynamic>{"id": newGameId},
           type: "IDENTIFICATION",
-          userId: UserService.uid,
+          userId: LocalStorageService.uid,
         ),
       );
     }
@@ -340,9 +731,10 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
               .toList();
 
       _expectedPlayerIds = playersIds.toSet();
+      emit(state.copyWith(replayPlayerIds: activePlayerIds));
 
       final otherPlayerIds = playersIds
-          .where((element) => element != UserService.uid)
+          .where((element) => element != LocalStorageService.uid)
           .toList();
       final Map<String, dynamic> loadedOpponents = {};
 
@@ -394,12 +786,17 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
         var finalOpponent = Gamico.instance.userFromJson(developerData);
 
-        final currentUser = gameCubit.userCubit.state.user!;
+        // Null-safe since the user cubit is no longer seeded from LocalStorage:
+        // an account that has not resolved yet leaves the opponent as-is rather
+        // than crashing the match.
+        final currentUser = gameCubit.userCubit.state.user;
 
-        finalOpponent = Gamico.instance.userSettings.userCreateFakeOpponent(
-          currentUser,
-          finalOpponent,
-        );
+        if (currentUser != null) {
+          finalOpponent = Gamico.instance.userSettings.userCreateFakeOpponent(
+            currentUser,
+            finalOpponent,
+          );
+        }
 
         emit(
           state.copyWith(
@@ -422,7 +819,13 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         // duration of a match, so they're read once below instead of
         // holding a live listener open on them like `online`/`coins` for
         // the whole game.
-        const staticFields = <String>{"name", "photo"};
+        const staticFields = <String>{
+          "name",
+          "photo",
+          "victories",
+          "defeats",
+          "trophies",
+        };
         final fieldsToWatch = <String>{
           "online",
           "coins",
@@ -478,9 +881,9 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                       Map<String, dynamic>.from(fields),
                     );
 
-                    if (state.fakeOpponent) {
-                      final currentUser = gameCubit.userCubit.state.user!;
+                    final currentUser = gameCubit.userCubit.state.user;
 
+                    if (state.fakeOpponent && currentUser != null) {
                       finalOpponent = Gamico.instance.userSettings
                           .userCreateFakeOpponent(currentUser, finalOpponent);
                     }
@@ -520,27 +923,13 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                       );
                     }
                   },
-                  onError: (e) => debugPrint(
-                    "⚠️ opponent $field subscription error => $e",
-                  ),
+                  onError: (e) =>
+                      debugPrint("⚠️ opponent $field subscription error => $e"),
                 );
             opponentStreamSubscriptions.add(sub);
           }
         }
       }
-
-      // Seeds
-      // Derived from the shared `createdAt` timestamp (written once by the
-      // host and read identically by every device) so all clients land on
-      // the same seed for deterministic, lockstep-reproducible shuffles.
-      // This used to be reduced modulo `remoteUtility.seedModulo` (10),
-      // which collapsed the deck shuffle to only 10 possible outcomes
-      // across all online games (e.g. Crazy Eights hands repeating).
-      // Use the full timestamp instead, masked to a positive 32-bit int
-      // since that's what `Random()` expects.
-      final createdAtUs = currentGame?.createdAt?.microsecondsSinceEpoch ?? 0;
-      seed1 = createdAtUs & 0x7FFFFFFF;
-      seed2 = (createdAtUs ~/ 7) & 0x7FFFFFFF;
 
       // Listen to game events
       //
@@ -575,13 +964,13 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                     if (uid != null) _readyPlayerIds.add(uid);
                     _checkReadiness();
                   } else if (currentGameEvent.type == "MOVE") {
-                    if (currentGameEvent.userId != UserService.uid) {
+                    if (currentGameEvent.userId != LocalStorageService.uid) {
                       gameCubit.settings?.receiveMoveFromRemotePlayer(
                         currentGameEvent,
                       );
                     }
                   } else if (currentGameEvent.type == "EXIT") {
-                    if (currentGameEvent.userId != UserService.uid) {
+                    if (currentGameEvent.userId != LocalStorageService.uid) {
                       final uid = currentGameEvent.userId ?? "";
                       // A player leaving before the deal (quit between
                       // matchmaking and launch) will never declare READINESS:
@@ -593,14 +982,14 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                       _manageRemoteExit(uid);
                     }
                   } else if (currentGameEvent.type == "ABANDONMENT") {
-                    if (currentGameEvent.userId != UserService.uid) {
+                    if (currentGameEvent.userId != LocalStorageService.uid) {
                       gameCubit.settings?.onRemoteUserGaveUp(
                         currentGameEvent.userId ?? "",
                       );
                       // endGame("B", "ABANDONMENT");
                     }
                   } else if (currentGameEvent.type == "DISCONNECTION") {
-                    if (currentGameEvent.userId != UserService.uid) {
+                    if (currentGameEvent.userId != LocalStorageService.uid) {
                       if (state.gameEndStatus == "INTERNAL_INVITATION") {
                         emit(
                           state.copyWith(gameEndStatus: "REPLAY_IMPOSSIBLE"),
@@ -608,11 +997,32 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                       }
                     }
                   } else if (currentGameEvent.type == "NEEDINESS") {
-                    if (currentGameEvent.userId == UserService.uid) {
+                    if (currentGameEvent.userId == LocalStorageService.uid) {
                       emit(state.copyWith(gameEndStatus: "INTERNAL_NEEDINESS"));
                     } else {
                       emit(state.copyWith(gameEndStatus: "EXTERNAL_NEEDINESS"));
                     }
+                  } else if (currentGameEvent.type == "REPLAY_VOTE") {
+                    _applyReplayVote(
+                      currentGameEvent.userId ?? "",
+                      currentGameEvent.data?["option"]?.toString() ??
+                          kGamicoSameGameReplayOption,
+                    );
+                  } else if (currentGameEvent.type == "REPLAY_VOTE_CANCEL") {
+                    _applyReplayVote(currentGameEvent.userId ?? "", null);
+                  } else if (currentGameEvent.type == "REPLAY_START") {
+                    // The referee's verdict on a split vote. Every device acts
+                    // on this one event, so they all keep and drop exactly the
+                    // same seats.
+                    final option =
+                        currentGameEvent.data?["option"]?.toString() ??
+                        kGamicoSameGameReplayOption;
+                    final players =
+                        (currentGameEvent.data?["players"] as List?)
+                            ?.map((e) => e.toString())
+                            .toList() ??
+                        activePlayerIds;
+                    _launchReplay(option, players);
                   } else if (currentGameEvent.type == "REPLAY") {
                     replayRequests++;
 
@@ -631,7 +1041,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                     if (replayRequests == playersIds.length) {
                       _launchNewGame();
                     } else {
-                      if (currentGameEvent.userId == UserService.uid) {
+                      if (currentGameEvent.userId == LocalStorageService.uid) {
                         emit(
                           state.copyWith(gameEndStatus: "INTERNAL_INVITATION"),
                         );
@@ -644,7 +1054,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                   } else if (currentGameEvent.type == "WITHDRAW") {
                     replayRequests--;
 
-                    if (currentGameEvent.userId == UserService.uid) {
+                    if (currentGameEvent.userId == LocalStorageService.uid) {
                       emit(state.copyWith(gameEndStatus: ""));
                     } else {
                       emit(
@@ -657,7 +1067,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                     if (replayRequests == playersIds.length) {
                       _launchNewGame();
                     } else {
-                      if (currentGameEvent.userId == UserService.uid) {
+                      if (currentGameEvent.userId == LocalStorageService.uid) {
                         emit(
                           state.copyWith(
                             gameEndStatus: "INVITATION_ACCEPTATION",
@@ -675,7 +1085,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                   } else if (currentGameEvent.type == "REJECTION") {
                     replayRequests = 0;
 
-                    if (currentGameEvent.userId == UserService.uid) {
+                    if (currentGameEvent.userId == LocalStorageService.uid) {
                       emit(state.copyWith(gameEndStatus: ""));
                     } else {
                       emit(
@@ -683,10 +1093,18 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                       );
                     }
                   } else if (currentGameEvent.type == "IDENTIFICATION") {
-                    if (currentGameEvent.userId != UserService.uid) {
+                    if (currentGameEvent.userId != LocalStorageService.uid) {
                       newGameId = currentGameEvent.data?["id"];
 
-                      if (state.creator) {
+                      // A rematch resolved by vote can leave the creator
+                      // behind, and then nobody would ever mark the new game
+                      // STARTED — every remaining device would sit on a status
+                      // that never comes. The player the table already agrees
+                      // on as referee steps in. Writing the same status twice
+                      // when the creator is still here changes nothing.
+                      if (state.creator ||
+                          (_replayLaunched &&
+                              _replayRefereeId == LocalStorageService.uid)) {
                         await gamesRepository.updateGameStatus(
                           newGameId,
                           "STARTED",
@@ -709,56 +1127,8 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
             );
       }
 
-      // Disconnection management
-      userDisconnectionReference = FirebaseDatabase.instance
-          .ref("users")
-          .child(UserService.uid)
-          .onDisconnect();
-
-      if (Gamico.instance.playSettings?.exitUserWhenDisconnected == true ||
-          !state.fakeOpponent) {
-        // For moded games (e.g. an embedded game), the disconnection penalty
-        // targets that mode's own progression namespace instead of the
-        // top-level stats. Coins stay a single shared wallet.
-        final mode = state.remoteUtility.matchmakingSettings.mode;
-
-        _armedDisconnectionPenalty = {
-          "coins": -Gamico.instance.gameSettings.playMinimumCoins,
-          if (mode == null) "defeats": 1,
-          if (mode == null) "trophies": -1,
-          if (mode != null) "progression/$mode/defeats": 1,
-          if (mode != null) "progression/$mode/trophies": -1,
-        };
-
-        try {
-          await userDisconnectionReference?.update(
-            _disconnectionPenaltyPayload(_armedDisconnectionPenalty!),
-          );
-        } catch (e) {
-          // onDisconnect().update() peut échouer si l'utilisateur est
-          // hors-ligne ou si les règles Firebase bloquent l'écriture.
-          // Non-fatal : on continue l'initialisation de la partie.
-          debugPrint('[GamicoRemoteGameCubit] onDisconnect update failed: $e');
-        }
-
-        // Self-healing: a brief background trip drops the database connection
-        // (see field doc above) and fires the penalty above almost instantly.
-        // Refund and re-arm on every genuine reconnection while the match is
-        // still active, so only a real, lasting abandonment is ever scored.
-        _sawInitialConnected = false;
-        _disconnectionPenaltySubscription?.cancel();
-        _disconnectionPenaltySubscription = FirebaseDatabase.instance
-            .ref(".info/connected")
-            .onValue
-            .listen((event) {
-              if (event.snapshot.value != true) return;
-              if (!_sawInitialConnected) {
-                _sawInitialConnected = true;
-                return;
-              }
-              _refundAndRearmDisconnectionPenalty();
-            });
-      }
+      // Disconnection management is deliberately not armed here: it waits for
+      // the table to actually be dealt (see [_armDisconnectionPenalty]).
 
       // Declare game as ready when really ready. The wait is bounded:
       // profiles normally resolve in well under a second, and one unreadable
@@ -780,7 +1150,10 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       } else {
         gamesRepository.addGameEvent(
           gameId,
-          GamicoGameEventModel(type: "READINESS", userId: UserService.uid),
+          GamicoGameEventModel(
+            type: "READINESS",
+            userId: LocalStorageService.uid,
+          ),
         );
         _startReadinessFallbackTimer();
       }
@@ -793,7 +1166,16 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       final penaltyFree =
           gameCubit.settings?.exitIsPenaltyFree?.call() ?? false;
 
-      if (!gameCubit.state.over && !penaltyFree) {
+      // Leaving a game that never started is not an abandonment. Until the
+      // readiness roll-call completes nothing has been dealt, nobody has
+      // played a card, and the player is looking at a loader — which is
+      // exactly where they end up when a matched opponent never makes it to
+      // the table. Charging them coins, a trophy and a defeat for backing out
+      // of that is the wrong verdict: `over` is false simply because the
+      // match never began.
+      final neverStarted = !gameCubit.state.ready;
+
+      if (!gameCubit.state.over && !penaltyFree && !neverStarted) {
         final mode = state.remoteUtility.matchmakingSettings.mode;
         final onModedRemoteResult =
             Gamico.instance.playSettings?.onModedRemoteResult;
@@ -821,9 +1203,17 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
       gamesRepository.addGameEvent(
         gameId,
-        GamicoGameEventModel(type: "ABANDONMENT", userId: UserService.uid),
+        GamicoGameEventModel(
+          type: "ABANDONMENT",
+          userId: LocalStorageService.uid,
+        ),
       );
     };
+
+    // The abandonment penalty is armed here and nowhere else: whatever starts
+    // the match, it is armed exactly once, and never while the players are
+    // still on the pre-deal loader.
+    gameCubit.onGameStart = () => unawaited(_armDisconnectionPenalty());
 
     gameCubit.onGameEnd = cleanUserDisconnectionReference;
   }
@@ -851,7 +1241,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     try {
       await FirebaseDatabase.instance
           .ref("users")
-          .child(UserService.uid)
+          .child(LocalStorageService.uid)
           .update(
             _disconnectionPenaltyPayload(
               deltas.map((key, value) => MapEntry(key, -value)),
@@ -866,7 +1256,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     try {
       userDisconnectionReference = FirebaseDatabase.instance
           .ref("users")
-          .child(UserService.uid)
+          .child(LocalStorageService.uid)
           .onDisconnect();
       await userDisconnectionReference?.update(
         _disconnectionPenaltyPayload(deltas),
@@ -878,6 +1268,11 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
   void _manageRemoteExit(String userId) {
     emit(state.copyWith(gameEndStatus: "", opponentExited: true));
+
+    // One seat fewer to wait on: a table of two is now unplayable, and a
+    // table of three may have just become unanimous.
+    _exitedPlayerIds.add(userId);
+    _applyReplayVote(userId, null);
 
     if (gameCubit.state.over) {
       replayRequests = 0;
@@ -893,7 +1288,11 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
     await gamesRepository.addGameEvent(
       gameId,
-      GamicoGameEventModel(data: data, type: "MOVE", userId: UserService.uid),
+      GamicoGameEventModel(
+        data: data,
+        type: "MOVE",
+        userId: LocalStorageService.uid,
+      ),
     );
   }
 
@@ -902,6 +1301,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     GamicoDatabaseShutdown.unregister(this);
 
     _readinessFallbackTimer?.cancel();
+    _replayCountdownTimer?.cancel();
     // Cancel all usual streams
     newGameStreamSubscription?.cancel();
     opponentStreamSubscription?.cancel();

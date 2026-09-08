@@ -6,11 +6,11 @@ import 'package:gamico/features/game/widgets/game_passed_tutorial_popup.dart';
 import 'package:gamico/features/game/widgets/game_progress_tutorial_popup.dart';
 import 'package:gamico/features/game/widgets/game_replay_button.dart';
 import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/models/gamico_user_model.dart';
 import 'package:gamico/features/game/modes/game_mode_settings.dart';
 import 'package:gamico/commons/services/game.dart';
 import 'package:gamico/commons/services/navigation.dart';
-import 'package:gamico/commons/services/user.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:gamico/features/game/cubits/tutorial/tutorial_game_cubit.dart';
 import 'package:gamico/languages/languages.dart';
@@ -34,7 +34,11 @@ class TutorialModeSettings implements GameModeSettings {
 
   @override
   GamicoUserModel localPlayerProfile(BuildContext context) {
-    return UserService.getUser() ?? const GamicoUserModel();
+    // Straight from the cubit: it is the account, and `GamicoAccountGate` has
+    // already waited for it. Reading a persisted copy here is what used to hand
+    // the game a profile from the last session.
+    return context.read<GamicoUserCubit>().state.user ??
+        const GamicoUserModel();
   }
 
   @override
@@ -48,9 +52,7 @@ class TutorialModeSettings implements GameModeSettings {
   GamicoUserModel otherPlayerProfile(BuildContext context) {
     final l = GamicoLanguages.of(context);
 
-    return GamicoUserModel(
-      name: l.names[0],
-    );
+    return GamicoUserModel(name: l.names[0]);
   }
 
   @override

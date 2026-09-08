@@ -1,24 +1,25 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/cubits/admob/admob_cubit.dart';
+import 'package:gamico/commons/cubits/authentication/authentication_cubit.dart';
 import 'package:gamico/commons/cubits/gratification/gratification_cubit.dart';
 import 'package:gamico/commons/cubits/purchases/purchases_cubit.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
-import 'package:gamico/commons/global/gamico.dart';
-import 'package:gamico/commons/services/local_storage.dart';
-import 'package:gamico/commons/generics/gamico_popup.dart';
-import 'package:gamico/commons/generics/coins_store_poster.dart';
-import 'package:gamico/commons/generics/gratification_poster.dart';
-import 'package:gamico/commons/generics/special_offer_poster.dart';
-import 'package:gamico/commons/generics/premium_poster.dart';
 import 'package:gamico/commons/generics/ad_button.dart';
+import 'package:gamico/commons/generics/coins_popup_index_manager.dart';
+import 'package:gamico/commons/generics/coins_store_poster.dart';
+import 'package:gamico/commons/generics/gamico_popup.dart';
+import 'package:gamico/commons/generics/gratification_poster.dart';
+import 'package:gamico/commons/generics/premium_poster.dart';
+import 'package:gamico/commons/generics/special_offer_poster.dart';
+import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/navigation.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 
+/// Modal dialog for store purchases, hourly rewards, special offers, and premium status.
 class CoinsPopup extends StatefulWidget {
-  static int get coinsPopupIndex =>
-      LocalStorageService.getInt("coins_popup_index") ?? 0;
+  static int get coinsPopupIndex => CoinsPopupIndexManager.savedIndex;
   static set coinsPopupIndex(int value) =>
-      LocalStorageService.setInt("coins_popup_index", value);
+      CoinsPopupIndexManager.savedIndex = value;
 
   final int? minimumRequiredCowries;
 
@@ -40,55 +41,65 @@ class CoinsPopup extends StatefulWidget {
 }
 
 class _CoinsPopupState extends State<CoinsPopup> {
-  late PageController pageController;
+  late final PageController _pageController;
 
   @override
   void initState() {
     super.initState();
 
-    int initialIndex;
+    final userCoins = context.read<GamicoUserCubit>().state.user?.coins ?? 0;
+    final gratificationEnabled = context
+        .read<GratificationCubit>()
+        .state
+        .gratificationEnabled;
 
-    final cowries = context.read<GamicoUserCubit>().state.user?.coins ?? 0;
-    final gratificationEnabled =
-        context.read<GratificationCubit>().state.gratificationEnabled;
+    final initialIndex = CoinsPopupIndexManager.resolveInitialIndex(
+      userCoins: userCoins,
+      gratificationEnabled: gratificationEnabled,
+      minimumRequiredCoins: widget.minimumRequiredCowries,
+    );
 
-    if (gratificationEnabled) {
-      initialIndex = 0;
-    } else if (widget.minimumRequiredCowries != null &&
-        cowries < widget.minimumRequiredCowries!) {
-      initialIndex = 1;
-    } else {
-      initialIndex = CoinsPopup.coinsPopupIndex;
+    _pageController = PageController(initialPage: initialIndex);
+    CoinsPopupIndexManager.savedIndex = initialIndex;
+
+    _pageController.addListener(_onPageScroll);
+  }
+
+  void _onPageScroll() {
+    final currentIndex = _pageController.page?.round() ?? 0;
+    if (CoinsPopupIndexManager.savedIndex != currentIndex) {
+      CoinsPopupIndexManager.savedIndex = currentIndex;
+      setState(() {});
     }
-
-    pageController = PageController(initialPage: initialIndex);
-    CoinsPopup.coinsPopupIndex = initialIndex;
-
-    pageController.addListener(() {
-      final currentIndex = pageController.page?.round() ?? 0;
-
-      if (CoinsPopup.coinsPopupIndex != currentIndex) {
-        CoinsPopup.coinsPopupIndex = currentIndex;
-
-        setState(() {});
-      }
-    });
   }
 
   @override
   void dispose() {
-    pageController.dispose();
-
+    _pageController.removeListener(_onPageScroll);
+    _pageController.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget? _buildAdButton(BuildContext context) {
+    if (Gamico.instance.admobSettings?.displayAdButton == false) return null;
+
+    return GamicoAdButton(
+      onPressed: () async {
+        final admobCubit = context.read<AdmobCubit>();
+        await admobCubit.ensureRewardedAdLoaded();
+        admobCubit.showRewardedAd(() {
+          context.read<GamicoUserCubit>().incrementCowries();
+        });
+      },
+    );
+  }
+
+  List<Widget> _buildPages(BuildContext context) {
     final products = context.select(
       (PurchasesCubit purchasesCubit) => purchasesCubit.state.products,
     );
 
-    final content = [
+    return [
       const GamicoGratificationPoster(),
       if (products.isNotEmpty &&
           Gamico.instance.purchasesSettings?.classicPacks.isNotEmpty == true)
@@ -101,28 +112,30 @@ class _CoinsPopupState extends State<CoinsPopup> {
       if (context.read<GamicoUserCubit>().state.user?.premium != true)
         const GamicoPremiumPoster(),
     ];
+  }
 
-    return GamicoPopup(
-      pageController: pageController,
-      pageControllerLength: content.length,
-      additionalChild:
-          Gamico.instance.admobSettings?.displayAdButton == false
-              ? null
-              : GamicoAdButton(
-                onPressed: () async {
-                  final admobCubit = context.read<AdmobCubit>();
+  @override
+  Widget build(BuildContext context) {
+    final pages = _buildPages(context);
 
-                  await admobCubit.ensureRewardedAdLoaded();
-
-                  admobCubit.showRewardedAd(() {
-                    context.read<GamicoUserCubit>().incrementCowries();
-                  });
-                },
-              ),
-      child: PageView(
-        controller: pageController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: content,
+    // Every page here reads the account. When the player signs out while the
+    // popup is open there is nothing left to show and nothing to wait for, so
+    // dismiss it. A session lost to a token-refresh failure is deliberately
+    // NOT covered: the account usually comes back on its own, and the posters
+    // sit on their loading state until it does.
+    return BlocListener<AuthenticationCubit, AuthenticationState>(
+      listenWhen: (previous, current) =>
+          !previous.deliberateSignOut && current.deliberateSignOut,
+      listener: (context, _) => NavigationService.pop(context),
+      child: GamicoPopup(
+        pageController: _pageController,
+        pageControllerLength: pages.length,
+        additionalChild: _buildAdButton(context),
+        child: PageView(
+          controller: _pageController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: pages,
+        ),
       ),
     );
   }

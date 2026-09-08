@@ -233,7 +233,7 @@ abstract class GamicoLanguageFr extends GamicoLanguages {
   String get premiumPopupTitle => "Passez Premium !";
   @override
   String get premiumPopupDescription =>
-      "Acquérez la version complète du jeu pour supprimer définitivement toutes les publicités interstitielles et profiter d'une expérience de jeu ininterrompue !";
+      "Débloquez la version complète pour supprimer les publicités et jouer sans interruption !";
   @override
   String get premiumPlayer => "Joueur premium";
   @override
@@ -1268,4 +1268,25 @@ abstract class GamicoLanguageFr extends GamicoLanguages {
 
   @override
   String get premiumButtonRemoveAds => "Supprimer les publicités";
+
+  @override
+  String get localNetworkWaitingForHost => "En attente de l'hôte…";
+
+  @override
+  String get localNetworkHostLeftDescription =>
+      "L'hôte a quitté la partie : la table est terminée. Vous pouvez en démarrer une nouvelle depuis le menu.";
+
+  @override
+  String get replayVoteChooseOption => "Choisissez un mode pour la revanche";
+
+  @override
+  String replayVoteCountdown(int seconds) =>
+      "Départ dans ${seconds}s avec les joueurs prêts";
+
+  @override
+  String get replayVoteStartingSoon =>
+      "La partie va commencer avec les joueurs ayant accepté";
+
+  @override
+  String get replayVoteWaitingForPlayers => "En attente des autres joueurs";
 }

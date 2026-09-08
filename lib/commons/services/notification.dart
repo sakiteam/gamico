@@ -19,7 +19,7 @@ import 'package:awesome_notifications/awesome_notifications.dart';
 
 class NotificationService {
   static void Function(BuildContext context, String invitationId)?
-      onAcceptInvitation;
+  onAcceptInvitation;
   static void Function(String invitationId)? onRejectInvitation;
 
   static bool get notificationsSet =>
@@ -57,6 +57,98 @@ class NotificationService {
       LocalStorageService.getBool("default_topic_subscribed") ?? false;
   static set defaultTopicSubscribed(bool value) =>
       LocalStorageService.setBool("default_topic_subscribed", value);
+
+  /// Key holding the FCM token this installation completed the notification
+  /// flow with. See [reconcileInstallation].
+  static const String _installTokenKey = "notifications_install_token";
+
+  static String? get _installToken =>
+      LocalStorageService.getString(_installTokenKey);
+
+  /// Records the current FCM token as the one the flags above belong to.
+  /// A missing token (offline, APNs not ready yet) leaves the marker
+  /// untouched: an unknown token must never be mistaken for a new install.
+  static Future<void> rememberInstallToken() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null && token.isNotEmpty) {
+        await LocalStorageService.setString(_installTokenKey, token);
+      }
+    } catch (e) {
+      debugPrint("Error remembering the notification install token: \$e");
+    }
+  }
+
+  /// Re-opens the notification flow when the persisted flags belong to a
+  /// *previous* installation of the app.
+  ///
+  /// Uninstalling revokes the OS notification permission, but Android's Auto
+  /// Backup (and iOS' iCloud backup) restores `SharedPreferences` on the next
+  /// install: `notifications_set`, `notifications_requested` and
+  /// `notifications_reminder_shown` all come back as `true` while the
+  /// permission is denied. The home flow then skips both the first prompt and
+  /// the reminder, and the player silently never gets a notification again.
+  ///
+  /// The FCM token is the signal that tells the two apart: it is regenerated
+  /// by every new installation and is never part of a backup. When the stored
+  /// token no longer matches the live one, the flags describe an installation
+  /// that is gone, so they are cleared and the normal flow runs from scratch.
+  /// `default_topic_subscribed` is cleared along with them — a topic
+  /// subscription is bound to the token, so the new one is not subscribed
+  /// either.
+  ///
+  /// Returns whether the flow was reset.
+  static Future<bool> reconcileInstallation() async {
+    try {
+      // Notifications work: nothing to re-ask. Just keep the marker in sync
+      // so a later token rotation isn't read as a reinstallation.
+      if (await allowed()) {
+        if (notificationsSet) await rememberInstallToken();
+        return false;
+      }
+
+      // The player never went through the flow — it will run on its own.
+      if (!notificationsSet) return false;
+
+      // Flags written before this marker existed (upgrade from an older
+      // build): adopt the current token rather than guessing, so the reset
+      // only ever fires on a token we actually recorded.
+      final stored = _installToken;
+      if (stored == null || stored.isEmpty) {
+        await rememberInstallToken();
+        return false;
+      }
+
+      String? current;
+      try {
+        current = await FirebaseMessaging.instance.getToken();
+      } catch (e) {
+        debugPrint("Error reading the FCM token for reconciliation: \$e");
+      }
+
+      // Unknown token, or the same installation that answered the prompt:
+      // leave the player's answer alone.
+      if (current == null || current.isEmpty) return false;
+      if (current == stored) return false;
+
+      // New installation wearing the old install's answers: start over.
+      notificationsSet = false;
+      notificationsAccepted = false;
+      notificationsRequested = false;
+      notificationsReminderShown = false;
+      defaultTopicSubscribed = false;
+      await LocalStorageService.setString(_installTokenKey, "");
+
+      debugPrint(
+        "Notification flow reset: the stored answers belong to a previous "
+        "installation.",
+      );
+      return true;
+    } catch (e) {
+      debugPrint("Error reconciling the notification installation: \$e");
+      return false;
+    }
+  }
 
   /// Serializes every call that mutates awesome_notifications' own state
   /// (creating, cancelling or dismissing a notification).
@@ -317,15 +409,15 @@ class NotificationService {
     await cancelGameInvitationNotification(invitationId);
 
     if (receivedAction.buttonKeyPressed == "ACCEPT") {
-      final ref =
-          FirebaseDatabase.instance.ref().child('invitations/$invitationId');
+      final ref = FirebaseDatabase.instance.ref().child(
+        'invitations/$invitationId',
+      );
       await ref.update({
         'status': 'accepted',
         'updated_at': ServerValue.timestamp,
       });
 
-      final acceptContext =
-          NavigationService.globalNavigatorKey.currentContext;
+      final acceptContext = NavigationService.globalNavigatorKey.currentContext;
 
       if (acceptContext != null) {
         if (onAcceptInvitation != null) {
@@ -365,8 +457,9 @@ class NotificationService {
         }
       }
     } else if (receivedAction.buttonKeyPressed == 'REJECT') {
-      final ref =
-          FirebaseDatabase.instance.ref().child('invitations/$invitationId');
+      final ref = FirebaseDatabase.instance.ref().child(
+        'invitations/$invitationId',
+      );
       await ref.update({
         'status': 'rejected',
         'updated_at': ServerValue.timestamp,

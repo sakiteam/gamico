@@ -2,14 +2,15 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:async';
 import 'dart:convert';
-import 'package:bloc/bloc.dart';
+
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:games_services/games_services.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/database_shutdown.dart';
 import 'package:gamico/commons/services/global.dart';
-import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/commons/services/local_storage.dart';
 import 'package:gamico/commons/services/play.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -17,6 +18,7 @@ import 'package:remove_diacritic/remove_diacritic.dart';
 // import 'package:simple_connection_checker/simple_connection_checker.dart';
 import 'package:gamico/commons/services/gratification.dart';
 import 'package:gamico/commons/repositories/gamico_users_repository.dart';
+import 'package:gamico/commons/models/gamico_user_model.dart';
 
 part 'user_state.dart';
 
@@ -46,8 +48,20 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     required this.usersRepository,
     // required this.fromJson,
     // required this.toJson,
-  }) : super(GamicoUserState(user: UserService.getUser())) {
-    // if (UserService.authenticated) {
+  }) : // Starts empty, and there is no longer anything to start it from.
+       //
+       // This used to be seeded from a full copy of the account kept in
+       // LocalStorage, which made `state.user` non-null from the first frame —
+       // with the values of this device's LAST session. Every progression write
+       // is a read-modify-write on top of `state.user`, so that snapshot got
+       // republished over the real account, a little further back on every app
+       // open. The persisted copy is gone; `state.user` only ever comes from
+       // RTDB now, which makes the invariant structural instead of guarded.
+       //
+       // Nothing flashes empty in the meantime: `GamicoAccountGate` holds the
+       // loading screen until the account has resolved.
+       super(const GamicoUserState()) {
+    // if (LocalStorageService.authenticated) {
     //   listenToUserChanges();
     // }
 
@@ -119,11 +133,51 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   /// deleted). See [_applyUserField].
   bool _nodeGone = false;
 
+  /// Backs [GamicoUserState.serverSynced]. Reset on an account switch.
+  StreamSubscription<DatabaseEvent>? _connectionSubscription;
+  bool _serverSynced = false;
+
+  /// Flips [GamicoUserState.serverSynced] once the account has actually been
+  /// round-tripped with the backend.
+  ///
+  /// Disk persistence is on, so the listener's first payload can come straight
+  /// off the disk cache — a snapshot of this device's last session, possibly
+  /// behind the account. RTDB exposes no "this came from cache" marker, so the
+  /// round trip has to be observed from the outside.
+  ///
+  /// The marker is a one-shot read of a single leaf. Waiting for a second
+  /// `onValue` would not work: when the cache already matches the server, the
+  /// value never changes and no further event is ever delivered. Issuing a read
+  /// over a live socket does reach the backend, and by the time it answers the
+  /// listener has been handed the authoritative node.
+  void _watchServerSync(DatabaseReference ref) {
+    _connectionSubscription?.cancel();
+    _connectionSubscription = FirebaseDatabase.instance
+        .ref(".info/connected")
+        .onValue
+        .listen((event) async {
+          final connected = event.snapshot.value as bool? ?? false;
+          if (!connected || _serverSynced) return;
+
+          try {
+            await ref.child("created_at").get();
+          } catch (e) {
+            debugPrint("⚠️ server-sync probe failed => $e");
+            return;
+          }
+
+          if (isClosed || _serverSynced) return;
+
+          _serverSynced = true;
+          emit(state.copyWith(serverSynced: true));
+        }, onError: (e) => debugPrint("⚠️ .info/connected ERROR => $e"));
+  }
+
   void _manageDisconnection() {
     // Never operate on an empty uid: `ref("users/")` resolves to the `users`
     // collection ROOT, and writing online/updated_at there corrupts the shared
     // user store. (Mirrors the guard already in Ludiko's connecto UserCubit.)
-    if (UserService.uid.isEmpty) return;
+    if (LocalStorageService.uid.isEmpty) return;
 
     // The host app may own presence itself — see [UserSettings.managePresence].
     // Marking it managed keeps [manageUserChanges] from retrying on every
@@ -135,7 +189,9 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
     _managed = true;
 
-    final ref = FirebaseDatabase.instance.ref("users/${UserService.uid}");
+    final ref = FirebaseDatabase.instance.ref(
+      "users/${LocalStorageService.uid}",
+    );
 
     _disconnectionSubscription = FirebaseDatabase.instance
         .ref(".info/connected")
@@ -178,7 +234,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   }
 
   void unlockAchievement(String id, [double percentage = 100, int steps = 0]) {
-    if (UserService.authenticated) {
+    if (LocalStorageService.authenticated) {
       if (!isAchivementUnlocked(id)) {
         () async {
           await GamicoGlobalService.waitWhile(
@@ -198,7 +254,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
         // Fire-and-forget: an achievement mirror that fails (offline, rules,
         // a sign-out mid-flight) must not surface as an unhandled async error.
         FirebaseDatabase.instance
-            .ref("users/${UserService.uid}/achievements/$id")
+            .ref("users/${LocalStorageService.uid}/achievements/$id")
             .set(percentage)
             .catchError((e) => debugPrint("⚠️ achievement set error => $e"));
 
@@ -209,51 +265,148 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     }
   }
 
+  /// Whether a write may be issued for this account at all.
+  ///
+  /// `state.user != null` is NOT that test. The cubit is seeded from the
+  /// LocalStorage copy in its constructor, so a user is present from the very
+  /// first frame — the one from this device's LAST session, which can be behind
+  /// the account (session killed before a write landed, a game played on
+  /// another device, a reinstall). Publishing anything derived from it before
+  /// the listener has spoken republishes that stale snapshot over the real
+  /// account, and the listener then syncs the local copy onto the value it just
+  /// clobbered: a level that "goes back" a little more on every app open.
+  ///
+  /// This is the FLOOR, not the ceiling. It clears relative writes (increments)
+  /// and monotonic ones (max-transactions), which are correct whatever the
+  /// local copy holds — that is the whole point of having converted the
+  /// counters and the levels to them. An absolute read-modify-write needs the
+  /// stricter [canPublishAbsoluteUser].
+  bool get canPersistUser =>
+      LocalStorageService.uid.isNotEmpty && state.loaded && state.user != null;
+
+  /// Whether [state.user] may be used as the BASE of an absolute write — one
+  /// that replaces a value rather than nudging it.
+  ///
+  /// Stricter than [canPersistUser] because `loaded` does not mean "came from
+  /// the server": disk persistence is enabled, so the listener's first payload
+  /// on a cold start is served from disk. Only [GamicoUserState.serverSynced]
+  /// says the account has been round-tripped with the backend this session.
+  bool get canPublishAbsoluteUser => canPersistUser && state.serverSynced;
+
   void incrementLevel() {
-    if (UserService.uid.isEmpty) return;
-    usersRepository.incrementUserLevel(UserService.uid);
+    if (!canPersistUser) return;
+    usersRepository.incrementUserLevel(LocalStorageService.uid);
   }
 
   void updateUserLevel(int level) {
-    if (UserService.uid.isEmpty) return;
-
-    // [GAMICO-FIX] name/level-loss investigation.
-    // Guard + instrumentation: a level is written as an ABSOLUTE value, and the
-    // level getters default to 1 when the user isn't loaded. So writing while
-    // `state.user` is null — or writing a value below the known level — is how
-    // a real progression gets clobbered down to 1. Refuse both and log the
-    // culprit (value + whether the user was null + call stack).
-    final current = state.user?.level;
-    if (state.user == null || level < (current ?? 0)) {
+    if (!canPersistUser) {
       debugPrint(
-        "⚠️ updateUserLevel($level) BLOCKED "
-        "userNull=${state.user == null} currentLevel=$current\n"
-        "${StackTrace.current}",
+        "⚠️ updateUserLevel($level) BLOCKED (account not loaded from server) "
+        "userNull=${state.user == null} loaded=${state.loaded}",
       );
       return;
     }
 
-    usersRepository.updateUserLevel(UserService.uid, level);
+    // Raised, never set: the comparison happens against the value on the
+    // server, so no stale device can walk the level backwards even if it gets
+    // past the guard above.
+    usersRepository.raiseUserLevel(LocalStorageService.uid, level);
   }
 
+  /// Absolute: it replaces the whole list, so it needs the synced account.
   void updateStars(List<int> stars) {
-    if (UserService.uid.isEmpty) return;
-    usersRepository.updateUserStars(UserService.uid, stars);
+    if (!canPublishAbsoluteUser) return;
+    usersRepository.updateUserStars(LocalStorageService.uid, stars);
+  }
+
+  /// Writes one field of one progression namespace. Narrower than
+  /// [updateUserProgression]: it cannot touch another game, and it does not
+  /// need the whole `progression` map to be rebuilt locally first.
+  void updateUserProgressionEntry(String gameKey, String field, Object? value) {
+    if (!canPersistUser) return;
+    usersRepository.updateUserProgressionField(
+      LocalStorageService.uid,
+      gameKey,
+      field,
+      value,
+    );
+  }
+
+  /// Applies relative deltas to the counters of one progression namespace
+  /// (paths relative to `progression/{gameKey}`, e.g. `"online/victories"`).
+  ///
+  /// Prefer this to [updateUserProgression] for anything that counts: the
+  /// server increments its own value, so a concurrent device — or a stale local
+  /// copy — cannot overwrite a count with a lower one.
+  void incrementProgression(String gameKey, Map<String, num> deltas) {
+    if (!canPersistUser) return;
+    usersRepository.incrementUserProgressionFields(
+      LocalStorageService.uid,
+      gameKey,
+      deltas,
+    );
+  }
+
+  /// Raises one progression field, never lowers it. Used for per-game levels.
+  ///
+  /// Resolves to true once the server has settled the write; it never resolves
+  /// while offline, which is how [GamicoProgressionService] knows to keep the
+  /// gain queued.
+  Future<bool> raiseProgressionField(
+    String gameKey,
+    String field,
+    int value,
+  ) async {
+    if (!canPersistUser) return false;
+    return usersRepository.raiseUserProgressionField(
+      LocalStorageService.uid,
+      gameKey,
+      field,
+      value,
+    );
+  }
+
+  /// Merges an adventure star list element-wise, keeping the better score of
+  /// each chapter.
+  Future<bool> mergeProgressionStars(String gameKey, List<int> stars) async {
+    if (!canPersistUser) return false;
+    return usersRepository.mergeUserProgressionStars(
+      LocalStorageService.uid,
+      gameKey,
+      stars,
+    );
+  }
+
+  /// Mirrors a namespace locally without writing anything, so the UI reflects
+  /// a result immediately while the atomic writes above travel to the server
+  /// and echo back through the `progression` listener.
+  void mirrorProgression(String gameKey, Map<String, dynamic> namespace) {
+    final current = state.user;
+    if (current == null) return;
+
+    final json = Map<String, dynamic>.from(Gamico.instance.userToJson(current));
+    final progression = Map<String, dynamic>.from(
+      (json["progression"] as Map?) ?? const <String, dynamic>{},
+    );
+    progression[gameKey] = namespace;
+    json["progression"] = progression;
+
+    emit(state.copyWith(user: () => Gamico.instance.userFromJson(json)));
   }
 
   void incrementVictories() async {
-    if (UserService.uid.isEmpty) return;
+    if (LocalStorageService.uid.isEmpty) return;
     final finalCrowns = (state.user?.trophies ?? 0) + 1;
-    await usersRepository.incrementUserTrophies(UserService.uid);
+    await usersRepository.incrementUserTrophies(LocalStorageService.uid);
     await _submitTacticiansScore(finalCrowns);
   }
 
   void incrementDefeats() async {
-    if (UserService.uid.isEmpty) return;
+    if (LocalStorageService.uid.isEmpty) return;
     final finalCrowns = (state.user?.trophies ?? 0) - 1;
 
     await usersRepository.decrementUserTrophies(
-      UserService.uid,
+      LocalStorageService.uid,
       finalCrowns >= 0 ? 1 : 0,
     );
 
@@ -263,7 +416,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   }
 
   Future<void> incrementCowries([int cowries = 1]) async {
-    if (UserService.uid.isEmpty) return;
+    if (LocalStorageService.uid.isEmpty) return;
     // Show that diamonds are increasing
     emit(
       state.copyWith(
@@ -276,14 +429,14 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     final finalDiamonds = (state.user?.coins ?? 0) + cowries;
 
     // Increment user diamonds really
-    await usersRepository.incrementUserCoins(UserService.uid, cowries);
+    await usersRepository.incrementUserCoins(LocalStorageService.uid, cowries);
 
     // Submit score to leaderboards
     await _submitCollectorsScore(finalDiamonds);
   }
 
   Future<void> decrementCowries([int cowries = 1]) async {
-    if (UserService.uid.isEmpty) return;
+    if (LocalStorageService.uid.isEmpty) return;
     final userDiamonds = (state.user?.coins ?? 0);
     final cowriesToDecrement = min(cowries, userDiamonds);
 
@@ -299,7 +452,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
     // Decrement user diamonds really
     await usersRepository.decrementUserCoins(
-      UserService.uid,
+      LocalStorageService.uid,
       cowriesToDecrement,
     );
 
@@ -322,17 +475,19 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   }
 
   void updateUserProgression(Map<String, dynamic> progression) {
-    if (UserService.uid.isEmpty) return;
+    if (LocalStorageService.uid.isEmpty) return;
 
     // [GAMICO-FIX] name/level-loss investigation.
-    // Guard + instrumentation: callers build `progression` by merging onto the
-    // current `state.user.progression`. If `state.user` is null they merge onto
-    // an empty map, so this write would overwrite EVERY game's progression with
-    // a near-empty one. Refuse when the user isn't loaded and log the culprit.
-    if (state.user == null) {
+    // Guard: callers build `progression` by merging onto the current
+    // `state.user.progression`, so this write is only as correct as the user it
+    // merged onto. Until the server node has arrived that user is the
+    // LocalStorage copy from the last session — see [canPersistUser] for why
+    // publishing it is what makes a progression go backwards.
+    if (!canPublishAbsoluteUser) {
       debugPrint(
-        "⚠️ updateUserProgression BLOCKED (user not loaded) "
-        "progression=$progression\n${StackTrace.current}",
+        "⚠️ updateUserProgression BLOCKED (account not synced with the server) "
+        "loaded=${state.loaded} synced=${state.serverSynced} "
+        "userNull=${state.user == null} progression=$progression",
       );
       return;
     }
@@ -375,15 +530,18 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
       if (!progression.containsKey(key)) changed[key] = null;
     }
 
-    usersRepository.updateUserProgressionEntries(UserService.uid, changed);
+    usersRepository.updateUserProgressionEntries(
+      LocalStorageService.uid,
+      changed,
+    );
   }
 
-  /// Persists the daily-open streak. Refuses while the user is not loaded, for
-  /// the same reason [updateUserProgression] does: the caller merges onto the
-  /// current user, and merging onto nothing would publish an empty streak.
+  /// Persists the daily-open streak. Refuses until the account is synced, for
+  /// the same reason [updateUserProgression] does: the caller reconciles
+  /// against `user.streak`, so reconciling against a stale copy would publish a
+  /// count lower than the one the account holds.
   void updateUserStreak(Map<String, dynamic> streak) {
-    if (UserService.uid.isEmpty) return;
-    if (state.user == null) return;
+    if (!canPublishAbsoluteUser) return;
 
     // Mirror it locally first so a read straight after the call already sees
     // the new value, as the progression writer does.
@@ -392,17 +550,18 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     );
     emit(state.copyWith(user: () => updatedUser));
 
-    usersRepository.updateUserStreak(UserService.uid, streak);
+    usersRepository.updateUserStreak(LocalStorageService.uid, streak);
   }
 
+  /// Absolute: it replaces the whole skins map.
   void updateUserSkins(Map<String, dynamic> skins) {
-    if (UserService.uid.isEmpty) return;
-    usersRepository.updateUserSkins(UserService.uid, skins);
+    if (!canPublishAbsoluteUser) return;
+    usersRepository.updateUserSkins(LocalStorageService.uid, skins);
   }
 
   void setPremium() {
-    if (UserService.uid.isEmpty) return;
-    usersRepository.updateUserPremium(UserService.uid, true);
+    if (LocalStorageService.uid.isEmpty) return;
+    usersRepository.updateUserPremium(LocalStorageService.uid, true);
   }
 
   Future<void> _submitCollectorsScore(int score) async {
@@ -443,13 +602,10 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     );
   }
 
-  // dynamic?
-  void setUser(dynamic user, {bool loaded = false}) {
-    // [GAMICO-FIX] name/level-loss investigation.
-    // Instrumentation: clearing a previously-loaded user also wipes the
-    // persisted local copy (UserService.setUser(null) below), which is what
-    // makes a name/level "disappear". Log it so it can be correlated with the
-    // auth event that triggered it.
+  void setUser(GamicoUserModel? user, {bool loaded = false}) {
+    // Instrumentation: clearing a previously-loaded user makes a name/level
+    // "disappear" from every screen at once. Log it so it can be correlated
+    // with the auth event that triggered it.
     if (user == null && state.user != null) {
       debugPrint(
         "⚠️ setUser(null) clearing loaded user\n${StackTrace.current}",
@@ -457,8 +613,6 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     }
 
     emit(state.copyWith(user: () => user, loaded: loaded));
-
-    UserService.setUser(user);
   }
 
   // Names
@@ -506,7 +660,8 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
       final unit = name.codeUnitAt(i);
 
       if (unit >= 0xD800 && unit <= 0xDBFF) {
-        final hasLowSurrogate = i + 1 < name.length &&
+        final hasLowSurrogate =
+            i + 1 < name.length &&
             name.codeUnitAt(i + 1) >= 0xDC00 &&
             name.codeUnitAt(i + 1) <= 0xDFFF;
 
@@ -561,7 +716,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
         jsonDecode(jsonEncode(snapshot.value)),
       );
 
-      return data.keys.any((id) => id != UserService.uid);
+      return data.keys.any((id) => id != LocalStorageService.uid);
     } catch (e) {
       debugPrint("⚠️ isNameTaken('$formattedName') failed: $e");
       return null;
@@ -589,9 +744,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
       // surrogate pair leaves a lone surrogate that later crashes any
       // TextField laid out with this name (invalid UTF-16 in TextPainter).
       final trimmed = root.length + suffix.length > nameMaxLength
-          ? root.characters
-                .take(nameMaxLength - suffix.length)
-                .toString()
+          ? root.characters.take(nameMaxLength - suffix.length).toString()
           : root;
 
       final candidate = "$trimmed$suffix";
@@ -607,8 +760,8 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   /// Always refreshes `social_name`, and seeds `name` only while the player
   /// has none — after that the platform name is purely informative.
   bool get _canWriteUser =>
-      UserService.authenticated &&
-      UserService.uid.isNotEmpty &&
+      LocalStorageService.authenticated &&
+      LocalStorageService.uid.isNotEmpty &&
       state.loaded &&
       state.user != null;
 
@@ -633,7 +786,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
       // Best-effort: `social_name` is informative, a failure must not block
       // the seeding below.
       usersRepository
-          .updateUserSocialName(UserService.uid, sanitized)
+          .updateUserSocialName(LocalStorageService.uid, sanitized)
           .catchError((e) => debugPrint("⚠️ updateUserSocialName failed: $e"));
     }
 
@@ -651,7 +804,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   /// knowing what the other players use. Make it unique before it shows up in
   /// a lobby.
   Future<void> ensureUniqueName() async {
-    if (UserService.uid.isEmpty) return;
+    if (LocalStorageService.uid.isEmpty) return;
 
     final current = sanitizeName(state.user?.name ?? "");
 
@@ -667,7 +820,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
   /// Player-initiated rename. Only touches `name`/`formatted_name`.
   Future<GamicoNameUpdateResult> updateUserName(String name) async {
-    if (!UserService.authenticated || UserService.uid.isEmpty) {
+    if (!LocalStorageService.authenticated || LocalStorageService.uid.isEmpty) {
       return GamicoNameUpdateResult.unauthenticated;
     }
 
@@ -700,7 +853,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   Future<bool> _writeName(String name) async {
     try {
       await usersRepository
-          .updateUserName(UserService.uid, name, formatName(name))
+          .updateUserName(LocalStorageService.uid, name, formatName(name))
           .timeout(_writeTimeout);
     } catch (e) {
       debugPrint("⚠️ updateUserName failed: $e");
@@ -719,17 +872,17 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   void setUserToken(String? token) async {
     if (token == null) return;
 
-    if (!UserService.authenticated) return;
+    if (!LocalStorageService.authenticated) return;
     if (FirebaseAuth.instance.currentUser == null) return;
 
-    await usersRepository.updateUserToken(UserService.uid, token);
+    await usersRepository.updateUserToken(LocalStorageService.uid, token);
   }
 
   void setUserPhoto(String? photo) {
     //
     // final photo = ;
     if (photo != null && photo != state.user?.photo) {
-      usersRepository.updateUserPhoto(UserService.uid, photo);
+      usersRepository.updateUserPhoto(LocalStorageService.uid, photo);
     }
   }
 
@@ -753,10 +906,10 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   }
 
   void listenToUserChanges() async {
-    if (!UserService.authenticated) return;
+    if (!LocalStorageService.authenticated) return;
     if (GamicoDatabaseShutdown.shuttingDown) return;
 
-    final uid = UserService.uid;
+    final uid = LocalStorageService.uid;
     if (uid.isEmpty) return;
 
     // [onChange] re-enters here on every null -> non-null user transition,
@@ -764,7 +917,8 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     // this guard that re-entry tore the listener down and re-attached it —
     // and an RTDB attach always re-sends the node in full, so the very first
     // load used to be paid for twice.
-    if (_watchedUid == uid && (_fieldSubscriptions.isNotEmpty || _streamSubscription != null)) {
+    if (_watchedUid == uid &&
+        (_fieldSubscriptions.isNotEmpty || _streamSubscription != null)) {
       return;
     }
 
@@ -772,8 +926,11 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     _cancelFieldSubscriptions();
     _watchedUid = uid;
     _nodeGone = false;
+    _serverSynced = false;
 
     final ref = FirebaseDatabase.instance.ref("users/$uid");
+
+    _watchServerSync(ref);
 
     // await ref.keepSynced(false);
 
@@ -798,10 +955,10 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     //     .get()
     //     .then(
     //       (snap) =>
-    //           debugPrint("🔎 users/${UserService.uid} .get() => ${snap.value}"),
+    //           debugPrint("🔎 users/${LocalStorageService.uid} .get() => ${snap.value}"),
     //     )
     //     .catchError(
-    //       (e) => debugPrint("⚠️ users/${UserService.uid} .get() ERROR => $e"),
+    //       (e) => debugPrint("⚠️ users/${LocalStorageService.uid} .get() ERROR => $e"),
     //     );
 
     // The full node, but only until it has loaded once.
@@ -812,16 +969,13 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     // us looks exactly like a corrupted node), and a listener keeps waiting
     // for a good one where a `get()` would leave `loaded` false for good and
     // strand the sign-in that waits on it.
-    _streamSubscription = ref.onValue.listen(
-      (event) {
-        manageUserChanges(event);
-        // A user is loaded: the whole node has now been downloaded once, which
-        // is all it was ever needed for. Everything after this arrives leaf by
-        // leaf instead.
-        if (state.user != null) _swapToFieldListeners(ref);
-      },
-      onError: (e) => debugPrint("⚠️ users/$uid onValue ERROR => $e"),
-    );
+    _streamSubscription = ref.onValue.listen((event) {
+      manageUserChanges(event);
+      // A user is loaded: the whole node has now been downloaded once, which
+      // is all it was ever needed for. Everything after this arrives leaf by
+      // leaf instead.
+      if (state.user != null) _swapToFieldListeners(ref);
+    }, onError: (e) => debugPrint("⚠️ users/$uid onValue ERROR => $e"));
   }
 
   /// Drops the full-node listener and replaces it with one listener per
@@ -890,8 +1044,6 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     json[field] = next;
 
     final merged = Gamico.instance.userFromJson(json);
-    if (merged == null) return;
-
     setUser(merged, loaded: true);
   }
 
@@ -936,7 +1088,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
         if (current == null) {
           debugPrint(
             "⚠️ manageUserChanges: ignoring partial/corrupted user payload for "
-            "users/${UserService.uid}: ${event.snapshot.value}",
+            "users/${LocalStorageService.uid}: ${event.snapshot.value}",
           );
           return;
         }
@@ -955,9 +1107,6 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
       }
 
       final value = Gamico.instance.userFromJson(json);
-
-      if (value == null) return;
-
       setUser(value, loaded: true);
 
       if (!_managed) {
@@ -969,7 +1118,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
     // if (!await SimpleConnectionChecker.isConnectedToInternet()) return;
 
-    // final uid = UserService.uid;
+    // final uid = LocalStorageService.uid;
     // if (uid.isEmpty) return;
 
     // try {
@@ -1008,6 +1157,9 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     _streamSubscription = null;
     _cancelFieldSubscriptions();
     _watchedUid = null;
+    _serverSynced = false;
+    await _connectionSubscription?.cancel();
+    _connectionSubscription = null;
     await _disconnectionSubscription?.cancel();
     _disconnectionSubscription = null;
     await _disconnectionReference?.cancel();
@@ -1035,7 +1187,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     // print("---");
 
     usersRepository.updateUserGratification(
-      UserService.uid,
+      LocalStorageService.uid,
       lastGratificationDiamonds,
       nextGratificationDiamonds,
     );
@@ -1091,15 +1243,15 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   ///////////////////////
 
   // void setCards(Map<String, int>? cards) {
-  //   usersRepository.setCards(UserService.uid, cards);
+  //   usersRepository.setCards(LocalStorageService.uid, cards);
   // }
 
   // void setDecks(List<List<String>>? decks) {
-  //   usersRepository.setDecks(UserService.uid, decks);
+  //   usersRepository.setDecks(LocalStorageService.uid, decks);
   // }
 
   // void setActiveDeck(int activeDeck) {
-  //   usersRepository.setActiveDeck(UserService.uid, activeDeck);
+  //   usersRepository.setActiveDeck(LocalStorageService.uid, activeDeck);
   // }
 
   // void upgradeCard(String cardId) {

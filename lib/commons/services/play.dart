@@ -1,10 +1,11 @@
 import 'dart:io';
 import 'dart:math';
 import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:games_services/games_services.dart';
-import 'package:gamico/commons/services/user.dart';
+import 'package:gamico/commons/services/local_storage.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:simple_connection_checker/simple_connection_checker.dart';
 
@@ -12,6 +13,25 @@ class PlayService {
   static String authCode = "";
 
   static bool gameServicesEnabled = false;
+
+  static PlayerData? player;
+  static String get playerId => player?.playerID ?? "";
+  static String get playerDisplayName => player?.displayName ?? "";
+
+  static Stream<PlayerData?> get playerStream => GameAuth.player;
+
+  static StreamSubscription<PlayerData?>? _playerSubscription;
+
+  static void initPlayerListener() {
+    _playerSubscription ??= GameAuth.player.listen(
+      (playerData) {
+        player = playerData;
+      },
+      onError: (error, stackTrace) {
+        debugPrint("⚠️ GameAuth.player stream error: $error");
+      },
+    );
+  }
 
   /// Sign-in attempts before giving up for this session.
   ///
@@ -55,6 +75,7 @@ class PlayService {
   }
 
   static void initGameServices([int exponent = 0]) async {
+    initPlayerListener();
     if (await enableGameServices()) return;
 
     if (exponent >= _maxSignInAttempts - 1) return;
@@ -73,15 +94,16 @@ class PlayService {
   }
 
   static Future<bool> enableGameServices() async {
+    initPlayerListener();
     try {
-      if (!UserService.authenticated &&
+      if (!LocalStorageService.authenticated &&
           !(await SimpleConnectionChecker.isConnectedToInternet())) {
         return false;
       }
 
       await GameAuth.signIn();
 
-      if (UserService.authenticated) {
+      if (LocalStorageService.authenticated) {
         gameServicesEnabled = true;
         return true;
       }
