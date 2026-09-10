@@ -21,9 +21,9 @@ part 'remote_state.dart';
 ///
 /// Server-driven: three RTDB nodes, and the client owns exactly one of them.
 ///
-///   pools/<poolKey>/queue/<uid>   ← we write this, and only this
-///   pools/<poolKey>/seal_at       ← server's countdown, for display only
-///   assignments/<uid>             ← server's answer: "your game is <id>"
+///   pools/pool_key/queue/uid   ← we write this, and only this
+///   pools/pool_key/seal_at       ← server's countdown, for display only
+///   assignments/uid             ← server's answer: "your game is game_id"
 ///
 /// The invariant everything rests on: a player is queued or assigned, never
 /// both. The server moves them from one to the other in a single atomic
@@ -505,18 +505,15 @@ class RemoteCubit extends Cubit<RemoteState> {
     debugPrint("🔍 [MM] enterPool: $poolKey/$uid");
 
     // The one signal that matters. Everything else on this screen is decor.
-    _assignmentSubscription = db
-        .ref("assignments/$uid")
-        .onValue
-        .listen(
-          (event) {
-            final value = event.snapshot.value;
-            if (value == null) return;
-            unawaited(_consumeAssignment(value));
-          },
-          onError: (error, _) =>
-              debugPrint("⚠️ RemoteCubit assignment listener error: $error"),
-        );
+    _assignmentSubscription = db.ref("assignments/$uid").onValue.listen(
+      (event) {
+        final value = event.snapshot.value;
+        if (value == null) return;
+        unawaited(_consumeAssignment(value));
+      },
+      onError: (error, _) =>
+          debugPrint("⚠️ RemoteCubit assignment listener error: $error"),
+    );
 
     _queueSubscription = db
         .ref("pools/$poolKey/queue")
@@ -527,21 +524,18 @@ class RemoteCubit extends Cubit<RemoteState> {
               debugPrint("⚠️ RemoteCubit queue listener error: $error"),
         );
 
-    _sealSubscription = db
-        .ref("pools/$poolKey/seal_at")
-        .onValue
-        .listen(
-          (event) {
-            final sealAt = (event.snapshot.value as num?)?.toInt();
-            if (sealAt == null) {
-              _stopSealTicker();
-              return;
-            }
-            _startSealTicker(sealAt);
-          },
-          onError: (error, _) =>
-              debugPrint("⚠️ RemoteCubit seal listener error: $error"),
-        );
+    _sealSubscription = db.ref("pools/$poolKey/seal_at").onValue.listen(
+      (event) {
+        final sealAt = (event.snapshot.value as num?)?.toInt();
+        if (sealAt == null) {
+          _stopSealTicker();
+          return;
+        }
+        _startSealTicker(sealAt);
+      },
+      onError: (error, _) =>
+          debugPrint("⚠️ RemoteCubit seal listener error: $error"),
+    );
   }
 
   /// THE exit point. Cancels every listener and gives the seat back.
