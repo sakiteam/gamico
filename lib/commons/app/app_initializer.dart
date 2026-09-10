@@ -1,6 +1,7 @@
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:gamico/commons/global/gamico.dart';
+import 'package:gamico/commons/services/device_type.dart';
 import 'package:gamico/commons/services/time_zone.dart';
 import 'package:gamico/commons/services/version.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -12,6 +13,7 @@ class GamicoAppInitializer {
 
   /// Initializes versioning, time zone, notifications channels, and package info.
   static Future<void> initialize() async {
+    await DeviceTypeService.init();
     await VersionService.init();
     TimeZoneService.initTimeZone();
 

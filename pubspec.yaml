@@ -44,6 +44,7 @@ dependencies:
   confetti:
   share_plus:
   basic_utils:
+  device_info_plus:
   flutter_svg:
   just_audio:
   audio_session:

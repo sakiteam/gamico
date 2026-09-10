@@ -14,6 +14,7 @@ import 'package:gamico/commons/generics/material_app_wrapper.dart';
 import 'package:gamico/commons/app/account_gate.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/color.dart';
+import 'package:gamico/commons/services/device_type.dart';
 import 'package:gamico/commons/services/game.dart';
 import 'package:gamico/commons/services/locale.dart';
 import 'package:gamico/commons/services/navigation.dart';
@@ -119,11 +120,14 @@ class _GamicoAppState extends State<GamicoApp> {
 
   @override
   Widget build(BuildContext context) {
-    // Disable landscape mode
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+    // Disable landscape mode, except on Android TV: its panel is a fixed
+    // landscape display, so locking portrait there only letterboxes the UI
+    // with black bars instead of rotating anything.
+    SystemChrome.setPreferredOrientations(
+      DeviceTypeService.isAndroidTv
+          ? []
+          : [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
+    );
 
     return GamicoLifecycleManager(
       child: GamicoProviders(

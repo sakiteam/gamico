@@ -93,6 +93,39 @@ class PlayService {
     initGameServices(exponent + 1);
   }
 
+  /// How long to let the Firebase SDK rehydrate a persisted session.
+  ///
+  /// Only ever paid in full by a device that genuinely has no session, and
+  /// only once per attempt — a restored one answers on the first check.
+  static const _sessionRestoreGrace = Duration(seconds: 2);
+
+  /// Whether a Firebase Auth session is restored on this device.
+  ///
+  /// Deliberately network-free: [FirebaseAuth.currentUser] is rehydrated from
+  /// local storage, so a player with no connection but a valid session still
+  /// answers `true` and keeps working offline.
+  ///
+  /// It is not populated *synchronously* at cold start though, and reading it
+  /// too early reports "no session" for a device that has a perfectly good
+  /// one — which would force a pointless network sign-in on every launch that
+  /// happens to win the race. `authStateChanges` fires as soon as the SDK has
+  /// restored, so wait briefly on it before concluding there is nothing.
+  static Future<bool> _hasFirebaseSession() async {
+    if (FirebaseAuth.instance.currentUser != null) return true;
+
+    try {
+      await FirebaseAuth.instance
+          .authStateChanges()
+          .firstWhere((user) => user != null)
+          .timeout(_sessionRestoreGrace);
+
+      return true;
+    } catch (e) {
+      // Timed out, or the stream closed without ever emitting a user.
+      return FirebaseAuth.instance.currentUser != null;
+    }
+  }
+
   static Future<bool> enableGameServices() async {
     initPlayerListener();
     try {
@@ -103,7 +136,21 @@ class PlayService {
 
       await GameAuth.signIn();
 
-      if (LocalStorageService.authenticated) {
+      // Skip the sign-in only when a Firebase session is actually there.
+      //
+      // This used to test `LocalStorageService.authenticated`, which is
+      // `uid.isNotEmpty` — the local `users/<uid>` push key. That key never
+      // expires and says nothing about the Firebase session, yet the session
+      // is what the database rules evaluate as `auth.uid`. The two correlate
+      // only the first time (a uid exists because a sign-in once succeeded)
+      // and decorrelate the moment a session is lost: failed token refresh,
+      // revoked credential, a device restore that did not carry the keychain.
+      // From then on the short-circuit fired forever and NOTHING rebuilt the
+      // session — every read and write went out with `auth.uid == null`. It
+      // stayed invisible while `users` and `profiles` were world-readable
+      // (only writes failed, silently); hardening those rules turned it into
+      // players who could no longer sign in at all.
+      if (await _hasFirebaseSession()) {
         gameServicesEnabled = true;
         return true;
       }

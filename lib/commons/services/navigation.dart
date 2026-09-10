@@ -63,6 +63,11 @@ class NavigationService {
     Widget page,
   ) async {
     FocusManager.instance.primaryFocus?.unfocus();
+    // The caller's context can already be deactivated by the time this is
+    // called (e.g. a popup left open while the underlying page got replaced
+    // elsewhere) — Navigator.of(context) throws a fatal null check on a
+    // defunct context, so bail out before touching it.
+    if (!context.mounted) return null;
     // Resolve the navigator before the delay: the caller's context may be
     // deactivated while the exit animation plays (e.g. its subtree is
     // rebuilt), which would make Navigator.of(context) throw.
@@ -86,6 +91,9 @@ class NavigationService {
     Widget page,
   ) async {
     FocusManager.instance.primaryFocus?.unfocus();
+    // Same defunct-context guard as pushPageWithAnimation: the caller's
+    // context may already be deactivated before this is even called.
+    if (!context.mounted) return;
     final navigator = Navigator.of(context);
 
     // Capture the caller's own route now. A popup (e.g. the game-over popup
