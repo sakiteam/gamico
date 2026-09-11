@@ -10,7 +10,7 @@ homepage:
 
 # Environment
 environment:
-  sdk: ^3.13.0
+  sdk: ^3.13.2
 
 # Release dependencies
 dependencies:

@@ -1186,7 +1186,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         } else {
           if (adventureUtility == null ||
               (state.userInitialLevel == state.level)) {
-            gameCubit.userCubit.decrementCowries(
+            gameCubit.userCubit.decrementCoins(
               Gamico.instance.gameSettings.playMinimumCoins,
             );
           }

@@ -89,7 +89,7 @@ class GamicoHomeCubit extends Cubit<GamicoHomeState> {
       await Future.delayed(const Duration(seconds: 1));
 
       // Remove due coins
-      userCubit.decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
+      userCubit.decrementCoins(Gamico.instance.gameSettings.playMinimumCoins);
 
       // Come back to the initial state
       GameService.gameSkipped = false;

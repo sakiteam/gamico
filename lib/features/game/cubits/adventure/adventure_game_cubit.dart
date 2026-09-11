@@ -49,7 +49,7 @@ class GamicoAdventureGameCubit extends Cubit<GamicoAdventureGameState> {
       if (!gameCubit.state.over) {
         if (state.level ==
             adventureUtility.getUserLevel(gameCubit.userCubit.state.user)) {
-          gameCubit.userCubit.decrementCowries(
+          gameCubit.userCubit.decrementCoins(
             Gamico.instance.gameSettings.playMinimumCoins,
           );
         }

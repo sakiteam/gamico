@@ -88,7 +88,7 @@ class _CoinsPopupState extends State<CoinsPopup> {
         final admobCubit = context.read<AdmobCubit>();
         await admobCubit.ensureRewardedAdLoaded();
         admobCubit.showRewardedAd(() {
-          context.read<GamicoUserCubit>().incrementCowries();
+          context.read<GamicoUserCubit>().incrementCoins();
         });
       },
     );

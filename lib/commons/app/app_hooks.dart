@@ -16,7 +16,10 @@ class GamicoAppHooks {
   const GamicoAppHooks._();
 
   /// Registers global navigation popup sound effects and invitation notification handlers.
-  static void setupGlobalHooks() {
+  static void setupGlobalHooks({
+    void Function(BuildContext acceptContext, String invitationId)?
+        onAcceptInvitation,
+  }) {
     NavigationService.onPopupOpen = (ctx) {
       try {
         ctx.read<GamicoMusicCubit>().playPopupOpenBruitage();
@@ -29,49 +32,55 @@ class GamicoAppHooks {
       } catch (_) {}
     };
 
-    NotificationService.onAcceptInvitation = (acceptContext, invitationId) {
-      NavigationService.closePopups();
+    NotificationService.onAcceptInvitation =
+        onAcceptInvitation ?? _defaultOnAcceptInvitation;
+  }
 
-      final remoteUtility = RemoteUtility(
-        adventure: false,
-        developerAndroidId: "",
-        developerAppleId: "",
-        levelsBuilder: null,
-        matchmakingSettings: MatchmakingSettings(
-          minLevel: 0,
-          maxLevel: 0,
-          getMatchmakingLevel: (_) => 0,
-          increment: 0,
-        ),
-      );
+  static void _defaultOnAcceptInvitation(
+    BuildContext acceptContext,
+    String invitationId,
+  ) {
+    NavigationService.closePopups();
 
-      final remoteCubit = RemoteCubit(
-        userCubit: acceptContext.read<GamicoUserCubit>(),
-        gamesRepository: acceptContext.read<GamicoGamesRepository>(),
-        remoteUtility: remoteUtility,
-        level: null,
-      );
+    final remoteUtility = RemoteUtility(
+      adventure: false,
+      developerAndroidId: "",
+      developerAppleId: "",
+      levelsBuilder: null,
+      matchmakingSettings: MatchmakingSettings(
+        minLevel: 0,
+        maxLevel: 0,
+        getMatchmakingLevel: (_) => 0,
+        increment: 0,
+      ),
+    );
 
-      NavigationService.pushPageWithAnimation(
-        acceptContext,
-        BlocProvider.value(
-          value: remoteCubit,
-          child: Gamico.instance.pagesSettings.gamePage(
-            acceptContext,
-            RemoteGameUtility(
-              level: null,
-              gameId: invitationId,
-              fakeOpponent: false,
-              friend: true,
-              remoteUtility: remoteUtility,
-              adventureUtility: null,
-              creatorOfCurrentGame: false,
-              onBackButtonPressed: () async {},
-            ),
+    final remoteCubit = RemoteCubit(
+      userCubit: acceptContext.read<GamicoUserCubit>(),
+      gamesRepository: acceptContext.read<GamicoGamesRepository>(),
+      remoteUtility: remoteUtility,
+      level: null,
+    );
+
+    NavigationService.pushPageWithAnimation(
+      acceptContext,
+      BlocProvider.value(
+        value: remoteCubit,
+        child: Gamico.instance.pagesSettings.gamePage(
+          acceptContext,
+          RemoteGameUtility(
+            level: null,
+            gameId: invitationId,
+            fakeOpponent: false,
+            friend: true,
+            remoteUtility: remoteUtility,
+            adventureUtility: null,
+            creatorOfCurrentGame: false,
+            onBackButtonPressed: () async {},
           ),
         ),
-      );
-    };
+      ),
+    );
   }
 }
 

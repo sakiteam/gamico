@@ -205,7 +205,7 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
     await cubit.ensureRewardedAdLoaded();
 
     cubit.showRewardedAd(() {
-      userCubit.incrementCowries(
+      userCubit.incrementCoins(
         triple ? Gamico.instance.gameSettings.playMinimumCoins : 1,
       );
       enabledTripleAd();

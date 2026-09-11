@@ -188,7 +188,7 @@ class GamicoGratificationPoster extends StatelessWidget {
     int nextGratification,
     BuildContext context,
   ) {
-    context.read<GamicoUserCubit>().updateUserGratification(
+    context.read<GamicoUserCubit>().setGratification(
       lastGratification,
       nextGratification,
     );

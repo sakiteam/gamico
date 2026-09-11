@@ -1,6 +1,7 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:gamico/commons/models/gamico_user_model.dart';
 import 'package:gamico/commons/providers/gamico_users_provider.dart';
+import 'package:gamico/commons/services/player_name_service.dart';
 
 class GamicoUsersRepository {
   final GamicoUsersProvider usersProvider;
@@ -32,7 +33,7 @@ class GamicoUsersRepository {
 
   // Info
 
-  Future<void> updateUserToken(String id, String token) async {
+  Future<void> updateUserToken(String id, String? token) async {
     await usersProvider.updateUser(id, {"token": token});
   }
 
@@ -43,14 +44,10 @@ class GamicoUsersRepository {
   /// Updates the player-facing name. `formatted_name` is the normalized
   /// (lowercased, diacritic-free) mirror used both by the friend search and by
   /// the uniqueness check, so the two must always be written together.
-  Future<void> updateUserName(
-    String id,
-    String name,
-    String formattedName,
-  ) async {
+  Future<void> updateUserName(String id, String name) async {
     await usersProvider.updateUser(id, {
       "name": name,
-      "formatted_name": formattedName,
+      "formatted_name": GamicoPlayerNameService.formatName(name),
     });
   }
 
@@ -92,14 +89,14 @@ class GamicoUsersRepository {
 
   // Trophies
 
-  Future<void> incrementUserTrophies(String id) async {
+  Future<void> incrementTrophies(String id) async {
     await usersProvider.updateUser(id, {
       "victories": ServerValue.increment(1),
       "trophies": ServerValue.increment(1),
     });
   }
 
-  Future<void> decrementUserTrophies(String id, int crowns) async {
+  Future<void> decrementTrophies(String id, int crowns) async {
     await usersProvider.updateUser(id, {
       "defeats": ServerValue.increment(1),
       "trophies": ServerValue.increment(-crowns),

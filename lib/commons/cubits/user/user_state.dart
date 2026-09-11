@@ -1,5 +1,22 @@
 part of 'user_cubit.dart';
 
+/// Outcome of a player-initiated rename (see [GamicoUserCubit.updateUserName]).
+enum GamicoNameUpdateResult {
+  success,
+
+  /// Empty, too short/long, or contains forbidden characters.
+  invalid,
+
+  /// Another account already uses this name.
+  taken,
+
+  /// No signed-in account to rename.
+  unauthenticated,
+
+  /// The write (or the uniqueness check) could not be completed.
+  failure,
+}
+
 @immutable
 class GamicoUserState {
   final GamicoUserModel? user;

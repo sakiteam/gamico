@@ -504,15 +504,13 @@ class RemoteModeSettings implements GameModeSettings {
           gameState.stars,
         );
       } else if (gameState.victory == true) {
-        userCubit.incrementCowries(
+        userCubit.incrementCoins(
           Gamico.instance.gameSettings.playMinimumCoins * gameState.stars,
         );
 
         userCubit.incrementVictories();
       } else {
-        userCubit.decrementCowries(
-          Gamico.instance.gameSettings.playMinimumCoins,
-        );
+        userCubit.decrementCoins(Gamico.instance.gameSettings.playMinimumCoins);
         userCubit.incrementDefeats();
       }
     } else {

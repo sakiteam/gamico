@@ -61,8 +61,8 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
 
         await GamicoGlobalService.waitWhile(() => !userCubit.state.loaded);
 
-        userCubit.saveToken();
-        userCubit.setUserPhoto(firebaseUser.photoURL);
+        userCubit.setToken();
+        userCubit.setPhoto(firebaseUser.photoURL);
 
         emit(
           state.copyWith(
@@ -104,7 +104,7 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
         // Writes `social_name` only. The player-facing `name` is seeded from it
         // once (first sign-in) and then belongs to the player, who can rename
         // themselves from the profile popup.
-        userCubit.setUserSocialName(player?.displayName ?? "");
+        userCubit.setSocialName(player?.displayName ?? "");
       },
       onError: (error, stackTrace) {
         debugPrint("⚠️ PlayService.playerStream error: $error");
@@ -186,24 +186,24 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
         // `users` index, so "no match" is indistinguishable from "not asked" —
         // and the branch below would spawn a second account and orphan the
         // player's real one.
-        if (!snapshot.exists && !await _databaseReachable()) {
-          debugPrint(
-            "⚠️ signIn: no match for social_id but the database is not "
-            "reachable; refusing to create a second account",
-          );
-          _recoverSession();
-          if (!isClosed) {
-            emit(
-              state.copyWith(
-                status: LocalStorageService.authenticated
-                    ? AuthenticationStateStatus.success
-                    : AuthenticationStateStatus.failure,
-                authenticated: LocalStorageService.authenticated,
-              ),
-            );
-          }
-          return;
-        }
+        // if (!snapshot.exists && !await _databaseReachable()) {
+        //   debugPrint(
+        //     "⚠️ signIn: no match for social_id but the database is not "
+        //     "reachable; refusing to create a second account",
+        //   );
+        //   _recoverSession();
+        //   if (!isClosed) {
+        //     emit(
+        //       state.copyWith(
+        //         status: LocalStorageService.authenticated
+        //             ? AuthenticationStateStatus.success
+        //             : AuthenticationStateStatus.failure,
+        //         authenticated: LocalStorageService.authenticated,
+        //       ),
+        //     );
+        //   }
+        //   return;
+        // }
 
         if (snapshot.exists) {
           final data = jsonDecode(jsonEncode(snapshot.value));
@@ -325,25 +325,35 @@ class AuthenticationCubit extends Cubit<AuthenticationState> {
 
   /// Whether the RTDB backend is actually reachable right now.
   ///
-  /// `.info/connected` is a local node: it answers immediately with the current
-  /// socket state. A cold start can legitimately still be connecting, so give
-  /// it a short grace period before concluding the backend is out of reach.
-  Future<bool> _databaseReachable() async {
-    final ref = FirebaseDatabase.instance.ref(".info/connected");
+  /// `.info/connected` only updates through the SDK's internal realtime push,
+  /// not through a one-off `get()` — a plain `get()` on it tends to read the
+  /// default `false` before that push ever lands. So this listens with
+  /// `onValue` instead, with a grace period for a cold start that's still
+  /// connecting.
+  // Future<bool> _databaseReachable() async {
+  //   final ref = FirebaseDatabase.instance.ref(".info/connected");
+  //   final completer = Completer<bool>();
+  //   late final StreamSubscription<DatabaseEvent> subscription;
 
-    for (var attempt = 0; attempt < 12; attempt++) {
-      try {
-        final snapshot = await ref.get();
-        if (snapshot.value == true) return true;
-      } catch (e) {
-        debugPrint("⚠️ .info/connected probe failed => $e");
-      }
+  //   subscription = ref.onValue.listen(
+  //     (event) {
+  //       if (event.snapshot.value == true && !completer.isCompleted) {
+  //         completer.complete(true);
+  //       }
+  //     },
+  //     onError: (e) {
+  //       debugPrint("⚠️ .info/connected probe failed => $e");
+  //     },
+  //   );
 
-      await Future.delayed(const Duration(milliseconds: 250));
-    }
+  //   final reachable = await completer.future.timeout(
+  //     const Duration(seconds: 3),
+  //     onTimeout: () => false,
+  //   );
 
-    return false;
-  }
+  //   await subscription.cancel();
+  //   return reachable;
+  // }
 
   @override
   Future<void> close() {

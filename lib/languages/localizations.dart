@@ -14,6 +14,7 @@ class GamicoLocalizationsDelegate
     if (loader != null) {
       return loader!(locale);
     }
+
     return GamicoLanguages.instance;
   }
 

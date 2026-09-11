@@ -14,89 +14,25 @@ import 'package:gamico/commons/services/local_storage.dart';
 import 'package:gamico/commons/services/play.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:remove_diacritic/remove_diacritic.dart';
-// import 'package:simple_connection_checker/simple_connection_checker.dart';
 import 'package:gamico/commons/services/gratification.dart';
+import 'package:gamico/commons/services/player_name_service.dart';
 import 'package:gamico/commons/repositories/gamico_users_repository.dart';
 import 'package:gamico/commons/models/gamico_user_model.dart';
 
 part 'user_state.dart';
 
-/// Outcome of a player-initiated rename (see [GamicoUserCubit.updateUserName]).
-enum GamicoNameUpdateResult {
-  success,
-
-  /// Empty, too short/long, or contains forbidden characters.
-  invalid,
-
-  /// Another account already uses this name.
-  taken,
-
-  /// No signed-in account to rename.
-  unauthenticated,
-
-  /// The write (or the uniqueness check) could not be completed.
-  failure,
-}
-
 class GamicoUserCubit extends Cubit<GamicoUserState> {
-  // UserCubit({
-  //   required super.usersRepository,
-  // });
-
-  GamicoUserCubit({
-    required this.usersRepository,
-    // required this.fromJson,
-    // required this.toJson,
-  }) : // Starts empty, and there is no longer anything to start it from.
-       //
-       // This used to be seeded from a full copy of the account kept in
-       // LocalStorage, which made `state.user` non-null from the first frame —
-       // with the values of this device's LAST session. Every progression write
-       // is a read-modify-write on top of `state.user`, so that snapshot got
-       // republished over the real account, a little further back on every app
-       // open. The persisted copy is gone; `state.user` only ever comes from
-       // RTDB now, which makes the invariant structural instead of guarded.
-       //
-       // Nothing flashes empty in the meantime: `GamicoAccountGate` holds the
-       // loading screen until the account has resolved.
-       super(const GamicoUserState()) {
-    // if (LocalStorageService.authenticated) {
-    //   listenToUserChanges();
-    // }
-
+  GamicoUserCubit({required this.usersRepository})
+    : super(const GamicoUserState()) {
     GamicoDatabaseShutdown.register(this, cancelDatabaseListeners);
   }
-
-  // final dynamic Function(Map<String, dynamic>) fromJson;
-  // final Map<String, dynamic> Function(dynamic) toJson;
 
   bool _managed = false;
   GamicoUsersRepository usersRepository;
   StreamSubscription? _streamSubscription;
-  StreamSubscription<DatabaseEvent>? _disconnectionSubscription;
   OnDisconnect? _disconnectionReference;
-  // Timer? _pendingSignOutTimer;
+  final Map<String, StreamSubscription<DatabaseEvent>> _fieldSubscriptions = {};
 
-  /// The fields watched live once the user has loaded, one listener each.
-  ///
-  /// `users/{uid}` used to be watched whole, for the length of the session.
-  /// RTDB re-sends a node in full on every write to any of its children, and
-  /// this node carries progression, achievements, skins, stars and streak — so
-  /// a `+1 coin`, a presence flip or an `updated_at` bump each re-downloaded
-  /// the entire profile to the very device that had just written it. Profiling
-  /// caught it as the top read of the whole project: 301 writes to
-  /// `/users/$wildcard` against 344 reads over the same window, near 1:1.
-  ///
-  /// What is NOT here is the point of the list. `online`, `online_at`,
-  /// `updated_at`, `current_game`, `current_game_id` and `token` are the
-  /// highest-frequency writes on the node and none of them is read back for
-  /// the local user — presence is something this device tells others about,
-  /// not something it learns. They are still loaded once, by the full-node
-  /// read that precedes the swap; they simply stop being echoed.
-  ///
-  /// `created_at` earns its place as an existence sentinel rather than for its
-  /// value — see [_applyUserField].
   static const _watchedFields = <String>{
     "created_at",
     "name",
@@ -122,20 +58,47 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     "gratified_at",
   };
 
-  final Map<String, StreamSubscription<DatabaseEvent>> _fieldSubscriptions = {};
-
   /// The uid [_fieldSubscriptions] belong to, so a re-entrant
   /// [listenToUserChanges] can tell "already watching this user" from a real
   /// account switch.
   String? _watchedUid;
 
+  /// `users/$_watchedUid`, kept as a field so the presence write can reach it
+  /// from outside [listenToUserChanges].
+  DatabaseReference? _userReference;
+
   /// Set when `created_at` reports null: the node itself is gone (account
   /// deleted). See [_applyUserField].
   bool _nodeGone = false;
 
-  /// Backs [GamicoUserState.serverSynced]. Reset on an account switch.
+  /// The one and only `.info/connected` subscription. Both things that react
+  /// to connectivity — the server-sync probe and the presence write — hang off
+  /// it rather than each opening its own listener on the same path.
   StreamSubscription<DatabaseEvent>? _connectionSubscription;
+  bool _connected = false;
+
+  /// Backs [GamicoUserState.serverSynced]. Reset on an account switch.
   bool _serverSynced = false;
+
+  /// Whether presence is this cubit's to write — the host app can keep it,
+  /// see [UserSettings.managePresence].
+  bool _presenceManaged = false;
+
+  /// Watches connectivity for the account [listenToUserChanges] just attached
+  /// to, and drives everything that depends on it.
+  void _watchConnection() {
+    _connectionSubscription?.cancel();
+    _connectionSubscription = FirebaseDatabase.instance
+        .ref(".info/connected")
+        .onValue
+        .listen((event) {
+          _connected = event.snapshot.value as bool? ?? false;
+          if (!_connected) return;
+
+          _probeServerSync();
+          _publishPresence();
+        }, onError: (e) => debugPrint("⚠️ .info/connected ERROR => $e"));
+  }
 
   /// Flips [GamicoUserState.serverSynced] once the account has actually been
   /// round-tripped with the backend.
@@ -150,82 +113,69 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   /// value never changes and no further event is ever delivered. Issuing a read
   /// over a live socket does reach the backend, and by the time it answers the
   /// listener has been handed the authoritative node.
-  void _watchServerSync(DatabaseReference ref) {
-    _connectionSubscription?.cancel();
-    _connectionSubscription = FirebaseDatabase.instance
-        .ref(".info/connected")
-        .onValue
-        .listen((event) async {
-          final connected = event.snapshot.value as bool? ?? false;
-          if (!connected || _serverSynced) return;
+  Future<void> _probeServerSync() async {
+    final ref = _userReference;
+    if (ref == null || _serverSynced) return;
 
-          try {
-            await ref.child("created_at").get();
-          } catch (e) {
-            debugPrint("⚠️ server-sync probe failed => $e");
-            return;
-          }
+    try {
+      await ref.child("created_at").get();
+    } catch (e) {
+      debugPrint("⚠️ server-sync probe failed => $e");
+      return;
+    }
 
-          if (isClosed || _serverSynced) return;
+    if (isClosed || _serverSynced) return;
 
-          _serverSynced = true;
-          emit(state.copyWith(serverSynced: true));
-        }, onError: (e) => debugPrint("⚠️ .info/connected ERROR => $e"));
+    _serverSynced = true;
+    emit(state.copyWith(serverSynced: true));
   }
 
+  /// Publishes `online: true` and arms the `onDisconnect` that clears it.
+  ///
+  /// Re-run on every reconnection: an `onDisconnect` is consumed when it
+  /// fires, so it has to be registered again each time the socket comes back.
+  void _publishPresence() {
+    final ref = _userReference;
+    if (ref == null || !_presenceManaged || !_connected) return;
+
+    final user = state.user;
+    final isUserComplete =
+        user != null &&
+        (user.socialId != null || user.firebaseId != null || user.name != null);
+
+    if (!state.loaded || !isUserComplete) {
+      debugPrint(
+        "⚠️ [UserCubit] Connexion détectée mais l'utilisateur n'est pas "
+        "complètement chargé. Mise à jour de présence ignorée.",
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+
+    _disconnectionReference = ref.onDisconnect();
+    _disconnectionReference?.update({"online": false, "updated_at": "$now"});
+
+    ref.update({"online": true, "updated_at": "$now"});
+  }
+
+  /// Decides, once a complete user payload has arrived, whether presence is
+  /// ours to write — and publishes it right away if the socket is already up.
   void _manageDisconnection() {
     // Never operate on an empty uid: `ref("users/")` resolves to the `users`
     // collection ROOT, and writing online/updated_at there corrupts the shared
     // user store. (Mirrors the guard already in Ludiko's connecto UserCubit.)
     if (LocalStorageService.uid.isEmpty) return;
 
-    // The host app may own presence itself — see [UserSettings.managePresence].
     // Marking it managed keeps [manageUserChanges] from retrying on every
-    // payload.
-    if (!Gamico.instance.userSettings.managePresence) {
-      _managed = true;
-      return;
-    }
-
+    // payload, whether or not presence turns out to be ours.
     _managed = true;
 
-    final ref = FirebaseDatabase.instance.ref(
-      "users/${LocalStorageService.uid}",
-    );
+    // The host app may own presence itself — see [UserSettings.managePresence].
+    if (!Gamico.instance.userSettings.managePresence) return;
 
-    _disconnectionSubscription = FirebaseDatabase.instance
-        .ref(".info/connected")
-        .onValue
-        .listen((event) {
-          final online = event.snapshot.value as bool? ?? false;
-
-          if (online) {
-            final user = state.user;
-            final isUserComplete =
-                user != null &&
-                (user.socialId != null ||
-                    user.firebaseId != null ||
-                    user.name != null);
-
-            if (state.loaded && isUserComplete) {
-              final now = DateTime.now();
-
-              _disconnectionReference = ref.onDisconnect();
-
-              _disconnectionReference?.update({
-                "online": false,
-                "updated_at": "$now",
-              });
-
-              ref.update({"online": true, "updated_at": "$now"});
-            } else {
-              debugPrint(
-                "⚠️ [UserCubit] Connexion détectée mais l'utilisateur n'est pas "
-                "complètement chargé. Mise à jour de présence ignorée.",
-              );
-            }
-          }
-        });
+    _presenceManaged = true;
+    _publishPresence();
   }
 
   bool isAchivementUnlocked(String id) {
@@ -234,35 +184,40 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   }
 
   void unlockAchievement(String id, [double percentage = 100, int steps = 0]) {
-    if (LocalStorageService.authenticated) {
-      if (!isAchivementUnlocked(id)) {
-        () async {
-          await GamicoGlobalService.waitWhile(
-            () => !PlayService.gameServicesEnabled,
-          );
+    if (!LocalStorageService.authenticated) return;
+    if (isAchivementUnlocked(id)) return;
 
-          Achievements.unlock(
-            achievement: Achievement(
-              androidID: id,
-              iOSID: id,
-              percentComplete: percentage,
-              steps: steps,
-            ),
-          );
-        }();
+    unawaited(_submitAchievement(id, percentage, steps));
 
-        // Fire-and-forget: an achievement mirror that fails (offline, rules,
-        // a sign-out mid-flight) must not surface as an unhandled async error.
-        FirebaseDatabase.instance
-            .ref("users/${LocalStorageService.uid}/achievements/$id")
-            .set(percentage)
-            .catchError((e) => debugPrint("⚠️ achievement set error => $e"));
+    // Fire-and-forget: an achievement mirror that fails (offline, rules,
+    // a sign-out mid-flight) must not surface as an unhandled async error.
+    FirebaseDatabase.instance
+        .ref("users/${LocalStorageService.uid}/achievements/$id")
+        .set(percentage)
+        .catchError((e) => debugPrint("⚠️ achievement set error => $e"));
 
-        if (percentage == 100) {
-          incrementCowries(3);
-        }
-      }
+    if (percentage == 100) {
+      incrementCoins(3);
     }
+  }
+
+  /// Waits for the platform game services to come up, then pushes the
+  /// achievement to Game Center / Play Games.
+  Future<void> _submitAchievement(
+    String id,
+    double percentage,
+    int steps,
+  ) async {
+    await GamicoGlobalService.waitWhile(() => !PlayService.gameServicesEnabled);
+
+    Achievements.unlock(
+      achievement: Achievement(
+        androidID: id,
+        iOSID: id,
+        percentComplete: percentage,
+        steps: steps,
+      ),
+    );
   }
 
   /// Whether a write may be issued for this account at all.
@@ -293,11 +248,6 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   /// says the account has been round-tripped with the backend this session.
   bool get canPublishAbsoluteUser => canPersistUser && state.serverSynced;
 
-  void incrementLevel() {
-    if (!canPersistUser) return;
-    usersRepository.incrementUserLevel(LocalStorageService.uid);
-  }
-
   void updateUserLevel(int level) {
     if (!canPersistUser) {
       debugPrint(
@@ -311,12 +261,6 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     // server, so no stale device can walk the level backwards even if it gets
     // past the guard above.
     usersRepository.raiseUserLevel(LocalStorageService.uid, level);
-  }
-
-  /// Absolute: it replaces the whole list, so it needs the synced account.
-  void updateStars(List<int> stars) {
-    if (!canPublishAbsoluteUser) return;
-    usersRepository.updateUserStars(LocalStorageService.uid, stars);
   }
 
   /// Writes one field of one progression namespace. Narrower than
@@ -394,73 +338,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     emit(state.copyWith(user: () => Gamico.instance.userFromJson(json)));
   }
 
-  void incrementVictories() async {
-    if (LocalStorageService.uid.isEmpty) return;
-    final finalCrowns = (state.user?.trophies ?? 0) + 1;
-    await usersRepository.incrementUserTrophies(LocalStorageService.uid);
-    await _submitTacticiansScore(finalCrowns);
-  }
-
-  void incrementDefeats() async {
-    if (LocalStorageService.uid.isEmpty) return;
-    final finalCrowns = (state.user?.trophies ?? 0) - 1;
-
-    await usersRepository.decrementUserTrophies(
-      LocalStorageService.uid,
-      finalCrowns >= 0 ? 1 : 0,
-    );
-
-    if (finalCrowns >= 0) {
-      await _submitTacticiansScore(finalCrowns);
-    }
-  }
-
-  Future<void> incrementCowries([int cowries = 1]) async {
-    if (LocalStorageService.uid.isEmpty) return;
-    // Show that diamonds are increasing
-    emit(
-      state.copyWith(
-        cowriesUpdate: state.cowriesUpdate + 1,
-        cowriesUpdateDifference: cowries,
-      ),
-    );
-
-    // Get user final diamonds
-    final finalDiamonds = (state.user?.coins ?? 0) + cowries;
-
-    // Increment user diamonds really
-    await usersRepository.incrementUserCoins(LocalStorageService.uid, cowries);
-
-    // Submit score to leaderboards
-    await _submitCollectorsScore(finalDiamonds);
-  }
-
-  Future<void> decrementCowries([int cowries = 1]) async {
-    if (LocalStorageService.uid.isEmpty) return;
-    final userDiamonds = (state.user?.coins ?? 0);
-    final cowriesToDecrement = min(cowries, userDiamonds);
-
-    if (cowriesToDecrement == 0) return;
-
-    // Show that diamonds are decreasing
-    emit(
-      state.copyWith(
-        cowriesUpdate: state.cowriesUpdate + 1,
-        cowriesUpdateDifference: -cowriesToDecrement,
-      ),
-    );
-
-    // Decrement user diamonds really
-    await usersRepository.decrementUserCoins(
-      LocalStorageService.uid,
-      cowriesToDecrement,
-    );
-
-    // Submit score to leaderboards
-    await _submitCollectorsScore(max(userDiamonds - cowries, 0));
-  }
-
-  /// Emits a signal distinct from [incrementCowries]'s `cowriesUpdate` so a
+  /// Emits a signal distinct from [incrementCoins]'s `cowriesUpdate` so a
   /// "challenge completed" banner can react specifically to this event rather
   /// than any coin gain (an ad reward or a match-win payout must not trigger
   /// it). [gameKey] lets multiple games share this cubit without cross-firing
@@ -500,8 +378,10 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     );
 
     final updatedUser = Gamico.instance.userFromJson(
-      state.user!.toJson()..["progression"] = progression,
+      Map<String, dynamic>.from(Gamico.instance.userToJson(state.user!))
+        ..["progression"] = progression,
     );
+
     emit(state.copyWith(user: () => updatedUser));
 
     // Only the namespaces that actually changed, each at its own path.
@@ -518,9 +398,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     // reverse, so no edit can be silently dropped.
     final changed = <String, dynamic>{};
     for (final entry in progression.entries) {
-      final before = previous[entry.key];
-      if (before == null && entry.value == null) continue;
-      if (jsonEncode(before) != jsonEncode(entry.value)) {
+      if (jsonEncode(previous[entry.key]) != jsonEncode(entry.value)) {
         changed[entry.key] = entry.value;
       }
     }
@@ -546,60 +424,12 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     // Mirror it locally first so a read straight after the call already sees
     // the new value, as the progression writer does.
     final updatedUser = Gamico.instance.userFromJson(
-      state.user!.toJson()..["streak"] = streak,
+      Map<String, dynamic>.from(Gamico.instance.userToJson(state.user!))
+        ..["streak"] = streak,
     );
     emit(state.copyWith(user: () => updatedUser));
 
     usersRepository.updateUserStreak(LocalStorageService.uid, streak);
-  }
-
-  /// Absolute: it replaces the whole skins map.
-  void updateUserSkins(Map<String, dynamic> skins) {
-    if (!canPublishAbsoluteUser) return;
-    usersRepository.updateUserSkins(LocalStorageService.uid, skins);
-  }
-
-  void setPremium() {
-    if (LocalStorageService.uid.isEmpty) return;
-    usersRepository.updateUserPremium(LocalStorageService.uid, true);
-  }
-
-  Future<void> _submitCollectorsScore(int score) async {
-    await GamicoGlobalService.waitWhile(() => !PlayService.gameServicesEnabled);
-
-    if ((Gamico.instance.playSettings?.inactivePlayersLeaderboardId ?? "")
-        .isEmpty) {
-      return;
-    }
-
-    await Leaderboards.submitScore(
-      score: Score(
-        androidLeaderboardID:
-            Gamico.instance.playSettings?.inactivePlayersLeaderboardId ?? "",
-        iOSLeaderboardID:
-            Gamico.instance.playSettings?.inactivePlayersLeaderboardId ?? "",
-        value: score,
-      ),
-    );
-  }
-
-  Future<void> _submitTacticiansScore(int score) async {
-    await GamicoGlobalService.waitWhile(() => !PlayService.gameServicesEnabled);
-
-    if ((Gamico.instance.playSettings?.activePlayersLeaderboardId ?? "")
-        .isEmpty) {
-      return;
-    }
-
-    await Leaderboards.submitScore(
-      score: Score(
-        androidLeaderboardID:
-            Gamico.instance.playSettings?.activePlayersLeaderboardId ?? "",
-        iOSLeaderboardID:
-            Gamico.instance.playSettings?.activePlayersLeaderboardId ?? "",
-        value: score,
-      ),
-    );
   }
 
   void setUser(GamicoUserModel? user, {bool loaded = false}) {
@@ -617,187 +447,8 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
 
   // Names
   //
-  // Two distinct names live on a user:
-  //  * `social_name` mirrors the Game Center / Play Games display name. It is
-  //    refreshed on every sign-in and the player cannot change it from here.
-  //  * `name` is what the game shows everywhere. It is seeded from the social
-  //    name the first time the account is seen, then belongs to the player:
-  //    the platform must never overwrite it again.
-  //
-  // `formatted_name` is the normalized mirror of `name` (lowercased, no
-  // diacritics). It backs the friend search AND the uniqueness check, so both
-  // are always written together.
-
-  static const int nameMinLength = 5;
-  static const int nameMaxLength = 15;
-
-  /// RTDB never fails a write while offline, it just keeps it pending. Cap the
-  /// wait so a rename can be reported as failed instead of hanging.
-  static const Duration _writeTimeout = Duration(seconds: 10);
-
-  /// Letters (any alphabet), digits, spaces and a few separators.
-  static final RegExp _nameAllowedCharacters = RegExp(
-    r"^[\p{L}\p{N} ._'-]+$",
-    unicode: true,
-  );
-
-  /// Trims and collapses whitespace. What actually gets stored in `name`.
-  static String sanitizeName(String name) =>
-      name.trim().replaceAll(RegExp(r"\s+"), " ");
-
-  /// Drops unpaired UTF-16 surrogates.
-  ///
-  /// Some accounts' `name` was seeded before [_findAvailableName] truncated
-  /// by grapheme cluster instead of code unit, so a handful of stored names
-  /// still contain a lone surrogate. Flutter's TextPainter throws on that
-  /// (`string is not well-formed UTF-16`) the moment the value is laid out in
-  /// an editable field, so strip it defensively wherever a stored name feeds
-  /// a TextField, not just at write time.
-  static String stripLoneSurrogates(String name) {
-    final buffer = StringBuffer();
-
-    for (var i = 0; i < name.length; i++) {
-      final unit = name.codeUnitAt(i);
-
-      if (unit >= 0xD800 && unit <= 0xDBFF) {
-        final hasLowSurrogate =
-            i + 1 < name.length &&
-            name.codeUnitAt(i + 1) >= 0xDC00 &&
-            name.codeUnitAt(i + 1) <= 0xDFFF;
-
-        if (!hasLowSurrogate) continue;
-
-        buffer.write(name[i]);
-        buffer.write(name[i + 1]);
-        i++;
-      } else if (unit >= 0xDC00 && unit <= 0xDFFF) {
-        continue;
-      } else {
-        buffer.write(name[i]);
-      }
-    }
-
-    return buffer.toString();
-  }
-
-  /// Normalized form stored in `formatted_name`.
-  static String formatName(String name) =>
-      removeDiacritics(sanitizeName(name).toLowerCase());
-
-  static bool isNameValid(String name) {
-    final sanitized = sanitizeName(name);
-
-    return sanitized.length >= nameMinLength &&
-        sanitized.length <= nameMaxLength &&
-        _nameAllowedCharacters.hasMatch(sanitized);
-  }
-
-  /// Whether [formattedName] already belongs to ANOTHER account.
-  ///
-  /// Returns null when the check itself failed (offline, permission, …) so the
-  /// caller can refuse the rename instead of silently creating a duplicate.
-  Future<bool?> isNameTaken(String formattedName) async {
-    if (formattedName.isEmpty) return null;
-
-    try {
-      final snapshot = await FirebaseDatabase.instance
-          .ref()
-          .child("profiles")
-          .orderByChild("formatted_name")
-          .equalTo(formattedName)
-          // One extra entry so our own account never hides a real conflict.
-          .limitToFirst(2)
-          .get()
-          .timeout(_writeTimeout);
-
-      if (!snapshot.exists) return false;
-
-      final data = Map<String, dynamic>.from(
-        jsonDecode(jsonEncode(snapshot.value)),
-      );
-
-      return data.keys.any((id) => id != LocalStorageService.uid);
-    } catch (e) {
-      debugPrint("⚠️ isNameTaken('$formattedName') failed: $e");
-      return null;
-    }
-  }
-
-  /// Derives a free name from [base] by suffixing a number when needed. Used
-  /// for the initial seeding only — a player-initiated rename must fail loudly
-  /// rather than silently rename someone to "Alex2".
-  Future<String> _findAvailableName(String base) async {
-    var root = sanitizeName(base);
-
-    if (!isNameValid(root)) {
-      root = sanitizeName(GamicoGlobalService.getRandomPlayerName());
-    }
-
-    for (var attempt = 0; attempt < 8; attempt++) {
-      final suffix = attempt == 0
-          ? ""
-          : "${GamicoGlobalService.random.nextInt(900) + 100}";
-
-      // Keep room for the suffix rather than overflowing the max length.
-      // Truncate by grapheme cluster, not UTF-16 code unit: root can contain
-      // astral-plane letters (e.g. some non-Latin scripts), and cutting mid
-      // surrogate pair leaves a lone surrogate that later crashes any
-      // TextField laid out with this name (invalid UTF-16 in TextPainter).
-      final trimmed = root.length + suffix.length > nameMaxLength
-          ? root.characters.take(nameMaxLength - suffix.length).toString()
-          : root;
-
-      final candidate = "$trimmed$suffix";
-
-      if (await isNameTaken(formatName(candidate)) == false) return candidate;
-    }
-
-    return root;
-  }
-
-  /// Called by the Game Center / Play Games player stream.
-  ///
-  /// Always refreshes `social_name`, and seeds `name` only while the player
-  /// has none — after that the platform name is purely informative.
-  bool get _canWriteUser =>
-      LocalStorageService.authenticated &&
-      LocalStorageService.uid.isNotEmpty &&
-      state.loaded &&
-      state.user != null;
-
-  void setUserSocialName(String name) async {
-    final sanitized = sanitizeName(name);
-
-    if (sanitized.isEmpty) return;
-
-    // The game services stream usually fires before the account finished
-    // loading, and writing then would keep a ghost node alive (see
-    // manageUserChanges). Wait for a real user — but give up instead of
-    // looping forever when the sign-in never completes.
-    for (var attempt = 0; attempt < 40 && !_canWriteUser; attempt++) {
-      await Future.delayed(const Duration(milliseconds: 250));
-    }
-
-    if (!_canWriteUser) return;
-
-    final user = state.user!;
-
-    if (user.socialName != sanitized) {
-      // Best-effort: `social_name` is informative, a failure must not block
-      // the seeding below.
-      usersRepository
-          .updateUserSocialName(LocalStorageService.uid, sanitized)
-          .catchError((e) => debugPrint("⚠️ updateUserSocialName failed: $e"));
-    }
-
-    if (sanitizeName(user.name ?? "").isNotEmpty) return;
-
-    final seed = await _findAvailableName(sanitized);
-
-    debugPrint("ℹ️ seeding name from game services: '$seed'");
-
-    await _writeName(seed);
-  }
+  // Format, validation and uniqueness rules live in [GamicoPlayerNameService];
+  // this cubit only orchestrates when a write may happen and persists it.
 
   /// Called right after a brand-new account is created: its `name` was
   /// resolved locally (game services display name, or a random one) without
@@ -806,12 +457,21 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   Future<void> ensureUniqueName() async {
     if (LocalStorageService.uid.isEmpty) return;
 
-    final current = sanitizeName(state.user?.name ?? "");
+    final current = GamicoPlayerNameService.sanitizeName(
+      state.user?.name ?? "",
+    );
 
     if (current.isEmpty) return;
-    if (await isNameTaken(formatName(current)) != true) return;
 
-    final available = await _findAvailableName(current);
+    final taken = await GamicoPlayerNameService.isNameTaken(
+      GamicoPlayerNameService.formatName(current),
+    );
+
+    // `null` means the check could not run (offline, rules). Leave the name
+    // alone rather than renaming on a guess.
+    if (taken != true) return;
+
+    final available = await GamicoPlayerNameService.findAvailableName(current);
 
     debugPrint("ℹ️ '$current' already taken, falling back to '$available'");
 
@@ -824,17 +484,20 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
       return GamicoNameUpdateResult.unauthenticated;
     }
 
-    final sanitized = sanitizeName(name);
+    final sanitized = GamicoPlayerNameService.sanitizeName(name);
 
-    if (!isNameValid(sanitized)) return GamicoNameUpdateResult.invalid;
+    if (!GamicoPlayerNameService.isNameValid(sanitized)) {
+      return GamicoNameUpdateResult.invalid;
+    }
 
     // Same name (possibly re-cased): nothing to check, nothing to conflict on.
-    if (sanitized == sanitizeName(state.user?.name ?? "")) {
+    if (sanitized ==
+        GamicoPlayerNameService.sanitizeName(state.user?.name ?? "")) {
       return GamicoNameUpdateResult.success;
     }
 
-    final formatted = formatName(sanitized);
-    final taken = await isNameTaken(formatted);
+    final formatted = GamicoPlayerNameService.formatName(sanitized);
+    final taken = await GamicoPlayerNameService.isNameTaken(formatted);
 
     if (taken == null) return GamicoNameUpdateResult.failure;
     if (taken) return GamicoNameUpdateResult.taken;
@@ -847,14 +510,12 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   /// Writes the name to the SERVER and reports whether it actually landed.
   ///
   /// A name that only changed locally would break every player looking this
-  /// one up, so the caller must be able to tell the player it failed. RTDB
-  /// keeps a write pending forever while offline instead of failing, hence the
-  /// explicit timeout.
+  /// one up, so the caller must be able to tell the player it failed. Note
+  /// that RTDB keeps a write pending forever while offline instead of failing,
+  /// so this reports failure only on a real error, never on "no network".
   Future<bool> _writeName(String name) async {
     try {
-      await usersRepository
-          .updateUserName(LocalStorageService.uid, name, formatName(name))
-          .timeout(_writeTimeout);
+      await usersRepository.updateUserName(LocalStorageService.uid, name);
     } catch (e) {
       debugPrint("⚠️ updateUserName failed: $e");
       return false;
@@ -869,44 +530,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     return true;
   }
 
-  void setUserToken(String? token) async {
-    if (token == null) return;
-
-    if (!LocalStorageService.authenticated) return;
-    if (FirebaseAuth.instance.currentUser == null) return;
-
-    await usersRepository.updateUserToken(LocalStorageService.uid, token);
-  }
-
-  void setUserPhoto(String? photo) {
-    //
-    // final photo = ;
-    if (photo != null && photo != state.user?.photo) {
-      usersRepository.updateUserPhoto(LocalStorageService.uid, photo);
-    }
-  }
-
-  Future<void> saveToken() async {
-    try {
-      if (Platform.isIOS) {
-        String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
-
-        if (apnsToken == null) {
-          await Future.delayed(const Duration(minutes: 1));
-          saveToken();
-          return;
-        }
-      }
-
-      setUserToken(await FirebaseMessaging.instance.getToken());
-      FirebaseMessaging.instance.onTokenRefresh.listen(setUserToken);
-    } catch (e) {
-      debugPrint("$e");
-    }
-  }
-
-  void listenToUserChanges() async {
-    if (!LocalStorageService.authenticated) return;
+  void listenToUserChanges() {
     if (GamicoDatabaseShutdown.shuttingDown) return;
 
     final uid = LocalStorageService.uid;
@@ -928,38 +552,15 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     _nodeGone = false;
     _serverSynced = false;
 
+    // The flag is mirrored in the state, and the previous account's `true`
+    // must not carry over: [canPublishAbsoluteUser] reads the state one, so
+    // leaving it set would clear absolute writes against a disk-cache user.
+    if (state.serverSynced) emit(state.copyWith(serverSynced: false));
+
     final ref = FirebaseDatabase.instance.ref("users/$uid");
+    _userReference = ref;
 
-    _watchServerSync(ref);
-
-    // await ref.keepSynced(false);
-
-    // [DIAG] `.get()` returned only {updated_at} (cached optimistic value)
-    // without throwing -> the SDK likely could NOT reach the RTDB backend and
-    // fell back to cache. Confirm the actual connection state + the URL used,
-    // and force the socket online in case a stray goOffline() left it down.
-    // debugPrint("🔎 databaseURL => ${FirebaseDatabase.instance.databaseURL}");
-    // await FirebaseDatabase.instance.goOnline();
-    // FirebaseDatabase.instance.ref(".info/connected").onValue.listen((event) {
-    //   final online = event.snapshot.value as bool? ?? false;
-
-    //   print(online);
-    // });
-
-    // // print(a);
-    // // .then((s) => print("🔎 .info/connected => ${s}")).onError((e, stack) {
-    // //   print("AAA $e $stack");
-    // // });
-
-    // ref
-    //     .get()
-    //     .then(
-    //       (snap) =>
-    //           debugPrint("🔎 users/${LocalStorageService.uid} .get() => ${snap.value}"),
-    //     )
-    //     .catchError(
-    //       (e) => debugPrint("⚠️ users/${LocalStorageService.uid} .get() ERROR => $e"),
-    //     );
+    _watchConnection();
 
     // The full node, but only until it has loaded once.
     //
@@ -984,20 +585,12 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   void _swapToFieldListeners(DatabaseReference ref) {
     if (_fieldSubscriptions.isNotEmpty) return;
 
-    if (_streamSubscription != null) {
-      _streamSubscription!.cancel();
-      _streamSubscription = null;
-    } else {
-      // Called from inside the full-node listener's own callback, so on a
-      // stream that delivered its first event before `listen()` returned there
-      // is nothing to cancel yet. Cancelling a beat later still catches it,
-      // where cancelling now would silently leave the whole-node listener
-      // running alongside the leaves — the one outcome worse than either.
-      scheduleMicrotask(() {
-        _streamSubscription?.cancel();
-        _streamSubscription = null;
-      });
-    }
+    // Safe from inside the full-node listener's own callback: cancelling a
+    // subscription from its handler is allowed, and the handler cannot run
+    // before `listen()` returned (RTDB events cross a platform channel, so
+    // they are always delivered asynchronously).
+    _streamSubscription?.cancel();
+    _streamSubscription = null;
 
     for (final field in _watchedFields) {
       _fieldSubscriptions[field] = ref
@@ -1021,11 +614,11 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     if (_nodeGone) return;
 
     // `created_at` is immutable once written, so the only way it can report
-    // null is the node no longer existing at all. A node-level null is
-    // deliberately ignored today (see the commented-out `else` in
-    // [manageUserChanges]); ignoring the leaf storm that a deletion would
-    // otherwise send keeps that behaviour rather than blanking the user field
-    // by field.
+    // null is the node no longer existing at all. A deleted node is
+    // deliberately ignored rather than acted on — [manageUserChanges] only
+    // ever applies non-null payloads — and swallowing the leaf storm a
+    // deletion sends keeps that behaviour here too, instead of blanking the
+    // user field by field.
     if (field == "created_at" && value == null) {
       _nodeGone = true;
       return;
@@ -1047,249 +640,285 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     setUser(merged, loaded: true);
   }
 
-  void _cancelFieldSubscriptions() {
-    for (final sub in _fieldSubscriptions.values) {
-      sub.cancel();
-    }
-    _fieldSubscriptions.clear();
-  }
+  /// Applies a full-node payload. A null one (a deleted or unreadable node) is
+  /// ignored on purpose: signing the player out on it cost accounts to
+  /// transient RTDB nulls, so the last known user is kept instead.
+  void manageUserChanges(DatabaseEvent event) {
+    if (event.snapshot.value == null) return;
 
-  void manageUserChanges(DatabaseEvent event) async {
-    if (event.snapshot.value != null) {
-      final json = Map<String, dynamic>.from(
-        jsonDecode(jsonEncode(event.snapshot.value)),
-      );
+    final json = Map<String, dynamic>.from(
+      jsonDecode(jsonEncode(event.snapshot.value)),
+    );
 
-      // print("OKOK $value");
-      // A real value arrived: cancel any pending sign-out scheduled by a
-      // previous (transient) null event.
-      // _pendingSignOutTimer?.cancel();
-      // _pendingSignOutTimer = null;
+    // [GAMICO-FIX] name/level-loss investigation.
+    // A genuine user node always carries an identity — social_id /
+    // firebase_id — or at least the created_at stamped at creation. A
+    // payload with NONE of them is not a full user: it is either a
+    // corrupted/ghost node (reduced to {updated_at}), or RTDB's latency
+    // compensation echoing back one of the app's OWN partial writes on a
+    // cold cache (renaming writes {name, formatted_name, updated_at}).
+    //
+    // Applying such a payload as-is would wipe the loaded user — coins,
+    // level, everything — and persist the stub locally, so it resurfaces
+    // all-null on the next restart.
+    final partial =
+        json["social_id"] == null &&
+        json["firebase_id"] == null &&
+        json["created_at"] == null;
 
-      // [GAMICO-FIX] name/level-loss investigation.
-      // A genuine user node always carries an identity — social_id /
-      // firebase_id — or at least the created_at stamped at creation. A
-      // payload with NONE of them is not a full user: it is either a
-      // corrupted/ghost node (reduced to {updated_at}), or RTDB's latency
-      // compensation echoing back one of the app's OWN partial writes on a
-      // cold cache (renaming writes {name, formatted_name, updated_at}).
-      //
-      // Applying such a payload as-is would wipe the loaded user — coins,
-      // level, everything — and persist the stub locally, so it resurfaces
-      // all-null on the next restart.
-      final partial =
-          json["social_id"] == null &&
-          json["firebase_id"] == null &&
-          json["created_at"] == null;
+    if (partial) {
+      final current = state.user;
 
-      if (partial) {
-        final current = state.user;
-
-        if (current == null) {
-          debugPrint(
-            "⚠️ manageUserChanges: ignoring partial/corrupted user payload for "
-            "users/${LocalStorageService.uid}: ${event.snapshot.value}",
-          );
-          return;
-        }
-
-        // Keep the loaded user and apply only the fields that changed: the
-        // rename must still show up immediately.
-        final merged = Map<String, dynamic>.from(
-          Gamico.instance.userToJson(current),
-        )..addAll(json);
-
-        setUser(Gamico.instance.userFromJson(merged), loaded: true);
-
-        // Deliberately no _manageDisconnection() here: that write would keep
-        // a ghost node alive if this payload really is a corrupted one.
+      if (current == null) {
+        debugPrint(
+          "⚠️ manageUserChanges: ignoring partial/corrupted user payload for "
+          "users/${LocalStorageService.uid}: ${event.snapshot.value}",
+        );
         return;
       }
 
-      final value = Gamico.instance.userFromJson(json);
-      setUser(value, loaded: true);
+      // Keep the loaded user and apply only the fields that changed: the
+      // rename must still show up immediately.
+      final merged = Map<String, dynamic>.from(
+        Gamico.instance.userToJson(current),
+      )..addAll(json);
 
-      if (!_managed) {
-        _manageDisconnection();
-      }
+      setUser(Gamico.instance.userFromJson(merged), loaded: true);
+
+      // Deliberately no _manageDisconnection() here: that write would keep
+      // a ghost node alive if this payload really is a corrupted one.
+      return;
     }
-    // else {
-    // setUser(null);
 
-    // if (!await SimpleConnectionChecker.isConnectedToInternet()) return;
+    final value = Gamico.instance.userFromJson(json);
+    setUser(value, loaded: true);
 
-    // final uid = LocalStorageService.uid;
-    // if (uid.isEmpty) return;
-
-    // try {
-    //   final snapshot = await FirebaseDatabase.instance
-    //       .ref("users/$uid")
-    //       .get();
-
-    //   if (snapshot.exists && snapshot.value != null) {
-    //     // False alarm: the node is still there. Resync the user so the UI
-    //     // reflects the real value (the listener may stay stale on null).
-    //     final value = Gamico.instance.userFromJson(
-    //       jsonDecode(jsonEncode(snapshot.value)),
-    //     );
-
-    //     if (value != null && value.name != null) {
-    //       setUser(value);
-    //     }
-
-    //     return;
-    //   }
-    // } catch (_) {
-    //   // Could not confirm deletion (e.g. permission/transient error) —
-    //   // err on the safe side and keep the user signed in.
-    //   return;
-    // }
-
-    // await FirebaseAuth.instance.signOut();
-    // }
+    if (!_managed) {
+      _manageDisconnection();
+    }
   }
 
   /// Drops every database listener without touching the state: called while the
   /// app is being torn down, so no RTDB event can reach a dead engine.
-  Future<void> cancelDatabaseListeners() async {
+  Future<void> cancelDatabaseListeners() => _teardown(resetState: false);
+
+  /// Same, plus the state reset: called on sign-out, where the UI must stop
+  /// treating the (no longer watched) user as live.
+  void cancelUserChangesListener() => unawaited(_teardown(resetState: true));
+
+  /* UPDATE */
+
+  void incrementLevel() {
+    usersRepository.incrementUserLevel(LocalStorageService.uid);
+  }
+
+  void updateStars(List<int> stars) {
+    usersRepository.updateUserStars(LocalStorageService.uid, stars);
+  }
+
+  void setSocialName(String socialName) {
+    usersRepository.updateUserSocialName(LocalStorageService.uid, socialName);
+  }
+
+  void setPhoto(String? photo) {
+    if (photo == null) return;
+    if (photo == state.user?.photo) return;
+
+    usersRepository.updateUserPhoto(LocalStorageService.uid, photo);
+  }
+
+  Future<void> setToken() async {
+    void updateToken(String? token) {
+      usersRepository.updateUserToken(LocalStorageService.uid, token);
+    }
+
+    try {
+      if (Platform.isIOS) {
+        String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+
+        if (apnsToken == null) {
+          await Future.delayed(const Duration(minutes: 1));
+          return unawaited(setToken());
+        }
+      }
+
+      updateToken(await FirebaseMessaging.instance.getToken());
+
+      FirebaseMessaging.instance.onTokenRefresh.listen(updateToken);
+    } catch (e) {
+      debugPrint("$e");
+    }
+  }
+
+  void setGratification(int last, int next) {
+    incrementCoins(last);
+
+    usersRepository.updateUserGratification(
+      LocalStorageService.uid,
+      last,
+      next,
+    );
+
+    GratificationService.gratifiedAt = DateTime.now();
+  }
+
+  void setSkins(Map<String, dynamic> skins) {
+    usersRepository.updateUserSkins(LocalStorageService.uid, skins);
+  }
+
+  void setPremium() {
+    usersRepository.updateUserPremium(LocalStorageService.uid, true);
+  }
+
+  /* LEADERBOARDS */
+
+  void incrementVictories() {
+    final finalCrowns = (state.user?.trophies ?? 0) + 1;
+
+    usersRepository.incrementTrophies(LocalStorageService.uid);
+
+    _submitTacticiansScore(finalCrowns);
+  }
+
+  void incrementDefeats() {
+    final trophies = (state.user?.trophies ?? 0) - 1;
+
+    usersRepository.decrementTrophies(
+      LocalStorageService.uid,
+      trophies >= 0 ? 1 : 0,
+    );
+
+    if (trophies >= 0) {
+      _submitTacticiansScore(trophies);
+    }
+  }
+
+  void incrementCoins([int coins = 1]) {
+    emit(
+      state.copyWith(
+        cowriesUpdate: state.cowriesUpdate + 1,
+        cowriesUpdateDifference: coins,
+      ),
+    );
+
+    final nextCoins = (state.user?.coins ?? 0) + coins;
+
+    usersRepository.incrementUserCoins(LocalStorageService.uid, coins);
+
+    _submitCollectorsScore(nextCoins);
+  }
+
+  void decrementCoins([int coins = 1]) {
+    final userDiamonds = (state.user?.coins ?? 0);
+    final cowriesToDecrement = min(coins, userDiamonds);
+
+    if (cowriesToDecrement == 0) return;
+
+    emit(
+      state.copyWith(
+        cowriesUpdate: state.cowriesUpdate + 1,
+        cowriesUpdateDifference: -cowriesToDecrement,
+      ),
+    );
+
+    usersRepository.decrementUserCoins(
+      LocalStorageService.uid,
+      cowriesToDecrement,
+    );
+
+    _submitCollectorsScore(max(userDiamonds - coins, 0));
+  }
+
+  void _submitCollectorsScore(int score) {
+    if (!PlayService.gameServicesEnabled) return;
+
+    if ((Gamico.instance.playSettings?.inactivePlayersLeaderboardId ?? "")
+        .isEmpty) {
+      return;
+    }
+
+    Leaderboards.submitScore(
+      score: Score(
+        androidLeaderboardID:
+            Gamico.instance.playSettings?.inactivePlayersLeaderboardId,
+        iOSLeaderboardID:
+            Gamico.instance.playSettings?.inactivePlayersLeaderboardId,
+        value: score,
+      ),
+    );
+  }
+
+  void _submitTacticiansScore(int score) {
+    if (!PlayService.gameServicesEnabled) return;
+
+    if ((Gamico.instance.playSettings?.activePlayersLeaderboardId ?? "")
+        .isEmpty) {
+      return;
+    }
+
+    Leaderboards.submitScore(
+      score: Score(
+        androidLeaderboardID:
+            Gamico.instance.playSettings?.activePlayersLeaderboardId,
+        iOSLeaderboardID:
+            Gamico.instance.playSettings?.activePlayersLeaderboardId,
+        value: score,
+      ),
+    );
+  }
+
+  /* CLEAN */
+
+  void _cancelFieldSubscriptions() {
+    for (final subscription in _fieldSubscriptions.values) {
+      subscription.cancel();
+    }
+
+    _fieldSubscriptions.clear();
+  }
+
+  /// The single teardown path, so the shutdown hook, the sign-out and [close]
+  /// can no longer drift apart and leave one subscription behind each.
+  ///
+  /// [resetState] also clears `loaded`/`serverSynced` — the sign-out case. The
+  /// shutdown and close cases leave the state alone: nothing will read it
+  /// again anyway, and emitting on a closing cubit throws.
+  Future<void> _teardown({required bool resetState}) async {
     _managed = false;
+    _presenceManaged = false;
+    _connected = false;
+    _serverSynced = false;
+    _nodeGone = false;
+    _watchedUid = null;
+    _userReference = null;
+
+    // Emitted before the first await, so a caller that does not wait on this
+    // still observes the reset synchronously — as it did when each cancel
+    // method carried its own emit.
+    if (resetState && !isClosed) {
+      emit(state.copyWith(loaded: false, serverSynced: false));
+    }
+
     await _streamSubscription?.cancel();
     _streamSubscription = null;
+
     _cancelFieldSubscriptions();
-    _watchedUid = null;
-    _serverSynced = false;
+
     await _connectionSubscription?.cancel();
     _connectionSubscription = null;
-    await _disconnectionSubscription?.cancel();
-    _disconnectionSubscription = null;
+
     await _disconnectionReference?.cancel();
     _disconnectionReference = null;
   }
 
-  void cancelUserChangesListener() {
-    _managed = false;
-    _streamSubscription?.cancel();
-    _streamSubscription = null;
-    _cancelFieldSubscriptions();
-    _watchedUid = null;
-    _disconnectionSubscription?.cancel();
-    _disconnectionReference?.cancel();
-    emit(state.copyWith(loaded: false));
-  }
-
-  Future<void> updateUserGratification(
-    int lastGratificationDiamonds,
-    int nextGratificationDiamonds,
-  ) async {
-    incrementCowries(lastGratificationDiamonds);
-
-    // print(state.user?.toJson());
-    // print("---");
-
-    usersRepository.updateUserGratification(
-      LocalStorageService.uid,
-      lastGratificationDiamonds,
-      nextGratificationDiamonds,
-    );
-
-    GratificationService.gratifiedAt = DateTime.now();
-
-    // print(state.user?.toJson());
-
-    // forceLastGratificationDate();
-  }
-
-  // void forceLastGratificationDate() {
-  //   if (state.user != null) {
-  //     final json = state.user!.toJson();
-  //     json["gratified_at"] = DateTime.now().toString();
-  //     emit(state.copyWith(
-  //       user: T.fromJson(json),
-  //     ));
-  //   }
-  // }
-
-  @override
-  void onChange(Change<GamicoUserState> change) {
-    final oldUser = change.currentState.user;
-    final newUser = change.nextState.user;
-
-    if (newUser != null && oldUser == null) {
-      listenToUserChanges();
-    } else if (newUser == null && oldUser != null) {
-      cancelUserChangesListener();
-    }
-
-    super.onChange(change);
-  }
+  /* CLOSE */
 
   @override
   Future<void> close() {
     GamicoDatabaseShutdown.unregister(this);
 
-    _streamSubscription?.cancel();
-    _cancelFieldSubscriptions();
-    _disconnectionSubscription?.cancel();
-    _disconnectionReference?.cancel();
+    _teardown(resetState: false);
 
     return super.close();
   }
-
-  /// Pass the tutorial
-  // unlockBeginnerAchievement() {
-  //   unlockAchievement(AchievementType.beginner.id);
-  // }
-
-  ///////////////////////
-
-  // void setCards(Map<String, int>? cards) {
-  //   usersRepository.setCards(LocalStorageService.uid, cards);
-  // }
-
-  // void setDecks(List<List<String>>? decks) {
-  //   usersRepository.setDecks(LocalStorageService.uid, decks);
-  // }
-
-  // void setActiveDeck(int activeDeck) {
-  //   usersRepository.setActiveDeck(LocalStorageService.uid, activeDeck);
-  // }
-
-  // void upgradeCard(String cardId) {
-  //   final cards = state.user?.cards ?? {};
-  //   final currentLevel = (cards[cardId] ?? 0);
-  //   cards[cardId] = currentLevel + 1;
-  //   decrementCowries(currentLevel * 10);
-  //   setCards(cards);
-  // }
-
-  // void deleteCard(String cardId) {
-  //   final activeDeck = state.user?.activeDeck ?? 0;
-  //   List<List<String>> decks = state.user?.decks ?? [];
-  //   decks += List.filled(3 - decks.length, List.filled(8, ""));
-  //   final currentDeck = decks[activeDeck];
-  //   final currentCardIndex = currentDeck.indexOf(cardId);
-  //   currentDeck[currentCardIndex] = "";
-  //   setDecks(decks);
-  // }
-
-  // void useCard(CardUtility card) {
-  //   final activeDeck = state.user?.activeDeck ?? 0;
-  //   List<List<String>> decks = state.user?.decks ?? [];
-  //   decks += List.filled(3 - decks.length, List.filled(8, ""));
-  //   final currentDeck = decks[activeDeck];
-  //   for (int i = 0; i < currentDeck.length; i++) {
-  //     if (currentDeck[i].isEmpty) {
-  //       currentDeck[i] = card.type.id;
-  //       break;
-  //     }
-  //   }
-  //   setDecks(decks);
-  // }
-
-  // void acquireCard(CardUtility card) {
-  //   final cards = state.user?.cards ?? {};
-  //   cards[card.type.id] = 1;
-  //   decrementCowries(card.cost);
-  //   setCards(cards);
-  // }
 }

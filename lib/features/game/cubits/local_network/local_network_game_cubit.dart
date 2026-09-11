@@ -106,9 +106,9 @@ class GamicoLocalNetworkGameCubit extends Cubit<GamicoLocalNetworkGameState> {
     if (!utility.rewardsCoins) return;
 
     if (victory) {
-      userCubit.incrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
+      userCubit.incrementCoins(Gamico.instance.gameSettings.playMinimumCoins);
     } else {
-      userCubit.decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
+      userCubit.decrementCoins(Gamico.instance.gameSettings.playMinimumCoins);
     }
   }
 

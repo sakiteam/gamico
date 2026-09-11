@@ -97,7 +97,7 @@ void gamePageManageCoinsAndStarsInAdventureGame(
           cowriesReward = Gamico.instance.gameSettings.playMinimumCoins;
         }
 
-        userCubit.incrementCowries(
+        userCubit.incrementCoins(
           (cowriesReward * multiplicationFactor).toInt(),
         );
       }
@@ -121,7 +121,7 @@ void gamePageManageCoinsAndStarsInAdventureGame(
     // free — matching the quit/exit rule (adventure onExitGame) and the
     // closing-popup copy. (8 Américain previously charged on every defeat
     // regardless of level, which drained coins even on already-passed replays.)
-    userCubit.decrementCowries(Gamico.instance.gameSettings.playMinimumCoins);
+    userCubit.decrementCoins(Gamico.instance.gameSettings.playMinimumCoins);
   }
 }
 

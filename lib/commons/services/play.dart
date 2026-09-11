@@ -128,6 +128,7 @@ class PlayService {
 
   static Future<bool> enableGameServices() async {
     initPlayerListener();
+
     try {
       if (!LocalStorageService.authenticated &&
           !(await SimpleConnectionChecker.isConnectedToInternet())) {
