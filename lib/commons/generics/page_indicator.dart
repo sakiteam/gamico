@@ -6,6 +6,7 @@ class GamicoPageIndicator extends StatefulWidget {
   final int count;
   final Color? color;
   final Widget Function(bool active)? builder;
+  final bool square;
 
   const GamicoPageIndicator({
     super.key,
@@ -14,6 +15,7 @@ class GamicoPageIndicator extends StatefulWidget {
     required this.count,
     this.color,
     this.builder,
+    this.square = false,
   });
 
   @override
@@ -73,7 +75,9 @@ class _GamicoPageIndicatorState extends State<GamicoPageIndicator> {
                 height: widget.indicatorSize,
                 decoration: BoxDecoration(
                   color: active ? mainColor : mainColor.withAlpha(100),
-                  borderRadius: BorderRadius.circular(widget.indicatorSize),
+                  borderRadius: widget.square
+                      ? BorderRadius.zero
+                      : BorderRadius.circular(widget.indicatorSize),
                 ),
               ),
             );

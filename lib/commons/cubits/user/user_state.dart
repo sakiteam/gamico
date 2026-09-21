@@ -56,6 +56,11 @@ class GamicoUserState {
     this.challengeCompletedGameKey,
   });
 
+  bool isAchivementUnlocked(String id) {
+    final achievements = user?.achievements ?? {};
+    return (achievements[id] ?? 0) == 100;
+  }
+
   GamicoUserState copyWith({
     GamicoUserModel? Function()? user,
     int? cowriesUpdate,

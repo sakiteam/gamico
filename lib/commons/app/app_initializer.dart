@@ -11,10 +11,9 @@ import 'package:package_info_plus/package_info_plus.dart';
 class GamicoAppInitializer {
   const GamicoAppInitializer._();
 
-  /// Initializes versioning, time zone, notifications channels, and package info.
+  /// Initializes device type, time zone, notifications channels, and package info.
   static Future<void> initialize() async {
     await DeviceTypeService.init();
-    await VersionService.init();
     TimeZoneService.initTimeZone();
 
     try {

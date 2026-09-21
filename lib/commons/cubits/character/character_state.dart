@@ -5,10 +5,7 @@ class CharacterState {
   final GamicoCharacterPosition? position;
   final flame_components.SpriteAnimation? animation;
 
-  const CharacterState({
-    this.position,
-    this.animation,
-  });
+  const CharacterState({this.position, this.animation});
 
   CharacterState copyWith({
     required GamicoCharacterPosition? position,
@@ -19,7 +16,4 @@ class CharacterState {
       animation: animation ?? this.animation,
     );
   }
-
-  // @override
-  // List<Object?> get props => [position, animation];
 }

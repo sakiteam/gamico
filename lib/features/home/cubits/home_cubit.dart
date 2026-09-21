@@ -96,19 +96,12 @@ class GamicoHomeCubit extends Cubit<GamicoHomeState> {
     }
   }
 
-  /// Check if an update is available or required.
+  /// Shows the update popup when the remote config announces a newer version
+  /// than this build's and turns the popup on. Non-dismissible when the update
+  /// is flagged urgent. Does nothing until the remote config is filled in.
   void checkUpdate() {
-    final status = VersionService.status;
-    final forceUpdate = VersionService.forceUpdate();
-
-    if (forceUpdate ||
-        (status != null && status.canUpdate) ||
-        VersionService.localVersionDeprecated()) {
-      if (status != null) {
-        VersionService.storeVersion = status.storeVersion;
-      }
-
-      setShowUpdatePopup(true, forceUpdate: forceUpdate);
+    if (VersionService.shouldShowUpdatePopup()) {
+      setShowUpdatePopup(true, forceUpdate: VersionService.forceUpdate());
     }
   }
 

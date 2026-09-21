@@ -178,14 +178,10 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
     _publishPresence();
   }
 
-  bool isAchivementUnlocked(String id) {
-    final achievements = state.user?.achievements ?? {};
-    return (achievements[id] ?? 0) == 100;
-  }
-
   void unlockAchievement(String id, [double percentage = 100, int steps = 0]) {
     if (!LocalStorageService.authenticated) return;
-    if (isAchivementUnlocked(id)) return;
+
+    if (state.isAchivementUnlocked(id)) return;
 
     unawaited(_submitAchievement(id, percentage, steps));
 
@@ -433,49 +429,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   }
 
   void setUser(GamicoUserModel? user, {bool loaded = false}) {
-    // Instrumentation: clearing a previously-loaded user makes a name/level
-    // "disappear" from every screen at once. Log it so it can be correlated
-    // with the auth event that triggered it.
-    if (user == null && state.user != null) {
-      debugPrint(
-        "⚠️ setUser(null) clearing loaded user\n${StackTrace.current}",
-      );
-    }
-
     emit(state.copyWith(user: () => user, loaded: loaded));
-  }
-
-  // Names
-  //
-  // Format, validation and uniqueness rules live in [GamicoPlayerNameService];
-  // this cubit only orchestrates when a write may happen and persists it.
-
-  /// Called right after a brand-new account is created: its `name` was
-  /// resolved locally (game services display name, or a random one) without
-  /// knowing what the other players use. Make it unique before it shows up in
-  /// a lobby.
-  Future<void> ensureUniqueName() async {
-    if (LocalStorageService.uid.isEmpty) return;
-
-    final current = GamicoPlayerNameService.sanitizeName(
-      state.user?.name ?? "",
-    );
-
-    if (current.isEmpty) return;
-
-    final taken = await GamicoPlayerNameService.isNameTaken(
-      GamicoPlayerNameService.formatName(current),
-    );
-
-    // `null` means the check could not run (offline, rules). Leave the name
-    // alone rather than renaming on a guess.
-    if (taken != true) return;
-
-    final available = await GamicoPlayerNameService.findAvailableName(current);
-
-    debugPrint("ℹ️ '$current' already taken, falling back to '$available'");
-
-    await _writeName(available);
   }
 
   /// Player-initiated rename. Only touches `name`/`formatted_name`.
@@ -598,8 +552,7 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
           .onValue
           .listen(
             (event) => _applyUserField(field, event.snapshot.value),
-            onError: (e) =>
-                debugPrint("⚠️ users/$_watchedUid/$field onValue ERROR => $e"),
+            onError: (_) {},
           );
     }
   }

@@ -8,6 +8,9 @@ import 'package:gamico/languages/languages.dart';
 class GamicoDialogPoster extends StatefulWidget {
   final IconData? icon;
   final String? title;
+
+  /// Replaces [title] when the title needs more than a line of text.
+  final Widget? titleWidget;
   final String? description;
   final Widget? content;
 
@@ -46,6 +49,7 @@ class GamicoDialogPoster extends StatefulWidget {
     super.key,
     this.icon,
     this.title,
+    this.titleWidget,
     this.description,
     this.content,
     this.iconWidget,
@@ -153,6 +157,7 @@ class _GamicoDialogPosterState extends State<GamicoDialogPoster> {
       icon: widget.icon,
       iconWidget: widget.iconWidget,
       title: widget.title,
+      titleWidget: widget.titleWidget,
     );
   }
 }

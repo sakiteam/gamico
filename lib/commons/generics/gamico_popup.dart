@@ -22,6 +22,7 @@ class GamicoPopup extends StatelessWidget {
   final Widget? additionalChild;
   final PageController? pageController;
   final int? pageControllerLength;
+  final bool squarePageIndicators;
   final bool dismissible;
   final List<GamicoCharacterPosition>? characterPositions;
 
@@ -37,6 +38,7 @@ class GamicoPopup extends StatelessWidget {
     this.additionalChild,
     this.pageController,
     this.pageControllerLength,
+    this.squarePageIndicators = false,
     this.dismissible = true,
     this.characterPositions,
     this.customHeight,
@@ -53,6 +55,7 @@ class GamicoPopup extends StatelessWidget {
         dismissible: dismissible,
         pageController: pageController,
         pageControllerLength: pageControllerLength,
+        squarePageIndicators: squarePageIndicators,
         topLeftWidget: topLeftWidget,
         topRightWidget: topRightWidget,
         child: child,

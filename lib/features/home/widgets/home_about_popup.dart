@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/cubits/music/music_cubit.dart';
 import 'package:gamico/commons/global/gamico.dart';
@@ -18,14 +19,15 @@ import 'package:gamico/languages/languages.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class HomeAboutPopup extends StatelessWidget {
-  const HomeAboutPopup({super.key});
+  /// Whether the popup's top-left corner offers a share button. Apps that
+  /// expose sharing elsewhere (a settings row) turn it off.
+  final bool showShare;
+
+  const HomeAboutPopup({super.key, this.showShare = true});
 
   Future<void> _safeLaunchUrl(String url) async {
     try {
-      await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
-      );
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } catch (e) {
       debugPrint("Failed to launch $url: $e");
     }
@@ -45,42 +47,48 @@ class HomeAboutPopup extends StatelessWidget {
     ];
 
     return GamicoPopup(
-      topLeftWidget: BlocBuilder<ReferralCubit, ReferralState>(
-        builder: (context, state) {
-          return Builder(
-            builder: (btnContext) {
-              return IconButton(
-                onPressed: () {
-                  try {
-                    btnContext.read<GamicoMusicCubit>().playClickBruitage();
-                  } catch (_) {}
+      topLeftWidget: !showShare
+          ? null
+          : BlocBuilder<ReferralCubit, ReferralState>(
+              builder: (context, state) {
+                return Builder(
+                  builder: (btnContext) {
+                    return IconButton(
+                      onPressed: () {
+                        try {
+                          btnContext
+                              .read<GamicoMusicCubit>()
+                              .playClickBruitage();
+                        } catch (_) {}
 
-                  String link = ""; // state.link;
+                        String link = ""; // state.link;
 
-                  if (link.isEmpty) {
-                    if (Platform.isAndroid) {
-                      link = Gamico.instance.storeSettings?.androidLink ?? "";
-                    } else {
-                      link = Gamico.instance.storeSettings?.iOSLink ?? "";
-                    }
-                  }
+                        if (link.isEmpty) {
+                          if (Platform.isAndroid) {
+                            link =
+                                Gamico.instance.storeSettings?.androidLink ??
+                                "";
+                          } else {
+                            link = Gamico.instance.storeSettings?.iOSLink ?? "";
+                          }
+                        }
 
-                  GamicoShareUtility.share(
-                    context: btnContext,
-                    text: l.homeAboutPopupShareText(link),
-                    subject: l.globalAppName,
-                  );
-                },
-                icon: const GamicoOutlinedIcon(
-                  Icons.share,
-                  size: 32,
-                  color: Colors.blue,
-                ),
-              );
-            },
-          );
-        },
-      ),
+                        GamicoShareUtility.share(
+                          context: btnContext,
+                          text: l.homeAboutPopupShareText(link),
+                          subject: l.globalAppName,
+                        );
+                      },
+                      icon: const GamicoOutlinedIcon(
+                        Icons.share,
+                        size: 32,
+                        color: Colors.blue,
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
       child: GamicoPoster(
         icon: Icons.info,
         title: l.homeAbout,

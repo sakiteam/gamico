@@ -208,7 +208,7 @@ class _GamicoAppState extends State<GamicoApp> {
                           widget.fontFamily,
                       textTheme: TextTheme(
                         bodyMedium: TextStyle(
-                          fontSize: 14 * 450 / 400,
+                          fontSize: 16,
                           height: 1,
                           color: widget.textColor,
                         ),

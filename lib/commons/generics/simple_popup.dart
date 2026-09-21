@@ -24,11 +24,12 @@ class GamicoSimplePopup extends StatefulWidget {
 
   final PageController? pageController;
   final int? pageControllerLength;
+  final bool squarePageIndicators;
 
   static double topIconMargin = 0;
 
-  static double watchButtonDefaultHeight = 60 * 450 / 400;
-  static double watchButtonMargin = 20 * 450 / 400;
+  static double watchButtonDefaultHeight = 60;
+  static double watchButtonMargin = 24;
   static double get watchButtonFinalHeight =>
       watchButtonDefaultHeight + watchButtonMargin;
   static Widget background = Container(color: Colors.white);
@@ -51,6 +52,7 @@ class GamicoSimplePopup extends StatefulWidget {
     this.additionalChild,
     this.pageController,
     this.pageControllerLength,
+    this.squarePageIndicators = false,
     this.dismissible = true,
     this.characterPositions,
     this.customHeight,
@@ -268,6 +270,8 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
                                                       .pageControllerLength!,
                                                   color: GamicoSimplePopup
                                                       .pageIndicatorColor,
+                                                  square: widget
+                                                      .squarePageIndicators,
                                                 ),
                                               )
                                             : null,

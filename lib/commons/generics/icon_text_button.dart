@@ -86,7 +86,13 @@ class GamicoIconTextButton extends StatelessWidget {
                   ),
                   if (text != null)
                     Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
+                      // Side padding keeps long labels (e.g. store pack names)
+                      // off the button's border; AutoSizeText shrinks to fit.
+                      padding: const EdgeInsets.only(
+                        top: 4.0,
+                        left: 8.0,
+                        right: 8.0,
+                      ),
                       child: GamicoOutlinedText(
                         text!,
                         strokeWidth: 0.5,

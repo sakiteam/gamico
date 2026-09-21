@@ -118,14 +118,12 @@ class _CoinsPopupState extends State<CoinsPopup> {
   Widget build(BuildContext context) {
     final pages = _buildPages(context);
 
-    // Every page here reads the account. When the player signs out while the
+    // Every page here reads the account. When the account goes away while the
     // popup is open there is nothing left to show and nothing to wait for, so
-    // dismiss it. A session lost to a token-refresh failure is deliberately
-    // NOT covered: the account usually comes back on its own, and the posters
-    // sit on their loading state until it does.
+    // dismiss it.
     return BlocListener<AuthenticationCubit, AuthenticationState>(
       listenWhen: (previous, current) =>
-          !previous.deliberateSignOut && current.deliberateSignOut,
+          previous.authenticated && !current.authenticated,
       listener: (context, _) => NavigationService.pop(context),
       child: GamicoPopup(
         pageController: _pageController,
