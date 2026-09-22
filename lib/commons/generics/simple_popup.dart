@@ -28,7 +28,7 @@ class GamicoSimplePopup extends StatefulWidget {
 
   static double topIconMargin = 0;
 
-  static double watchButtonDefaultHeight = 60;
+  static double watchButtonDefaultHeight = 60 * 450 / 400;
   static double watchButtonMargin = 24;
   static double get watchButtonFinalHeight =>
       watchButtonDefaultHeight + watchButtonMargin;
