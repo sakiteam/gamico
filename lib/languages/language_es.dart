@@ -231,7 +231,7 @@ abstract class GamicoLanguageEs extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "Error de Conexión!";
 
   @override
-  String get premiumPopupTitle => "Modo Premium";
+  String get premiumPopupTitle => "¡Hazte premium!";
   @override
   String get premiumPopupDescription =>
       "¡Desbloquea la versión completa para eliminar todos los anuncios!";
@@ -1328,4 +1328,94 @@ abstract class GamicoLanguageEs extends GamicoLanguages {
 
   @override
   String get replayVoteWaitingForPlayers => "Esperando a los demás jugadores";
+
+  /* ROLL CALL */
+
+  @override
+  String get rollCallWaitingTitle => "Esperando a los jugadores";
+
+  @override
+  String get rollCallReady => "Listo";
+
+  @override
+  String get rollCallConnecting => "Conectando…";
+
+  @override
+  String get rollCallYou => "Tú";
+
+  @override
+  String rollCallVoteOpensIn(int s) =>
+      "Votación para expulsar a los ausentes en $s s";
+
+  @override
+  String rollCallStartsIn(int s) => "La partida empieza en $s s";
+
+  @override
+  String rollCallEjectVotes(int votes, int needed) =>
+      "Expulsar a los ausentes: $votes/$needed";
+
+  @override
+  String get rollCallEject => "Expulsar";
+
+  @override
+  String get rollCallWait => "Esperar";
+
+  @override
+  String get rollCallPlayerUnavailableTitle => "Jugador no disponible";
+
+  @override
+  String rollCallPlayerUnavailableDescription(int s) =>
+      "Tu rival no se conectó en $s segundos. La partida se cancela, sin penalización.";
+
+  @override
+  String get rollCallPlayersUnavailableTitle => "Jugadores no disponibles";
+
+  @override
+  String get rollCallPlayersUnavailableDescription =>
+      "Ningún otro jugador se conectó a tiempo. La partida se cancela, sin penalización.";
+
+  @override
+  String get rollCallCancelledTitle => "Partida cancelada";
+
+  @override
+  String get rollCallExcludedTitle => "La partida empezó sin ti";
+
+  @override
+  String rollCallExcludedDuel(int s) =>
+      "Tu rival te esperó $s segundos sin verte llegar, así que la partida se canceló. No se te aplica ninguna penalización.";
+
+  @override
+  String get rollCallExcludedVote =>
+      "Aún no estabas conectado, así que los demás jugadores votaron empezar sin ti. No se te aplica ninguna penalización.";
+
+  @override
+  String rollCallExcludedCap(int s) =>
+      "Seguías sin conectarte después de $s segundos, así que la partida empezó sin ti. No se te aplica ninguna penalización.";
+
+  @override
+  String get rollCallExcludedGrace =>
+      "No te conectaste a tiempo, así que la partida empezó sin ti. No se te aplica ninguna penalización.";
+
+  @override
+  String get rollCallClose => "Cerrar";
+
+  @override
+  String get rollCallPlayerLeftDescription =>
+      "Tu rival salió antes de que empezara la partida. La partida se cancela, sin penalización.";
+
+  @override
+  String get rollCallPlayersLeftDescription =>
+      "Los demás jugadores salieron antes de que empezara la partida. La partida se cancela, sin penalización.";
+
+  @override
+  String get rollCallWaitingOpponentTitle => "Esperando a tu rival";
+
+  @override
+  String rollCallCancelsIn(int s) => "Se cancela en $s s";
+
+  @override
+  String get rollCallAway => "Listo · fuera de la app";
+
+  @override
+  String get rollCallLeave => "Salir";
 }

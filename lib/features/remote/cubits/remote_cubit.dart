@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
+import 'package:gamico/features/game/utilities/roll_call.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/gamico_game_model.dart';
 import 'package:gamico/commons/services/database_shutdown.dart';
@@ -400,11 +401,14 @@ class RemoteCubit extends Cubit<RemoteState> {
 
   /// How recent an assignment must be to be worth walking back into.
   ///
-  /// Comfortably inside the 20 s readiness grace the game layer grants a
-  /// player who has not answered the roll-call yet, so a resume that succeeds
-  /// still has time to answer it. Anything older is a table that has already
+  /// A table waits for its missing players until it seals its roll-call —
+  /// at the latest [GamicoRollCallRules.cap] after it was formed — so a
+  /// player coming back within that window may well still be expected.
+  /// [_consumeAssignment] then checks the table itself: a sealed roster that
+  /// leaves us out sends us back to the pool. Past the cap, every table has
   /// moved on.
-  static const Duration _assignmentResumeWindow = Duration(seconds: 15);
+  static final Duration _assignmentResumeWindow =
+      GamicoRollCallRules.cap + const Duration(seconds: 5);
 
   /// Whether [raw] was handed out recently enough for its table to still be
   /// waiting on us. Missing timestamps read as stale.
@@ -770,6 +774,16 @@ class RemoteCubit extends Cubit<RemoteState> {
         return false;
       }
 
+      // The table sealed its roster while we were away, and not with us in
+      // it: it is being played without us. Back to the pool rather than into
+      // a table that would only send us home again.
+      final rollCall = GamicoRollCallVerdict.fromJson(game["roll_call"]);
+      if (rollCall != null &&
+          !rollCall.players.contains(LocalStorageService.uid)) {
+        await _dropAssignment();
+        return false;
+      }
+
       // Show the table itself, not the queue it came out of: everyone who is
       // about to play, together, for the whole exit transition. The profiles
       // of these players were resolved while they were waiting in the pool, so
@@ -783,8 +797,13 @@ class RemoteCubit extends Cubit<RemoteState> {
 
       debugPrint("🔍 [MM] assignment → launching $gameId (host=$creator)");
 
-      await _leavePool();
+      // Launched first: leaving the pool is two server acknowledgements (the
+      // `onDisconnect` cancel, then the removal of an entry the seal already
+      // deleted), and every one of the table's players used to spend them
+      // before even opening the game page — time taken straight out of the
+      // readiness grace the others give us.
       launchGame(fakeOpponent: realIds.length < 2);
+      await _leavePool();
       // Consumed only once the launch is under way: a crash before this point
       // leaves the mailbox intact, and the player walks back into their game
       // on the next launch instead of losing it.
@@ -917,6 +936,27 @@ class RemoteCubit extends Cubit<RemoteState> {
           gameId,
           GamicoGameEventModel(type: "EXIT", userId: LocalStorageService.uid),
         );
+      } catch (_) {}
+      // The durable copy of that EXIT, read by the table's roll-call (see
+      // [kGamicoRollCallLeft]) — but only while the table is still waiting.
+      // This also runs after a match that was played ("Nouvelle partie",
+      // leaving the matchmaking page), and a roster sealed long ago has no
+      // use for it.
+      try {
+        final game = FirebaseDatabase.instance.ref("games/$gameId");
+        final sealed = await game
+            .child("roll_call")
+            .get()
+            .timeout(const Duration(seconds: 3));
+        if (!sealed.exists) {
+          debugPrint(
+            "🔍 [RC] left marker written for $gameId (back before the table)",
+          );
+          await game
+              .child(kGamicoRollCallReadyField)
+              .child(LocalStorageService.uid)
+              .set(kGamicoRollCallLeft);
+        }
       } catch (_) {}
     }
   }

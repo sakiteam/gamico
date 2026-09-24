@@ -218,7 +218,7 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "连接问题！";
 
   @override
-  String get premiumPopupTitle => "高级模式";
+  String get premiumPopupTitle => "升级高级版！";
   @override
   String get premiumPopupDescription => "解锁完整版以移除所有广告！";
   @override
@@ -1210,4 +1210,86 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
 
   @override
   String get replayVoteWaitingForPlayers => "等待其他玩家";
+
+  /* ROLL CALL */
+
+  @override
+  String get rollCallWaitingTitle => "等待玩家";
+
+  @override
+  String get rollCallReady => "已准备";
+
+  @override
+  String get rollCallConnecting => "连接中…";
+
+  @override
+  String get rollCallYou => "你";
+
+  @override
+  String rollCallVoteOpensIn(int s) => "$s 秒后可投票移除未到玩家";
+
+  @override
+  String rollCallStartsIn(int s) => "游戏将在 $s 秒后开始";
+
+  @override
+  String rollCallEjectVotes(int votes, int needed) => "移除未到玩家：$votes/$needed";
+
+  @override
+  String get rollCallEject => "移除";
+
+  @override
+  String get rollCallWait => "等待";
+
+  @override
+  String get rollCallPlayerUnavailableTitle => "玩家不可用";
+
+  @override
+  String rollCallPlayerUnavailableDescription(int s) =>
+      "你的对手在 $s 秒内未连接。游戏已取消，不会受到惩罚。";
+
+  @override
+  String get rollCallPlayersUnavailableTitle => "玩家不可用";
+
+  @override
+  String get rollCallPlayersUnavailableDescription =>
+      "没有其他玩家及时连接。游戏已取消，不会受到惩罚。";
+
+  @override
+  String get rollCallCancelledTitle => "游戏已取消";
+
+  @override
+  String get rollCallExcludedTitle => "游戏已在你缺席时开始";
+
+  @override
+  String rollCallExcludedDuel(int s) => "你的对手等了你 $s 秒仍未见你到达，因此游戏已取消。你不会受到惩罚。";
+
+  @override
+  String get rollCallExcludedVote => "你尚未连接，其他玩家投票决定不等你开始游戏。你不会受到惩罚。";
+
+  @override
+  String rollCallExcludedCap(int s) => "等待 $s 秒后你仍未连接，游戏已在你缺席时开始。你不会受到惩罚。";
+
+  @override
+  String get rollCallExcludedGrace => "你没有及时连接，游戏已在你缺席时开始。你不会受到惩罚。";
+
+  @override
+  String get rollCallClose => "关闭";
+
+  @override
+  String get rollCallPlayerLeftDescription => "你的对手在游戏开始前离开了。游戏已取消，不会受到惩罚。";
+
+  @override
+  String get rollCallPlayersLeftDescription => "其他玩家在游戏开始前离开了。游戏已取消，不会受到惩罚。";
+
+  @override
+  String get rollCallWaitingOpponentTitle => "等待你的对手";
+
+  @override
+  String rollCallCancelsIn(int s) => "$s 秒后取消";
+
+  @override
+  String get rollCallAway => "已准备 · 不在应用中";
+
+  @override
+  String get rollCallLeave => "离开";
 }

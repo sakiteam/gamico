@@ -85,6 +85,7 @@ class GamicoGamePage extends StatelessWidget {
               replayOptions: finalGameUtility.replayOptions,
               currentReplayOption: finalGameUtility.currentReplayOption,
               replayVote: finalGameUtility.replayVote,
+              legacyRollCall: finalGameUtility.legacyRollCall,
             )..init(),
           ),
         if (finalGameUtility is PassAndPlayGameUtility)
@@ -184,6 +185,7 @@ class GamicoGamePage extends StatelessWidget {
             return GamicoRemoteGamePage(
               onBackButtonPressed: finalGameUtility.onBackButtonPressed,
               endGamePopupBuilder: finalGameUtility.endGamePopupBuilder,
+              spectatorPageBuilder: finalGameUtility.spectatorPageBuilder,
               child: finalChild,
             );
           } else if (finalGameUtility is LocalNetworkGameUtility) {

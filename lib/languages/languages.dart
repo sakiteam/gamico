@@ -626,4 +626,33 @@ abstract class GamicoLanguages {
 
   /// Online end of game: the rematch is waiting on the other players.
   String get replayVoteWaitingForPlayers;
+
+  /// Pre-deal roll-call: the waiting list, the vote on absent players, and
+  /// the popups of a table that started or was cancelled without someone.
+  String get rollCallWaitingTitle;
+  String get rollCallReady;
+  String get rollCallConnecting;
+  String get rollCallYou;
+  String rollCallVoteOpensIn(int s);
+  String rollCallStartsIn(int s);
+  String rollCallEjectVotes(int votes, int needed);
+  String get rollCallEject;
+  String get rollCallWait;
+  String get rollCallPlayerUnavailableTitle;
+  String rollCallPlayerUnavailableDescription(int s);
+  String get rollCallPlayersUnavailableTitle;
+  String get rollCallPlayersUnavailableDescription;
+  String get rollCallCancelledTitle;
+  String get rollCallExcludedTitle;
+  String rollCallExcludedDuel(int s);
+  String get rollCallExcludedVote;
+  String rollCallExcludedCap(int s);
+  String get rollCallExcludedGrace;
+  String get rollCallClose;
+  String get rollCallWaitingOpponentTitle;
+  String rollCallCancelsIn(int s);
+  String get rollCallAway;
+  String get rollCallLeave;
+  String get rollCallPlayerLeftDescription;
+  String get rollCallPlayersLeftDescription;
 }

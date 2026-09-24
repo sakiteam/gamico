@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:defer_pointer/defer_pointer.dart';
@@ -58,7 +59,13 @@ class _GamicoContentContainerState extends State<GamicoContentContainer> {
   @override
   Widget build(BuildContext context) {
     if (widget.characterAnimation) {
-      if ("$_characterPositions" != "${widget.characterPositions}") {
+      // Element by element, not by rendering both lists to a string and
+      // comparing those. This sits in build(), so it ran on every frame the
+      // page rebuilt — two throwaway strings, each the toString() of every
+      // enum in the list, to conclude almost every time that nothing had
+      // changed. listEquals answers the same question: same length, same
+      // items, same order, with null on one side only counting as different.
+      if (!listEquals(_characterPositions, widget.characterPositions)) {
         _characterPositions ??= [];
 
         _characterPositions!.clear();

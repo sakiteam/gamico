@@ -228,7 +228,7 @@ abstract class GamicoLanguageEn extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "Connection Error!";
 
   @override
-  String get premiumPopupTitle => "Premium Mode";
+  String get premiumPopupTitle => "Go Premium!";
   @override
   String get premiumPopupDescription =>
       "Unlock the full version to remove all ads!";
@@ -1320,4 +1320,93 @@ abstract class GamicoLanguageEn extends GamicoLanguages {
 
   @override
   String get replayVoteWaitingForPlayers => "Waiting for the other players";
+
+  /* ROLL CALL */
+
+  @override
+  String get rollCallWaitingTitle => "Waiting for players";
+
+  @override
+  String get rollCallReady => "Ready";
+
+  @override
+  String get rollCallConnecting => "Connecting…";
+
+  @override
+  String get rollCallYou => "You";
+
+  @override
+  String rollCallVoteOpensIn(int s) => "Vote to remove absent players in $s s";
+
+  @override
+  String rollCallStartsIn(int s) => "Game starts in $s s";
+
+  @override
+  String rollCallEjectVotes(int votes, int needed) =>
+      "Remove absent players: $votes/$needed";
+
+  @override
+  String get rollCallEject => "Remove";
+
+  @override
+  String get rollCallWait => "Wait";
+
+  @override
+  String get rollCallPlayerUnavailableTitle => "Player unavailable";
+
+  @override
+  String rollCallPlayerUnavailableDescription(int s) =>
+      "Your opponent didn't connect within $s seconds. The game is cancelled, with no penalty.";
+
+  @override
+  String get rollCallPlayersUnavailableTitle => "Players unavailable";
+
+  @override
+  String get rollCallPlayersUnavailableDescription =>
+      "No other player connected in time. The game is cancelled, with no penalty.";
+
+  @override
+  String get rollCallCancelledTitle => "Game cancelled";
+
+  @override
+  String get rollCallExcludedTitle => "Game started without you";
+
+  @override
+  String rollCallExcludedDuel(int s) =>
+      "Your opponent waited $s seconds without seeing you arrive, so the game was cancelled. No penalty applies to you.";
+
+  @override
+  String get rollCallExcludedVote =>
+      "You weren't connected yet, so the other players voted to start without you. No penalty applies to you.";
+
+  @override
+  String rollCallExcludedCap(int s) =>
+      "You still weren't connected after $s seconds, so the game started without you. No penalty applies to you.";
+
+  @override
+  String get rollCallExcludedGrace =>
+      "You didn't connect in time, so the game started without you. No penalty applies to you.";
+
+  @override
+  String get rollCallClose => "Close";
+
+  @override
+  String get rollCallPlayerLeftDescription =>
+      "Your opponent left before the game started. The game is cancelled, with no penalty.";
+
+  @override
+  String get rollCallPlayersLeftDescription =>
+      "The other players left before the game started. The game is cancelled, with no penalty.";
+
+  @override
+  String get rollCallWaitingOpponentTitle => "Waiting for your opponent";
+
+  @override
+  String rollCallCancelsIn(int s) => "Cancelled in $s s";
+
+  @override
+  String get rollCallAway => "Ready · away from the app";
+
+  @override
+  String get rollCallLeave => "Leave";
 }

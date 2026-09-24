@@ -230,7 +230,7 @@ abstract class GamicoLanguageFr extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "Erreur de connexion !";
 
   @override
-  String get premiumPopupTitle => "Passez Premium !";
+  String get premiumPopupTitle => "Passez premium !";
   @override
   String get premiumPopupDescription =>
       "Débloquez la version complète pour supprimer les publicités et jouer sans interruption !";
@@ -1289,4 +1289,94 @@ abstract class GamicoLanguageFr extends GamicoLanguages {
 
   @override
   String get replayVoteWaitingForPlayers => "En attente des autres joueurs";
+
+  /* ROLL CALL */
+
+  @override
+  String get rollCallWaitingTitle => "En attente des joueurs";
+
+  @override
+  String get rollCallReady => "Prêt";
+
+  @override
+  String get rollCallConnecting => "Connexion…";
+
+  @override
+  String get rollCallYou => "Vous";
+
+  @override
+  String rollCallVoteOpensIn(int s) =>
+      "Vote pour éjecter les absents dans $s s";
+
+  @override
+  String rollCallStartsIn(int s) => "La partie démarre dans $s s";
+
+  @override
+  String rollCallEjectVotes(int votes, int needed) =>
+      "Éjecter les absents : $votes/$needed";
+
+  @override
+  String get rollCallEject => "Éjecter";
+
+  @override
+  String get rollCallWait => "Attendre";
+
+  @override
+  String get rollCallPlayerUnavailableTitle => "Joueur indisponible";
+
+  @override
+  String rollCallPlayerUnavailableDescription(int s) =>
+      "Votre adversaire ne s'est pas connecté après $s secondes d'attente. La partie est annulée, sans pénalité.";
+
+  @override
+  String get rollCallPlayersUnavailableTitle => "Joueurs indisponibles";
+
+  @override
+  String get rollCallPlayersUnavailableDescription =>
+      "Aucun autre joueur ne s'est connecté à temps. La partie est annulée, sans pénalité.";
+
+  @override
+  String get rollCallCancelledTitle => "Partie annulée";
+
+  @override
+  String get rollCallExcludedTitle => "Partie lancée sans vous";
+
+  @override
+  String rollCallExcludedDuel(int s) =>
+      "Votre adversaire vous a attendu $s secondes sans vous voir arriver : la partie a été annulée. Aucune pénalité ne vous est appliquée.";
+
+  @override
+  String get rollCallExcludedVote =>
+      "Vous n'étiez pas encore connecté : les autres joueurs ont voté pour commencer la partie sans vous. Aucune pénalité ne vous est appliquée.";
+
+  @override
+  String rollCallExcludedCap(int s) =>
+      "Vous n'étiez toujours pas connecté après $s secondes d'attente : la partie a commencé sans vous. Aucune pénalité ne vous est appliquée.";
+
+  @override
+  String get rollCallExcludedGrace =>
+      "Vous ne vous êtes pas connecté à temps : la partie a commencé sans vous. Aucune pénalité ne vous est appliquée.";
+
+  @override
+  String get rollCallClose => "Fermer";
+
+  @override
+  String get rollCallPlayerLeftDescription =>
+      "Votre adversaire a quitté la partie avant qu'elle ne commence. La partie est annulée, sans pénalité.";
+
+  @override
+  String get rollCallPlayersLeftDescription =>
+      "Les autres joueurs ont quitté la partie avant qu'elle ne commence. La partie est annulée, sans pénalité.";
+
+  @override
+  String get rollCallWaitingOpponentTitle => "En attente de votre adversaire";
+
+  @override
+  String rollCallCancelsIn(int s) => "Annulation dans $s s";
+
+  @override
+  String get rollCallAway => "Prêt · hors de l'app";
+
+  @override
+  String get rollCallLeave => "Quitter";
 }

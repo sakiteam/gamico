@@ -1,4 +1,7 @@
 import 'package:gamico/commons/models/gamico_game_model.dart';
+import 'package:gamico/features/game/utilities/roll_call.dart';
+
+export 'package:gamico/features/game/utilities/roll_call.dart';
 
 class GamicoGameCubitSettings {
   // REMOTE
@@ -22,6 +25,22 @@ class GamicoGameCubitSettings {
   /// rule: leaving a game that isn't over is an abandonment.
   final bool Function()? exitIsPenaltyFree;
 
+  /// Called instead of `startGame` when the table's sealed roll-call (see
+  /// `GamicoRemoteGameCubit`) went ahead without this device: the others are
+  /// dealing without us, and nothing we deal ourselves would match theirs.
+  /// Null lets gamico handle it: a popup explaining [GamicoRollCallReason],
+  /// and the player is taken out of the table, penalty-free.
+  final void Function(GamicoRollCallReason reason)? onExcludedFromRollCall;
+
+  /// Called instead of `startGame` when the roll-call left this device alone
+  /// at the table: nobody else showed up, the match is cancelled. Null lets
+  /// gamico handle it: a "player unavailable" popup, and the player is taken
+  /// out of the table, penalty-free. Before the roll-call was shared, this case
+  /// struck the missing players one by one through
+  /// [onRemoteUserDisconnectedDuringGame] — which most two-player games answer
+  /// with a win by forfeit, for a match that never started.
+  final void Function()? onRollCallCancelled;
+
   final dynamic gameCubit;
 
   const GamicoGameCubitSettings({
@@ -33,6 +52,8 @@ class GamicoGameCubitSettings {
     required this.initGame,
     required this.startGame,
     this.exitIsPenaltyFree,
+    this.onExcludedFromRollCall,
+    this.onRollCallCancelled,
     required this.gameCubit,
   });
 }

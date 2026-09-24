@@ -13,6 +13,19 @@ class RemoteUtility {
   final String developerAndroidId;
   final String developerAppleId;
 
+  /// Whether each opponent's coin balance is watched live for the whole match.
+  ///
+  /// Leave it off unless the table actually shows that figure moving. A
+  /// balance changes every time its owner is paid — at every settled hand in a
+  /// scoring game — and each change rebuilds the opponent, re-sorts the roster
+  /// and emits a new state that every listener of the remote cubit reacts to.
+  /// A game that never displays it pays that N-1 times per payout for nothing.
+  ///
+  /// Off does not mean absent: `coins` is then read once with `name` and
+  /// `photo`, so the opponent still carries the balance it had when the table
+  /// was formed. Only live updates are lost.
+  final bool watchOpponentCoins;
+
   final Widget Function(
     BuildContext context,
     int index,
@@ -47,6 +60,7 @@ class RemoteUtility {
     this.seedModulo = 10,
     required this.developerAppleId,
     required this.developerAndroidId,
+    this.watchOpponentCoins = true,
   });
 
   /// Copy of this utility whose matchmaking settings are pinned to the single
@@ -59,6 +73,7 @@ class RemoteUtility {
       seedModulo: seedModulo,
       developerAppleId: developerAppleId,
       developerAndroidId: developerAndroidId,
+      watchOpponentCoins: watchOpponentCoins,
     );
   }
 }

@@ -231,7 +231,7 @@ abstract class GamicoLanguageDe extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "Verbindungsfehler!";
 
   @override
-  String get premiumPopupTitle => "Premium-Modus";
+  String get premiumPopupTitle => "Werde Premium!";
   @override
   String get premiumPopupDescription =>
       "Schalten Sie die Vollversion frei, um alle Werbeanzeigen zu entfernen!";
@@ -1329,4 +1329,93 @@ abstract class GamicoLanguageDe extends GamicoLanguages {
 
   @override
   String get replayVoteWaitingForPlayers => "Warten auf die anderen Spieler";
+
+  /* ROLL CALL */
+
+  @override
+  String get rollCallWaitingTitle => "Warten auf Spieler";
+
+  @override
+  String get rollCallReady => "Bereit";
+
+  @override
+  String get rollCallConnecting => "Verbinde…";
+
+  @override
+  String get rollCallYou => "Du";
+
+  @override
+  String rollCallVoteOpensIn(int s) => "Abstimmung über Abwesende in $s s";
+
+  @override
+  String rollCallStartsIn(int s) => "Spiel startet in $s s";
+
+  @override
+  String rollCallEjectVotes(int votes, int needed) =>
+      "Abwesende entfernen: $votes/$needed";
+
+  @override
+  String get rollCallEject => "Entfernen";
+
+  @override
+  String get rollCallWait => "Warten";
+
+  @override
+  String get rollCallPlayerUnavailableTitle => "Spieler nicht verfügbar";
+
+  @override
+  String rollCallPlayerUnavailableDescription(int s) =>
+      "Dein Gegner hat sich nicht innerhalb von $s Sekunden verbunden. Das Spiel wird ohne Strafe abgebrochen.";
+
+  @override
+  String get rollCallPlayersUnavailableTitle => "Spieler nicht verfügbar";
+
+  @override
+  String get rollCallPlayersUnavailableDescription =>
+      "Kein anderer Spieler hat sich rechtzeitig verbunden. Das Spiel wird ohne Strafe abgebrochen.";
+
+  @override
+  String get rollCallCancelledTitle => "Spiel abgebrochen";
+
+  @override
+  String get rollCallExcludedTitle => "Spiel ohne dich gestartet";
+
+  @override
+  String rollCallExcludedDuel(int s) =>
+      "Dein Gegner hat $s Sekunden auf dich gewartet, ohne dass du angekommen bist, daher wurde das Spiel abgebrochen. Du erhältst keine Strafe.";
+
+  @override
+  String get rollCallExcludedVote =>
+      "Du warst noch nicht verbunden, daher haben die anderen Spieler abgestimmt, ohne dich zu beginnen. Du erhältst keine Strafe.";
+
+  @override
+  String rollCallExcludedCap(int s) =>
+      "Du warst nach $s Sekunden immer noch nicht verbunden, daher hat das Spiel ohne dich begonnen. Du erhältst keine Strafe.";
+
+  @override
+  String get rollCallExcludedGrace =>
+      "Du hast dich nicht rechtzeitig verbunden, daher hat das Spiel ohne dich begonnen. Du erhältst keine Strafe.";
+
+  @override
+  String get rollCallClose => "Schließen";
+
+  @override
+  String get rollCallPlayerLeftDescription =>
+      "Dein Gegner hat das Spiel vor dem Start verlassen. Das Spiel wird ohne Strafe abgebrochen.";
+
+  @override
+  String get rollCallPlayersLeftDescription =>
+      "Die anderen Spieler haben das Spiel vor dem Start verlassen. Das Spiel wird ohne Strafe abgebrochen.";
+
+  @override
+  String get rollCallWaitingOpponentTitle => "Warten auf deinen Gegner";
+
+  @override
+  String rollCallCancelsIn(int s) => "Abbruch in $s s";
+
+  @override
+  String get rollCallAway => "Bereit · nicht in der App";
+
+  @override
+  String get rollCallLeave => "Verlassen";
 }

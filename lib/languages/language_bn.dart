@@ -228,7 +228,7 @@ abstract class GamicoLanguageBn extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "সংযোগে সমস্যা!";
 
   @override
-  String get premiumPopupTitle => "প্রিমিয়াম মোড";
+  String get premiumPopupTitle => "প্রিমিয়াম পান!";
   @override
   String get premiumPopupDescription =>
       "সব বিজ্ঞাপন সরাতে সম্পূর্ণ সংস্করণ আনলক করুন!";
@@ -1324,4 +1324,94 @@ abstract class GamicoLanguageBn extends GamicoLanguages {
 
   @override
   String get replayVoteWaitingForPlayers => "অন্য খেলোয়াড়দের অপেক্ষায়";
+
+  /* ROLL CALL */
+
+  @override
+  String get rollCallWaitingTitle => "খেলোয়াড়দের জন্য অপেক্ষা";
+
+  @override
+  String get rollCallReady => "প্রস্তুত";
+
+  @override
+  String get rollCallConnecting => "সংযোগ হচ্ছে…";
+
+  @override
+  String get rollCallYou => "আপনি";
+
+  @override
+  String rollCallVoteOpensIn(int s) =>
+      "অনুপস্থিতদের বাদ দেওয়ার ভোট $s সেকেন্ডে";
+
+  @override
+  String rollCallStartsIn(int s) => "খেলা $s সেকেন্ডে শুরু হবে";
+
+  @override
+  String rollCallEjectVotes(int votes, int needed) =>
+      "অনুপস্থিতদের বাদ দিন: $votes/$needed";
+
+  @override
+  String get rollCallEject => "বাদ দিন";
+
+  @override
+  String get rollCallWait => "অপেক্ষা করুন";
+
+  @override
+  String get rollCallPlayerUnavailableTitle => "খেলোয়াড় অনুপলব্ধ";
+
+  @override
+  String rollCallPlayerUnavailableDescription(int s) =>
+      "আপনার প্রতিপক্ষ $s সেকেন্ডের মধ্যে সংযুক্ত হয়নি। খেলাটি কোনো জরিমানা ছাড়াই বাতিল করা হয়েছে।";
+
+  @override
+  String get rollCallPlayersUnavailableTitle => "খেলোয়াড়রা অনুপলব্ধ";
+
+  @override
+  String get rollCallPlayersUnavailableDescription =>
+      "অন্য কোনো খেলোয়াড় সময়মতো সংযুক্ত হয়নি। খেলাটি কোনো জরিমানা ছাড়াই বাতিল করা হয়েছে।";
+
+  @override
+  String get rollCallCancelledTitle => "খেলা বাতিল";
+
+  @override
+  String get rollCallExcludedTitle => "আপনাকে ছাড়াই খেলা শুরু হয়েছে";
+
+  @override
+  String rollCallExcludedDuel(int s) =>
+      "আপনার প্রতিপক্ষ $s সেকেন্ড অপেক্ষা করেও আপনাকে পায়নি, তাই খেলা বাতিল করা হয়েছে। আপনার কোনো জরিমানা হবে না।";
+
+  @override
+  String get rollCallExcludedVote =>
+      "আপনি তখনও সংযুক্ত ছিলেন না, তাই অন্য খেলোয়াড়রা আপনাকে ছাড়া শুরু করার ভোট দিয়েছে। আপনার কোনো জরিমানা হবে না।";
+
+  @override
+  String rollCallExcludedCap(int s) =>
+      "$s সেকেন্ড পরেও আপনি সংযুক্ত হননি, তাই খেলা আপনাকে ছাড়াই শুরু হয়েছে। আপনার কোনো জরিমানা হবে না।";
+
+  @override
+  String get rollCallExcludedGrace =>
+      "আপনি সময়মতো সংযুক্ত হননি, তাই খেলা আপনাকে ছাড়াই শুরু হয়েছে। আপনার কোনো জরিমানা হবে না।";
+
+  @override
+  String get rollCallClose => "বন্ধ করুন";
+
+  @override
+  String get rollCallPlayerLeftDescription =>
+      "আপনার প্রতিপক্ষ খেলা শুরুর আগেই চলে গেছে। খেলাটি কোনো জরিমানা ছাড়াই বাতিল করা হয়েছে।";
+
+  @override
+  String get rollCallPlayersLeftDescription =>
+      "অন্য খেলোয়াড়রা খেলা শুরুর আগেই চলে গেছে। খেলাটি কোনো জরিমানা ছাড়াই বাতিল করা হয়েছে।";
+
+  @override
+  String get rollCallWaitingOpponentTitle => "আপনার প্রতিপক্ষের জন্য অপেক্ষা";
+
+  @override
+  String rollCallCancelsIn(int s) => "$s সেকেন্ডে বাতিল";
+
+  @override
+  String get rollCallAway => "প্রস্তুত · অ্যাপের বাইরে";
+
+  @override
+  String get rollCallLeave => "বেরিয়ে যান";
 }

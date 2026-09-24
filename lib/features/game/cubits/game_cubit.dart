@@ -52,6 +52,11 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
 
   // Controllers
   Future<void> Function()? onInit;
+
+  /// Called when a second [init] swaps the settings in, with the ones it
+  /// replaced (see `GamicoRemoteGameCubit`, which hands the new settings what
+  /// placeholder ones could not take).
+  void Function(GamicoGameCubitSettings? previous)? onSettingsReplaced;
   void Function()? onGiveUp;
   void Function()? onExitGame;
   void Function()? onGameEnd;
@@ -126,9 +131,13 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
     // one-time init work — restarting game music and re-running `onInit`
     // (re-fetching the game, resubscribing opponent listeners, resending
     // readiness) a second time.
-    final alreadyInitialized = this.settings != null;
+    final previous = this.settings;
+    final alreadyInitialized = previous != null;
     this.settings = settings;
-    if (alreadyInitialized) return;
+    if (alreadyInitialized) {
+      onSettingsReplaced?.call(previous);
+      return;
+    }
 
     setAnimInit(true);
 

@@ -57,6 +57,15 @@ class GamicoRemoteGameState {
   /// game's config so a table that voted "Élimination" gets élimination.
   final String? replayOption;
 
+  /// The pre-deal wait of a table of three or more: who is there, who is
+  /// not, and the vote on the absent. Null for a duel, once dealt, and on a
+  /// tournament leg.
+  final GamicoRollCallStatus? rollCall;
+
+  /// How the pre-deal wait ended for this device, when the game left it to
+  /// gamico (see `GamicoGameCubitSettings.onRollCallCancelled`).
+  final GamicoRollCallOutcome? rollCallOutcome;
+
   const GamicoRemoteGameState({
     required this.adventureUtility,
     required this.remoteUtility,
@@ -67,6 +76,8 @@ class GamicoRemoteGameState {
     this.replayPlayerIds = const [],
     this.replayCountdownStartedAt,
     this.replayOption,
+    this.rollCall,
+    this.rollCallOutcome,
     required this.creator,
     this.friend = false,
     this.newGameId = "",
@@ -98,6 +109,8 @@ class GamicoRemoteGameState {
     List<String>? replayPlayerIds,
     DateTime? Function()? replayCountdownStartedAt,
     String? Function()? replayOption,
+    GamicoRollCallStatus? Function()? rollCall,
+    GamicoRollCallOutcome? Function()? rollCallOutcome,
     RemoteUtility? remoteUtility,
     int? Function()? level,
     AdventureUtility? Function()? adventureUtility,
@@ -130,6 +143,10 @@ class GamicoRemoteGameState {
           ? replayCountdownStartedAt()
           : this.replayCountdownStartedAt,
       replayOption: replayOption != null ? replayOption() : this.replayOption,
+      rollCall: rollCall != null ? rollCall() : this.rollCall,
+      rollCallOutcome: rollCallOutcome != null
+          ? rollCallOutcome()
+          : this.rollCallOutcome,
       opponent: opponent != null ? opponent() : this.opponent,
       opponents: opponents ?? this.opponents,
       nextLevel: nextLevel != null ? nextLevel() : this.nextLevel,

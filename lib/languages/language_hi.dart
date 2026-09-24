@@ -227,7 +227,7 @@ abstract class GamicoLanguageHi extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "कनेक्शन त्रुटि!";
 
   @override
-  String get premiumPopupTitle => "प्रीमियम मोड";
+  String get premiumPopupTitle => "प्रीमियम बनें!";
   @override
   String get premiumPopupDescription =>
       "सभी विज्ञापनों को हटाने के लिए पूर्ण संस्करण अनलॉक करें!";
@@ -1323,4 +1323,94 @@ abstract class GamicoLanguageHi extends GamicoLanguages {
 
   @override
   String get replayVoteWaitingForPlayers => "अन्य खिलाड़ियों की प्रतीक्षा";
+
+  /* ROLL CALL */
+
+  @override
+  String get rollCallWaitingTitle => "खिलाड़ियों की प्रतीक्षा";
+
+  @override
+  String get rollCallReady => "तैयार";
+
+  @override
+  String get rollCallConnecting => "कनेक्ट हो रहा है…";
+
+  @override
+  String get rollCallYou => "आप";
+
+  @override
+  String rollCallVoteOpensIn(int s) =>
+      "अनुपस्थित खिलाड़ियों को हटाने का वोट $s सेकंड में";
+
+  @override
+  String rollCallStartsIn(int s) => "खेल $s सेकंड में शुरू होगा";
+
+  @override
+  String rollCallEjectVotes(int votes, int needed) =>
+      "अनुपस्थित खिलाड़ियों को हटाएँ: $votes/$needed";
+
+  @override
+  String get rollCallEject => "हटाएँ";
+
+  @override
+  String get rollCallWait => "प्रतीक्षा करें";
+
+  @override
+  String get rollCallPlayerUnavailableTitle => "खिलाड़ी उपलब्ध नहीं";
+
+  @override
+  String rollCallPlayerUnavailableDescription(int s) =>
+      "आपका प्रतिद्वंद्वी $s सेकंड में कनेक्ट नहीं हुआ। खेल बिना किसी दंड के रद्द कर दिया गया है।";
+
+  @override
+  String get rollCallPlayersUnavailableTitle => "खिलाड़ी उपलब्ध नहीं";
+
+  @override
+  String get rollCallPlayersUnavailableDescription =>
+      "कोई अन्य खिलाड़ी समय पर कनेक्ट नहीं हुआ। खेल बिना किसी दंड के रद्द कर दिया गया है।";
+
+  @override
+  String get rollCallCancelledTitle => "खेल रद्द";
+
+  @override
+  String get rollCallExcludedTitle => "खेल आपके बिना शुरू हुआ";
+
+  @override
+  String rollCallExcludedDuel(int s) =>
+      "आपके प्रतिद्वंद्वी ने $s सेकंड तक आपका इंतज़ार किया, इसलिए खेल रद्द कर दिया गया। आप पर कोई दंड नहीं लगेगा।";
+
+  @override
+  String get rollCallExcludedVote =>
+      "आप अभी कनेक्ट नहीं हुए थे, इसलिए अन्य खिलाड़ियों ने आपके बिना शुरू करने का वोट दिया। आप पर कोई दंड नहीं लगेगा।";
+
+  @override
+  String rollCallExcludedCap(int s) =>
+      "$s सेकंड बाद भी आप कनेक्ट नहीं हुए, इसलिए खेल आपके बिना शुरू हो गया। आप पर कोई दंड नहीं लगेगा।";
+
+  @override
+  String get rollCallExcludedGrace =>
+      "आप समय पर कनेक्ट नहीं हुए, इसलिए खेल आपके बिना शुरू हो गया। आप पर कोई दंड नहीं लगेगा।";
+
+  @override
+  String get rollCallClose => "बंद करें";
+
+  @override
+  String get rollCallPlayerLeftDescription =>
+      "आपका प्रतिद्वंद्वी खेल शुरू होने से पहले चला गया। खेल बिना किसी दंड के रद्द कर दिया गया है।";
+
+  @override
+  String get rollCallPlayersLeftDescription =>
+      "अन्य खिलाड़ी खेल शुरू होने से पहले चले गए। खेल बिना किसी दंड के रद्द कर दिया गया है।";
+
+  @override
+  String get rollCallWaitingOpponentTitle => "आपके प्रतिद्वंद्वी की प्रतीक्षा";
+
+  @override
+  String rollCallCancelsIn(int s) => "$s सेकंड में रद्द";
+
+  @override
+  String get rollCallAway => "तैयार · ऐप से बाहर";
+
+  @override
+  String get rollCallLeave => "छोड़ें";
 }

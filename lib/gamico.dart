@@ -225,6 +225,8 @@ export 'features/game/widgets/game_remote_end_game_actions.dart';
 export 'features/game/widgets/game_replay_countdown_dial.dart';
 export 'features/game/widgets/game_replay_options_panel.dart';
 export 'features/game/widgets/game_replay_vote_button.dart';
+export 'features/game/widgets/game_roll_call_panel.dart';
+export 'features/game/widgets/game_roll_call_popup.dart';
 export 'features/game/widgets/game_explanation_popup.dart';
 export 'features/game/widgets/game_initial_tutorial_popup.dart';
 export 'features/game/widgets/game_line.dart';

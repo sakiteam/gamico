@@ -230,7 +230,7 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
   String get homeSpecialOfferPopupProblemTitle => "Проблема с соединением!";
 
   @override
-  String get premiumPopupTitle => "Премиум режим";
+  String get premiumPopupTitle => "Перейдите на Премиум!";
   @override
   String get premiumPopupDescription =>
       "Разблокируйте полную версию, чтобы убрать всю рекламу!";
@@ -1328,4 +1328,94 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
 
   @override
   String get replayVoteWaitingForPlayers => "Ожидание других игроков";
+
+  /* ROLL CALL */
+
+  @override
+  String get rollCallWaitingTitle => "Ожидание игроков";
+
+  @override
+  String get rollCallReady => "Готов";
+
+  @override
+  String get rollCallConnecting => "Подключение…";
+
+  @override
+  String get rollCallYou => "Вы";
+
+  @override
+  String rollCallVoteOpensIn(int s) =>
+      "Голосование за исключение отсутствующих через $s с";
+
+  @override
+  String rollCallStartsIn(int s) => "Игра начнётся через $s с";
+
+  @override
+  String rollCallEjectVotes(int votes, int needed) =>
+      "Исключить отсутствующих: $votes/$needed";
+
+  @override
+  String get rollCallEject => "Исключить";
+
+  @override
+  String get rollCallWait => "Ждать";
+
+  @override
+  String get rollCallPlayerUnavailableTitle => "Игрок недоступен";
+
+  @override
+  String rollCallPlayerUnavailableDescription(int s) =>
+      "Ваш соперник не подключился за $s секунд. Игра отменена без штрафа.";
+
+  @override
+  String get rollCallPlayersUnavailableTitle => "Игроки недоступны";
+
+  @override
+  String get rollCallPlayersUnavailableDescription =>
+      "Никто из других игроков не подключился вовремя. Игра отменена без штрафа.";
+
+  @override
+  String get rollCallCancelledTitle => "Игра отменена";
+
+  @override
+  String get rollCallExcludedTitle => "Игра началась без вас";
+
+  @override
+  String rollCallExcludedDuel(int s) =>
+      "Соперник ждал вас $s секунд, но вы не появились, поэтому игра отменена. Штраф к вам не применяется.";
+
+  @override
+  String get rollCallExcludedVote =>
+      "Вы ещё не подключились, поэтому другие игроки проголосовали начать без вас. Штраф к вам не применяется.";
+
+  @override
+  String rollCallExcludedCap(int s) =>
+      "Вы так и не подключились за $s секунд, поэтому игра началась без вас. Штраф к вам не применяется.";
+
+  @override
+  String get rollCallExcludedGrace =>
+      "Вы не подключились вовремя, поэтому игра началась без вас. Штраф к вам не применяется.";
+
+  @override
+  String get rollCallClose => "Закрыть";
+
+  @override
+  String get rollCallPlayerLeftDescription =>
+      "Ваш соперник вышел до начала игры. Игра отменена без штрафа.";
+
+  @override
+  String get rollCallPlayersLeftDescription =>
+      "Другие игроки вышли до начала игры. Игра отменена без штрафа.";
+
+  @override
+  String get rollCallWaitingOpponentTitle => "Ожидание соперника";
+
+  @override
+  String rollCallCancelsIn(int s) => "Отмена через $s с";
+
+  @override
+  String get rollCallAway => "Готов · вне приложения";
+
+  @override
+  String get rollCallLeave => "Выйти";
 }

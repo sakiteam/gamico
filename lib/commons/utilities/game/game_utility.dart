@@ -67,6 +67,18 @@ class RemoteGameUtility extends GameUtility {
   /// exchange. Implied by [replayOptions] being non-empty.
   final bool replayVote;
 
+  /// Keeps the older pre-deal rule: each device waits 20 s for the missing
+  /// players, no vote, no waiting list. For tables with their own handshake
+  /// and their own idea of a forfeit — a tournament leg.
+  final bool legacyRollCall;
+
+  /// The game's spectator view of the table [gameId], if it has one. A player
+  /// left out of a friend table by the roll-call (a vote, the 100 s cap) is
+  /// sent there — the table is being played by their friends — instead of
+  /// home. Null: home, with the same explanation.
+  final Widget Function(BuildContext context, String gameId)?
+  spectatorPageBuilder;
+
   const RemoteGameUtility({
     required super.onBackButtonPressed,
     required this.level,
@@ -79,6 +91,8 @@ class RemoteGameUtility extends GameUtility {
     this.replayOptions = const [],
     this.currentReplayOption,
     this.replayVote = false,
+    this.legacyRollCall = false,
+    this.spectatorPageBuilder,
     super.endGamePopupBuilder,
   }) : super(type: GameType.remote);
 }
