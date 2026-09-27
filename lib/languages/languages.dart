@@ -655,4 +655,6 @@ abstract class GamicoLanguages {
   String get rollCallLeave;
   String get rollCallPlayerLeftDescription;
   String get rollCallPlayersLeftDescription;
+  String get rollCallSeatLostTitle;
+  String get rollCallSeatLostDescription;
 }

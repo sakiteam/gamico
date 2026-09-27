@@ -149,7 +149,7 @@ class GamicoLanguageFrDefault extends GamicoLanguageFr {
   String get friendPageTitle => "Rechercher des amis";
 
   @override
-  String get friendPageSearchHint => "Rechercher par nom...";
+  String get friendPageSearchHint => "Rechercher un joueur";
 
   @override
   String get friendPagePendingInvitations => "Invitations en attente";

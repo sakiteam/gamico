@@ -21,6 +21,10 @@ class RemoteState {
   final int? level;
   final bool forcePop;
   final int playersFound;
+
+  /// Accounts of the players found, local user first; same order as
+  /// [playerNames] and [playerPhotos].
+  final List<String> playerIds;
   final List<String> playerNames;
   final List<String> playerPhotos;
   final int? countdownRemaining;
@@ -45,6 +49,7 @@ class RemoteState {
     this.level,
     this.forcePop = false,
     this.playersFound = 0,
+    this.playerIds = const [],
     this.playerNames = const [],
     this.playerPhotos = const [],
     this.countdownRemaining,
@@ -64,6 +69,7 @@ class RemoteState {
     int? Function()? level,
     bool? forcePop,
     int? playersFound,
+    List<String>? playerIds,
     List<String>? playerNames,
     List<String>? playerPhotos,
     int? Function()? countdownRemaining,
@@ -82,6 +88,7 @@ class RemoteState {
       fakeOpponent: fakeOpponent ?? this.fakeOpponent,
       forcePop: forcePop ?? this.forcePop,
       playersFound: playersFound ?? this.playersFound,
+      playerIds: playerIds ?? this.playerIds,
       playerNames: playerNames ?? this.playerNames,
       playerPhotos: playerPhotos ?? this.playerPhotos,
       countdownRemaining: countdownRemaining != null

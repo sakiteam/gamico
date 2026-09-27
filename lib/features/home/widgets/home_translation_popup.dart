@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/cubits/locale/locale_cubit.dart';
@@ -81,10 +82,7 @@ class _HomeTranslationPopupState extends State<HomeTranslationPopup> {
         ),
       ),
       child: GamicoPoster(
-        titleWidget: Padding(
-          padding: const EdgeInsets.only(top: 4.0),
-          child: GamicoPosterTitle(l.homeLanguagesTitle),
-        ),
+        titleWidget: GamicoPosterTitle(l.homeLanguagesTitle),
         description: l.homeTranslationPopupDescription,
         expandContent: true,
         content: Padding(

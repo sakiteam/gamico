@@ -45,7 +45,8 @@ class GamicoRemoteGamePage extends StatelessWidget {
   /// framework's exit is already penalty-free.
   ///
   /// Between friends, a player left out of a table that is being played (not
-  /// a cancelled duel) lands on the game's spectator view when it has one.
+  /// a cancelled duel) lands on the game's spectator view when it has one —
+  /// and so does, anywhere, a player whose seat was lost on reopening it.
   Future<void> _leaveAfterRollCall(
     BuildContext context,
     GamicoRollCallOutcome outcome,
@@ -54,12 +55,15 @@ class GamicoRemoteGamePage extends StatelessWidget {
     final remoteGameCubit = context.read<GamicoRemoteGameCubit>();
     final gameId = remoteGameCubit.gameId;
     final builder = spectatorPageBuilder;
+    // A lost seat is a table that is being played too, friends or not: the
+    // player was part of it a moment ago.
     final watch =
         builder != null &&
-        remoteGameCubit.state.friend &&
-        outcome.excluded &&
-        outcome.exclusionReason != GamicoRollCallReason.duelTimeout &&
-        gameId.isNotEmpty;
+        gameId.isNotEmpty &&
+        (outcome.seatLost ||
+            (remoteGameCubit.state.friend &&
+                outcome.excluded &&
+                outcome.exclusionReason != GamicoRollCallReason.duelTimeout));
 
     NavigationService.closePopups();
     // A route animating is refused an exit (see `handleWillPop`); this one

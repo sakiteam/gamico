@@ -37,6 +37,14 @@ enum GamicoRollCallReason {
 const String kGamicoRollCallReadyField = "roll_call_ready";
 const String kGamicoRollCallLeft = "left";
 
+/// Written by the server itself (an `onDisconnect` armed with the READINESS)
+/// when a ready player's connection drops before the deal — an app killed
+/// or crashed on the waiting screen, which sends no EXIT and leaves no
+/// "left" behind. Not a departure: the player is only no longer counted as
+/// there (a table is not sealed "all ready" on them, the vote sees them
+/// absent), and their device writes `true` again as soon as it reconnects.
+const String kGamicoRollCallAway = "away";
+
 /// The timings of the pre-deal wait, all counted from the moment the table
 /// was formed (`games/<id>/roll_call_at`, server clock) so that every device
 /// agrees on them.
@@ -60,8 +68,7 @@ abstract final class GamicoRollCallRules {
   /// Votes needed to eject the absent players, out of [voters]: strictly
   /// more than half of the players who are there to vote (see
   /// [GamicoRollCallStatus.voterCount]).
-  static int ejectVotesNeeded(int voters) =>
-      (voters < 1 ? 1 : voters) ~/ 2 + 1;
+  static int ejectVotesNeeded(int voters) => (voters < 1 ? 1 : voters) ~/ 2 + 1;
 
   /// A duel only shows its waiting screen once the other player is late by
   /// this much: two players arriving a second apart should not see it flash.
@@ -148,7 +155,12 @@ class GamicoRollCallStatus {
 
   int get readyCount => playerIds.where(readyIds.contains).length;
 
-  int get ejectVoteCount => ejectVotes.where(readyIds.contains).length;
+  /// Votes of the players still expected and ready. A player who voted and
+  /// then left keeps a vote in the database, and [readyIds] may still carry
+  /// them: counting it showed a majority the table was not acting on.
+  int get ejectVoteCount => ejectVotes
+      .where((id) => playerIds.contains(id) && readyIds.contains(id))
+      .length;
 
   int get voterCount => GamicoRollCallRules.voterCount(
     readyIds: playerIds.where(readyIds.contains),
@@ -230,16 +242,28 @@ class GamicoRollCallOutcome {
   /// never showing up.
   final bool othersLeft;
 
+  /// This device reopened a table that was dealt — and played — without this
+  /// page, and the game cannot catch up with it (see
+  /// `GamicoGameCubitSettings.rejoinsDealtTable`): the seat is given up.
+  final bool seatLost;
+
   const GamicoRollCallOutcome.cancelled({
     required this.otherPlayers,
     this.othersLeft = false,
-  }) : exclusionReason = null;
+  }) : exclusionReason = null,
+       seatLost = false;
 
   const GamicoRollCallOutcome.excluded(
     GamicoRollCallReason reason, {
     required this.otherPlayers,
   }) : exclusionReason = reason,
-       othersLeft = false;
+       othersLeft = false,
+       seatLost = false;
+
+  const GamicoRollCallOutcome.seatLost({required this.otherPlayers})
+    : exclusionReason = null,
+      othersLeft = false,
+      seatLost = true;
 
   bool get excluded => exclusionReason != null;
 }

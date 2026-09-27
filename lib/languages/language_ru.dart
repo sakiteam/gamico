@@ -16,7 +16,7 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
   String get friendPageTitle => "Поиск друзей";
 
   @override
-  String get friendPageSearchHint => "Поиск по имени...";
+  String get friendPageSearchHint => "Найти игрока";
 
   @override
   String get friendPagePendingInvitations => "Ожидающие приглашения";
@@ -1406,6 +1406,13 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
   @override
   String get rollCallPlayersLeftDescription =>
       "Другие игроки вышли до начала игры. Игра отменена без штрафа.";
+
+  @override
+  String get rollCallSeatLostTitle => "Вернуться невозможно";
+
+  @override
+  String get rollCallSeatLostDescription =>
+      "Игра продолжилась без вас: ваше место больше нельзя занять.";
 
   @override
   String get rollCallWaitingOpponentTitle => "Ожидание соперника";

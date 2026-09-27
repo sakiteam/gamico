@@ -16,7 +16,7 @@ abstract class GamicoLanguageHi extends GamicoLanguages {
   String get friendPageTitle => "दोस्त खोजें";
 
   @override
-  String get friendPageSearchHint => "नाम से खोजें...";
+  String get friendPageSearchHint => "एक खिलाड़ी खोजें";
 
   @override
   String get friendPagePendingInvitations => "लंबित निमंत्रण";
@@ -1401,6 +1401,13 @@ abstract class GamicoLanguageHi extends GamicoLanguages {
   @override
   String get rollCallPlayersLeftDescription =>
       "अन्य खिलाड़ी खेल शुरू होने से पहले चले गए। खेल बिना किसी दंड के रद्द कर दिया गया है।";
+
+  @override
+  String get rollCallSeatLostTitle => "वापस नहीं जुड़ सकते";
+
+  @override
+  String get rollCallSeatLostDescription =>
+      "आपकी अनुपस्थिति में खेल जारी रहा: अब आप अपनी जगह वापस नहीं ले सकते।";
 
   @override
   String get rollCallWaitingOpponentTitle => "आपके प्रतिद्वंद्वी की प्रतीक्षा";

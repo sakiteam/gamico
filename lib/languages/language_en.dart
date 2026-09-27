@@ -19,7 +19,7 @@ abstract class GamicoLanguageEn extends GamicoLanguages {
   String get friendPageTitle => "Search Friends";
 
   @override
-  String get friendPageSearchHint => "Search by name...";
+  String get friendPageSearchHint => "Search for a player";
 
   @override
   String get friendPagePendingInvitations => "Pending Invitations";
@@ -1397,6 +1397,13 @@ abstract class GamicoLanguageEn extends GamicoLanguages {
   @override
   String get rollCallPlayersLeftDescription =>
       "The other players left before the game started. The game is cancelled, with no penalty.";
+
+  @override
+  String get rollCallSeatLostTitle => "Can't rejoin";
+
+  @override
+  String get rollCallSeatLostDescription =>
+      "The game carried on while you were away: your seat can no longer be taken back.";
 
   @override
   String get rollCallWaitingOpponentTitle => "Waiting for your opponent";

@@ -244,7 +244,17 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   /// have answered. Always includes us once our READINESS is out.
   Set<String> get _presentReadyIds => _expectedPlayerIds
       .difference(_exitedPlayerIds)
-      .intersection(_readyPlayerIds);
+      .intersection(_answeredIds);
+
+  /// Players who answered the roll-call and are still connected: a READINESS
+  /// (or a `true` marker) does not outlive a connection the server saw drop
+  /// (see [kGamicoRollCallAway]).
+  Set<String> get _answeredIds => _readyPlayerIds.difference(_disconnectedIds);
+
+  /// Ready players whose marker the server turned to [kGamicoRollCallAway]:
+  /// their connection dropped before the deal. Counted as absent — never as
+  /// gone — until their marker is `true` again.
+  final Set<String> _disconnectedIds = {};
 
   bool get _isDuel => _expectedPlayerIds.length + _botSeats == 2;
 
@@ -272,9 +282,14 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   void _checkReadiness() {
     if (gameCubit.state.ready) return;
     _publishRollCallStatus();
+    // Nothing is proposed before our own READINESS: a marker left `true` by
+    // an earlier session of this device (the page reopened before the deal)
+    // would otherwise seal a roster seating us while this session loads —
+    // then read as a table dealt without us. Our READINESS checks again.
+    if (!_readinessSent) return;
     final expected = _expectedPlayerIds.difference(_exitedPlayerIds);
     if (expected.isEmpty) return;
-    if (_readyPlayerIds.containsAll(expected)) {
+    if (_answeredIds.containsAll(expected)) {
       _proposeRollCall(expected, GamicoRollCallReason.allReady);
       return;
     }
@@ -359,6 +374,75 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   bool _readinessSent = false;
   GamicoRollCallVerdict? _pendingRollCall;
 
+  /// Armed with our READINESS: turns our marker to [kGamicoRollCallAway] if
+  /// the server loses our connection before the deal. An app killed on the
+  /// waiting screen used to leave its `true` behind — counted ready, sealed
+  /// "all ready", dealt a seat nobody played.
+  OnDisconnect? _awayOnDisconnect;
+
+  /// Watches the connection while the table waits, so that a device the
+  /// server marked away says it is back (see [_reassertReadiness]).
+  StreamSubscription<DatabaseEvent>? _connectedSubscription;
+  bool _lostConnectionBeforeDeal = false;
+
+  /// We left before the deal (see [declareCurrentUserExit]): our marker says
+  /// so, and a reconnection must not turn it back to `true`.
+  bool _leftBeforeDeal = false;
+
+  /// Publishes our answer to the roll-call where every device can read it,
+  /// with the server primed to withdraw it if our connection drops first.
+  /// Sent in this order on one connection, so the server never holds a
+  /// `true` without the safety net behind it.
+  void _declareReadyMarker() {
+    final uid = LocalStorageService.uid;
+    if (uid.isEmpty || gameId.isEmpty) return;
+    final marker = _gameRef.child(_rollCallReadyField).child(uid);
+    if (!legacyRollCall) {
+      final onDisconnect = marker.onDisconnect();
+      _awayOnDisconnect = onDisconnect;
+      unawaited(
+        onDisconnect.set(kGamicoRollCallAway).catchError((e) {
+          debugPrint("⚠️ roll_call away marker not armed => $e");
+        }),
+      );
+    }
+    unawaited(marker.set(true).catchError((_) {}));
+  }
+
+  void _cancelAwayOnDisconnect() {
+    final onDisconnect = _awayOnDisconnect;
+    _awayOnDisconnect = null;
+    if (onDisconnect == null) return;
+    unawaited(onDisconnect.cancel().catchError((_) {}));
+  }
+
+  /// A connection that dropped before the deal may have had our marker turned
+  /// to [kGamicoRollCallAway] by the server: once back, we are there again.
+  /// The server consumed the `onDisconnect` as it fired, so it is armed anew.
+  void _watchConnectionBeforeDeal() {
+    if (legacyRollCall || state.fakeOpponent) return;
+    _connectedSubscription?.cancel();
+    _connectedSubscription = FirebaseDatabase.instance
+        .ref(".info/connected")
+        .onValue
+        .listen((event) {
+          if (event.snapshot.value != true) {
+            _lostConnectionBeforeDeal = true;
+            return;
+          }
+          if (!_lostConnectionBeforeDeal) return;
+          _lostConnectionBeforeDeal = false;
+          _reassertReadiness();
+        }, onError: (_) {});
+  }
+
+  void _reassertReadiness() {
+    if (isClosed || _rollCallApplied || _leftBeforeDeal) return;
+    if (!_readinessSent || gameCubit.state.ready) return;
+    _rc("connection back before the deal — ready again");
+    _declareReadyMarker();
+  }
+
   /// When our own READINESS went out (local clock: only ever compared with
   /// itself). See [GamicoRollCallRules.minimumOwnWait].
   DateTime? _myReadyAt;
@@ -399,6 +483,17 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       _sealedBeforeOurReadiness &&
       (_sealedRollCall?.contains(LocalStorageService.uid) ?? false);
   bool _sealedBeforeOurReadiness = false;
+
+  /// How many other players this table expected — to word a popup "player"
+  /// or "players". The game may not have been read yet (excluded while
+  /// loading): the sealed roster then says how many played on.
+  int get expectedOtherPlayers {
+    final myUid = LocalStorageService.uid;
+    if (_expectedPlayerIds.isNotEmpty) {
+      return _expectedPlayerIds.where((id) => id != myUid).length;
+    }
+    return _sealedRollCall?.where((id) => id != myUid).length ?? 0;
+  }
 
   /// Whether we are currently voting to eject the absent players.
   bool get myEjectVote => _ejectVotes.contains(LocalStorageService.uid);
@@ -460,8 +555,21 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                   _readmitIfBack(uid)) {
                 changed = true;
               }
+              if (entry.value == true && _disconnectedIds.remove(uid)) {
+                _rc("reconnected before the deal: $uid");
+                changed = true;
+              }
               if (entry.value == true && _readyPlayerIds.add(uid)) {
                 if (uid != myUid) _rc("ready: $uid");
+                changed = true;
+              } else if (entry.value == kGamicoRollCallAway &&
+                  uid != myUid &&
+                  !gameCubit.state.ready &&
+                  _disconnectedIds.add(uid)) {
+                // Their connection dropped on the waiting screen (see
+                // [kGamicoRollCallAway]): no longer counted as there, but
+                // not struck either — the roster may still seat them.
+                _rc("disconnected before the deal (marker): $uid");
                 changed = true;
               } else if (entry.value == kGamicoRollCallLeft &&
                   uid != myUid &&
@@ -509,6 +617,45 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
           onError: (e) =>
               debugPrint("⚠️ roll_call_votes subscription error => $e"),
         );
+  }
+
+  /// Asks the server — not the cache — whether the roster was sealed before
+  /// this session answered, which is what tells a reopened table from a new
+  /// one (see [rejoiningSealedTable], `rejoinsDealtTable`).
+  ///
+  /// The roster listener says the same, but only if its first event beats
+  /// our READINESS, and with the offline cache on it may first answer with
+  /// a stale "not sealed" from disk. Missed, a reopened Ludo table dealt a
+  /// fresh board over a match already played — out of step for good.
+  ///
+  /// A transaction that writes back what it found: it is the one read the
+  /// SDK always settles against the server (a mismatch with the cache reruns
+  /// it on the server's value), and rewriting the same roster, or nothing,
+  /// changes nothing.
+  Future<void> _checkSealedOnServer() async {
+    if (state.fakeOpponent || gameId.isEmpty || _readinessSent) return;
+    try {
+      final result = await _gameRef
+          .child(_rollCallField)
+          .runTransaction(
+            (current) => Transaction.success(current),
+            applyLocally: false,
+          )
+          .timeout(const Duration(seconds: 4));
+      final verdict = GamicoRollCallVerdict.fromJson(result.snapshot.value);
+      if (verdict == null || isClosed || _readinessSent) return;
+      if (!_sealedBeforeOurReadiness) {
+        _sealedBeforeOurReadiness = true;
+        _rc(
+          "roster already sealed on the server: ${verdict.players} "
+          "(${verdict.reason.wire}) — before our READINESS",
+        );
+      }
+      _applyRollCall(verdict);
+    } catch (e) {
+      // The listener still has its say; this only makes it certain.
+      _rc("sealed check failed ($e) — relying on the listener");
+    }
   }
 
   /// Where the roll-call's deadlines are counted from, without trusting any
@@ -657,6 +804,18 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     });
   }
 
+  /// The roll-call's own nodes (roster, markers, votes) have nothing more to
+  /// say once the roster is applied; their listeners used to stay open for
+  /// the whole match. Safe from inside one of their callbacks.
+  void _stopRollCallListeners() {
+    _rollCallSubscription?.cancel();
+    _rollCallSubscription = null;
+    _rollCallReadySubscription?.cancel();
+    _rollCallReadySubscription = null;
+    _rollCallVotesSubscription?.cancel();
+    _rollCallVotesSubscription = null;
+  }
+
   void _stopRollCallTicker() {
     _rollCallTicker?.cancel();
     _rollCallTicker = null;
@@ -668,6 +827,8 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     _rollCallAtSubscription = null;
     _rollCallArrivalsSubscription?.cancel();
     _rollCallArrivalsSubscription = null;
+    _connectedSubscription?.cancel();
+    _connectedSubscription = null;
   }
 
   /// Seals the roster when one of [GamicoRollCallRules] says so.
@@ -788,17 +949,18 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     final playerIds = _expectedOrder
         .where((id) => !_exitedPlayerIds.contains(id))
         .toList();
+    final answered = _answeredIds;
     final GamicoRollCallStatus? status;
     if (_isDuel &&
         (!_readinessSent ||
             startedAt == null ||
             elapsed < GamicoRollCallRules.duelScreenAfter.inSeconds ||
-            playerIds.every(_readyPlayerIds.contains))) {
+            playerIds.every(answered.contains))) {
       status = null;
     } else {
       status = GamicoRollCallStatus(
         playerIds: playerIds,
-        readyIds: Set.of(_readyPlayerIds),
+        readyIds: answered,
         ejectVotes: Set.of(_ejectVotes),
         awayIds: _awayIds,
         duel: _isDuel,
@@ -921,14 +1083,15 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     _sealedRollCall = verdict.players;
     _readinessFallbackTimer?.cancel();
     _stopRollCallTicker();
+    // The roster is final: nothing a marker says from here on can change it.
+    // An "away" written mid-match would even mislead a device still on its
+    // way to this roster into reporting a seated player as gone.
+    _cancelAwayOnDisconnect();
+    _stopRollCallListeners();
     if (state.rollCall != null) emit(state.copyWith(rollCall: () => null));
 
     final myUid = LocalStorageService.uid;
-    // The game may not have been read yet (excluded while loading): the
-    // roster itself then says how many played on.
-    final otherPlayers = _expectedPlayerIds.isEmpty
-        ? verdict.players.length
-        : _expectedPlayerIds.where((id) => id != myUid).length;
+    final otherPlayers = expectedOtherPlayers;
     // Everyone expected who is not at the table: never answered, or quit
     // before the deal. The older rule (tournament) already told the game
     // about every quitter as their EXIT arrived.
@@ -995,6 +1158,23 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
           ),
         );
       }
+      return;
+    }
+
+    // Our seat, at a table dealt and played without this page (the app
+    // reopened mid-match), in a game that cannot catch up with it. Dealing
+    // here would rebuild the board from the start and play on out of step
+    // with everyone else. Never dealt, so leaving is free — and the EXIT it
+    // sends is what the others take as this seat's departure.
+    if (_sealedBeforeOurReadiness &&
+        gameCubit.settings?.rejoinsDealtTable == false) {
+      _rc("→ SEAT LOST (reopened a dealt table, the game cannot catch up)");
+      emit(
+        state.copyWith(
+          rollCallOutcome: () =>
+              GamicoRollCallOutcome.seatLost(otherPlayers: otherPlayers),
+        ),
+      );
       return;
     }
 
@@ -1393,6 +1573,10 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     // every device can read it (see [kGamicoRollCallLeft]).
     if (!gameCubit.state.ready && gameId.isNotEmpty) {
       _rc("leaving before the deal");
+      // Disarmed first, on the same connection: the server would otherwise
+      // turn this "left" into an "away" when the connection later drops.
+      _leftBeforeDeal = true;
+      _cancelAwayOnDisconnect();
       unawaited(
         _gameRef
             .child(_rollCallReadyField)
@@ -1562,6 +1746,9 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       // sealed when we arrived is what tells a reopened table from a new one
       // (see [rejoiningSealedTable]).
       _listenToRollCall();
+      // Settled against the server alongside the game read, before our
+      // READINESS (see [_checkSealedOnServer]).
+      final sealedCheck = _checkSealedOnServer();
 
       // Each attempt bounded (an unbounded `get()` on a flaky connection used
       // to hang past the others' patience), and retried for as long as the
@@ -1592,6 +1779,9 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
           await Future.delayed(const Duration(seconds: 2));
         }
       }
+      if (isClosed || _rollCallApplied) return;
+
+      await sealedCheck;
       if (isClosed || _rollCallApplied) return;
 
       // Seats filled by [RemoteCubit.enableBotFallback] carry a synthetic
@@ -2136,17 +2326,12 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         if (myUid.isNotEmpty) {
           _readyPlayerIds.add(myUid);
           // The durable copy of this READINESS (see [_rollCallReadyField]).
-          unawaited(
-            _gameRef
-                .child(_rollCallReadyField)
-                .child(myUid)
-                .set(true)
-                .catchError((_) {}),
-          );
+          _declareReadyMarker();
         }
         _myReadyAt = DateTime.now();
         _rc("our READINESS sent");
         _readinessSent = true;
+        _watchConnectionBeforeDeal();
         _startReadinessFallbackTimer();
         // The table may have sealed its roster while we were still loading.
         final pending = _pendingRollCall;

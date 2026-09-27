@@ -14,6 +14,13 @@ abstract final class GamicoRollCallPopup {
     GamicoLanguages l,
     GamicoRollCallOutcome outcome,
   ) {
+    if (outcome.seatLost) {
+      return (
+        title: l.rollCallSeatLostTitle,
+        description: l.rollCallSeatLostDescription,
+        icon: Icons.sync_problem,
+      );
+    }
     final reason = outcome.exclusionReason;
     if (reason == null && outcome.othersLeft) {
       return outcome.otherPlayers <= 1

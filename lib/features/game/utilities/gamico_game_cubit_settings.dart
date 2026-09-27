@@ -41,6 +41,15 @@ class GamicoGameCubitSettings {
   /// with a win by forfeit, for a match that never started.
   final void Function()? onRollCallCancelled;
 
+  /// Whether the game can take its seat back at a table that was dealt
+  /// without this page — the app reopened mid-match. Crazy Eights can (it
+  /// asks the table for its full state). A game whose only way back is
+  /// replaying the events log cannot once that log is pruned: its board
+  /// would be rebuilt from the start and play on out of step. False: gamico
+  /// gives the seat up instead — the table carries on without it — and takes
+  /// the player out, to the game's spectator view when it has one.
+  final bool rejoinsDealtTable;
+
   final dynamic gameCubit;
 
   const GamicoGameCubitSettings({
@@ -54,6 +63,7 @@ class GamicoGameCubitSettings {
     this.exitIsPenaltyFree,
     this.onExcludedFromRollCall,
     this.onRollCallCancelled,
+    this.rejoinsDealtTable = true,
     required this.gameCubit,
   });
 }

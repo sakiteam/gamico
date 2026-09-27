@@ -16,7 +16,7 @@ abstract class GamicoLanguagePt extends GamicoLanguages {
   String get friendPageTitle => "Procurar amigos";
 
   @override
-  String get friendPageSearchHint => "Buscar por nome...";
+  String get friendPageSearchHint => "Buscar um jogador";
 
   @override
   String get friendPagePendingInvitations => "Convites pendentes";
@@ -1405,6 +1405,13 @@ abstract class GamicoLanguagePt extends GamicoLanguages {
   @override
   String get rollCallPlayersLeftDescription =>
       "Os outros jogadores saíram antes de a partida começar. A partida foi cancelada, sem penalidade.";
+
+  @override
+  String get rollCallSeatLostTitle => "Não é possível voltar";
+
+  @override
+  String get rollCallSeatLostDescription =>
+      "A partida continuou durante a sua ausência: o seu lugar já não pode ser retomado.";
 
   @override
   String get rollCallWaitingOpponentTitle => "Aguardando seu adversário";

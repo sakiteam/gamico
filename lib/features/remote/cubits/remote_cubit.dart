@@ -179,6 +179,7 @@ class RemoteCubit extends Cubit<RemoteState> {
         finalized: false,
         fakeOpponent: false,
         playersFound: 0,
+        playerIds: const [],
         playerNames: const [],
         playerPhotos: const [],
         countdownRemaining: () => null,
@@ -251,6 +252,7 @@ class RemoteCubit extends Cubit<RemoteState> {
     emit(
       state.copyWith(
         playersFound: ids.length,
+        playerIds: ordered,
         playerNames: profiles.map((p) => p.$1).toList(),
         playerPhotos: profiles.map((p) => p.$2).toList(),
       ),
@@ -941,14 +943,19 @@ class RemoteCubit extends Cubit<RemoteState> {
       // [kGamicoRollCallLeft]) — but only while the table is still waiting.
       // This also runs after a match that was played ("Nouvelle partie",
       // leaving the matchmaking page), and a roster sealed long ago has no
-      // use for it.
+      // use for it. Nor does a table against bots, which never holds a
+      // roll-call at all; and a node already swept must not be brought back
+      // to life as a lone marker (the sweep only deletes it a day later).
+      if (state.fakeOpponent) return;
       try {
         final game = FirebaseDatabase.instance.ref("games/$gameId");
-        final sealed = await game
-            .child("roll_call")
-            .get()
-            .timeout(const Duration(seconds: 3));
-        if (!sealed.exists) {
+        final reads = await Future.wait([
+          game.child("roll_call").get(),
+          game.child("players").get(),
+        ]).timeout(const Duration(seconds: 3));
+        final sealed = reads[0];
+        final seated = reads[1];
+        if (!sealed.exists && seated.exists) {
           debugPrint(
             "🔍 [RC] left marker written for $gameId (back before the table)",
           );

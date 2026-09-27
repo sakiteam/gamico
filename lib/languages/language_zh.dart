@@ -16,7 +16,7 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
   String get friendPageTitle => "搜索好友";
 
   @override
-  String get friendPageSearchHint => "按名字搜索...";
+  String get friendPageSearchHint => "搜索玩家";
 
   @override
   String get friendPagePendingInvitations => "待处理邀请";
@@ -1280,6 +1280,12 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
 
   @override
   String get rollCallPlayersLeftDescription => "其他玩家在游戏开始前离开了。游戏已取消，不会受到惩罚。";
+
+  @override
+  String get rollCallSeatLostTitle => "无法重新加入";
+
+  @override
+  String get rollCallSeatLostDescription => "你离开期间游戏仍在继续：你的座位已无法恢复。";
 
   @override
   String get rollCallWaitingOpponentTitle => "等待你的对手";

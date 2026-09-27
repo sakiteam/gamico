@@ -63,19 +63,46 @@ class GamicoGlobalService {
 
   // Execution guards
 
+  /// The context a guard should actually work with.
+  ///
+  /// Each guard below starts by reading an app-level cubit off the caller's
+  /// context, and several callers hold on to one for a while: a callback
+  /// handed down into a dialog route outlives the element that built it, so
+  /// by the time the button is tapped that element may already be gone.
+  ///
+  /// Reading a provider off a dead element does not fail cleanly. The lookup
+  /// finds nothing (a defunct element has no ancestors), provider then builds
+  /// its "not found" exception, and composing the message reads
+  /// `context.widget` — which throws, because `_widget` is null on an
+  /// unmounted element. What lands in Crashlytics is therefore provider's own
+  /// error path, which reads like a missing provider but is not one.
+  ///
+  /// `context.mounted` is precisely `_widget != null`, so it is safe to ask
+  /// even of a dead element. When it says no, fall back to the root
+  /// navigator's context: [GamicoProviders] wraps the [MaterialApp], so that
+  /// context reaches the very same cubits, and it stays alive as long as the
+  /// app does. The guard then runs normally and shows its popup on the root
+  /// navigator instead of crashing.
+  static BuildContext? _liveContext(BuildContext context) => context.mounted
+      ? context
+      : NavigationService.globalNavigatorKey.currentContext;
+
   static void executeIfConnected(
     BuildContext context,
     void Function() function,
   ) {
-    bool connected = context.read<InternetCubit>().state.connected;
+    final ctx = _liveContext(context);
+    if (ctx == null) return;
+
+    bool connected = ctx.read<InternetCubit>().state.connected;
 
     if (connected) {
       function();
     } else {
-      final l = GamicoLanguages.of(context);
+      final l = GamicoLanguages.of(ctx);
 
       NavigationService.showPopup(
-        context: context,
+        context: ctx,
         builder: (_) {
           return GamicoPopup(
             child: GamicoDialogPoster(
@@ -96,22 +123,22 @@ class GamicoGlobalService {
     BuildContext context,
     void Function() function,
   ) {
-    bool authenticated = context
-        .read<AuthenticationCubit>()
-        .state
-        .authenticated;
+    final ctx = _liveContext(context);
+    if (ctx == null) return;
+
+    bool authenticated = ctx.read<AuthenticationCubit>().state.authenticated;
 
     if (authenticated) {
       function();
     } else {
       NavigationService.showPopup(
-        context: context,
+        context: ctx,
         dismissible: false,
         draggable: false,
         builder: (_) {
           return GamicoAuthenticationPopup(
             onSuccess: () {
-              if (context.mounted) {
+              if (ctx.mounted) {
                 function();
               }
             },
@@ -126,13 +153,16 @@ class GamicoGlobalService {
     GameType gameType,
     void Function() function,
   ) {
-    final broke = context.read<GamicoUserCubit>().state.user?.broke ?? true;
+    final ctx = _liveContext(context);
+    if (ctx == null) return;
+
+    final broke = ctx.read<GamicoUserCubit>().state.user?.broke ?? true;
 
     if (!broke) {
       function();
     } else {
       CoinsPopup.showCowriesPopup(
-        context,
+        ctx,
         Gamico.instance.gameSettings.playMinimumCoins,
       );
     }

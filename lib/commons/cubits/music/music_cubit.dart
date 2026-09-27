@@ -151,7 +151,24 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   // shared by every one-shot sound, rather than one dedicated player per
   // sound, is what keeps that budget in hand.
   final _oneShotPool = [AudioPlayer(), AudioPlayer()];
-  int _oneShotIndex = 0;
+
+  /// When each pool slot was last handed a sound, so a new one goes to a slot
+  /// that is free — or, failing that, to the one that has been playing longest.
+  final Map<AudioPlayer, DateTime> _slotClaimedAt = {};
+
+  /// Pool slots currently carrying a key sound (see [playKeyBruitage]): the
+  /// ones an ordinary sound effect must not cut off while another will do.
+  final Set<AudioPlayer> _keySlots = {};
+
+  /// How long a slot counts as taken after being claimed, whatever its player
+  /// reports: between `stop()` and the new asset loading it reads as idle, and
+  /// a second sound fired in that gap would land on it too.
+  static const Duration _slotClaimGrace = Duration(milliseconds: 300);
+
+  /// Pool slots currently carrying a non-default speed/pitch. The slots are
+  /// shared, so shaping set by one sound would otherwise leak into the next
+  /// one to land on that slot; this is what says a reset is owed.
+  final Set<AudioPlayer> _shapedSlots = {};
 
   static const String _clockAsset = "assets/bruitages/clock.opus";
   static const String _fireAsset = "assets/bruitages/fire.opus";
@@ -185,10 +202,19 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   double _musicDuck = 1;
   double _bruitageDuck = 1;
 
+  /// The game's own mood on top of that: the music level and tempo a tense
+  /// moment asks for (see [setMusicTension]). 1 and 1 at rest.
+  double _musicTension = 1;
+  double _musicTempo = 1;
+  Timer? _tensionFade;
+
+  /// What the music player's volume should be right now.
+  double get _musicLevel => _currentVolume * _musicDuck * _musicTension;
+
   void setGlobalVolume(double volume) {
     _currentVolume = volume;
 
-    _mainPlayer.setVolume(volume * _musicDuck);
+    _mainPlayer.setVolume(_musicLevel);
     for (final player in _bruitagePlayers) {
       player.setVolume(volume * _bruitageDuck);
     }
@@ -224,19 +250,95 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   Future<void> _applyDucking() async {
     await Future.wait([
-      _mainPlayer.setVolume(_currentVolume * _musicDuck),
+      _mainPlayer.setVolume(_musicLevel),
       ..._bruitagePlayers.map(
         (player) => player.setVolume(_currentVolume * _bruitageDuck),
       ),
     ]);
   }
 
+  /// Lets a game make its music follow the tension at the table: [volume]
+  /// scales the music (under the user's setting and any voice-chat ducking —
+  /// 0.6 pulls it back to let a ticking clock through), [tempo] speeds it up
+  /// (1.06 for a table about to be won). Both glide there over [fade] rather
+  /// than jumping, and only touch the music — sound effects are left alone.
+  ///
+  /// Call with the defaults to put the music back as it was; a game must do so
+  /// when it leaves, or the next screen inherits its mood.
+  Future<void> setMusicTension({
+    double volume = 1,
+    double tempo = 1,
+    Duration fade = const Duration(milliseconds: 600),
+  }) async {
+    final double targetVolume = volume.clamp(0.0, 1.0);
+    final double targetTempo = tempo.clamp(0.5, 2.0);
+    if (targetVolume == _musicTension && targetTempo == _musicTempo) return;
+
+    _tensionFade?.cancel();
+    final double fromVolume = _musicTension;
+    final double fromTempo = _musicTempo;
+    const int steps = 12;
+    int step = 0;
+
+    void apply(double t) {
+      _musicTension = fromVolume + (targetVolume - fromVolume) * t;
+      _musicTempo = fromTempo + (targetTempo - fromTempo) * t;
+      if (_isDisposed || state.mute) return;
+      _mainPlayer.setVolume(_musicLevel);
+      _mainPlayer.setSpeed(_musicTempo);
+    }
+
+    if (fade <= Duration.zero) {
+      apply(1);
+      return;
+    }
+    _tensionFade = Timer.periodic(fade ~/ steps, (timer) {
+      step++;
+      apply(step / steps);
+      if (step >= steps) {
+        timer.cancel();
+        if (identical(_tensionFade, timer)) _tensionFade = null;
+      }
+    });
+  }
+
+  /// The track the app wants on the music player right now, whether or not it
+  /// could be loaded.
+  ///
+  /// While muted the `play*Music` methods deliberately load nothing, so the
+  /// player keeps whatever it held last (main menu music, the previous
+  /// defeat jingle…). Without this record, un-muting mid-game resumed that
+  /// stale track instead of the game music the page had asked for.
+  String? _wantedMusicAsset;
+
+  /// The asset actually loaded in [_mainPlayer].
+  String? _loadedMusicAsset;
+
+  /// Loop mode of the wanted track, re-applied when it is loaded late.
+  LoopMode _wantedLoopMode = LoopMode.all;
+
+  /// Loads [asset] on the music player and records it as the wanted track.
+  Future<void> _loadMusicAsset(String asset) async {
+    _wantedMusicAsset = asset;
+    await _mainPlayer.safelySetAsset(asset);
+    _loadedMusicAsset = asset;
+  }
+
+  /// Makes sure the wanted track is the loaded one. Used when the music starts
+  /// after having been muted (un-mute, resume), where the player may still hold
+  /// an older track.
+  Future<void> _syncWantedMusic() async {
+    final wanted = _wantedMusicAsset;
+    if (wanted == null || wanted == _loadedMusicAsset) return;
+
+    await _loadMusicAsset(wanted);
+    await _mainPlayer.setLoopMode(_wantedLoopMode);
+  }
+
   // Init music
   Future<void> _initMusic() async {
     if (GameService.tutorialPassed) {
-      await _mainPlayer.safelySetAsset(
-        Gamico.instance.musicSettings.mainMusicAsset,
-      );
+      await _loadMusicAsset(Gamico.instance.musicSettings.mainMusicAsset);
     }
 
     await _mainPlayer.setLoopMode(LoopMode.all);
@@ -255,32 +357,25 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   /// Sets any music asset with loop mode.
   Future<void> setMusicAsset(String assetPath, {bool loop = true}) async {
-    await _mainPlayer.safelySetAsset(assetPath);
-    await _mainPlayer.setLoopMode(loop ? LoopMode.all : LoopMode.off);
+    _wantedLoopMode = loop ? LoopMode.all : LoopMode.off;
+    await _loadMusicAsset(assetPath);
+    await _mainPlayer.setLoopMode(_wantedLoopMode);
   }
 
   Future<void> setMainMusicAsset() async {
-    await _mainPlayer.safelySetAsset(
-      Gamico.instance.musicSettings.mainMusicAsset,
-    );
+    await _loadMusicAsset(Gamico.instance.musicSettings.mainMusicAsset);
   }
 
   Future<void> setVictoryMusicAsset() async {
-    await _mainPlayer.safelySetAsset(
-      Gamico.instance.musicSettings.victoryMusicAsset,
-    );
+    await _loadMusicAsset(Gamico.instance.musicSettings.victoryMusicAsset);
   }
 
   Future<void> setDefeatMusicAsset() async {
-    await _mainPlayer.safelySetAsset(
-      Gamico.instance.musicSettings.defeatMusicAsset,
-    );
+    await _loadMusicAsset(Gamico.instance.musicSettings.defeatMusicAsset);
   }
 
   Future<void> setDrawMusicAsset() async {
-    await _mainPlayer.safelySetAsset(
-      Gamico.instance.musicSettings.drawMusicAsset,
-    );
+    await _loadMusicAsset(Gamico.instance.musicSettings.drawMusicAsset);
   }
 
   //
@@ -291,54 +386,62 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   /// Plays any music asset track in loop or one-shot mode.
   Future<void> playMusic(String assetPath, {bool loop = true}) async {
+    _wantedMusicAsset = assetPath;
+    _wantedLoopMode = loop ? LoopMode.all : LoopMode.off;
+
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset(assetPath);
-      await _mainPlayer.setLoopMode(loop ? LoopMode.all : LoopMode.off);
+      await _loadMusicAsset(assetPath);
+      await _mainPlayer.setLoopMode(_wantedLoopMode);
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playMainMusic() async {
+    final asset = Gamico.instance.musicSettings.mainMusicAsset;
+    _wantedMusicAsset = asset;
+
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset(
-        Gamico.instance.musicSettings.mainMusicAsset,
-      );
+      await _loadMusicAsset(asset);
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playVictoryMusic() async {
+    final asset = Gamico.instance.musicSettings.victoryMusicAsset;
+    _wantedMusicAsset = asset;
+
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset(
-        Gamico.instance.musicSettings.victoryMusicAsset,
-      );
+      await _loadMusicAsset(asset);
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playDrawMusic() async {
+    final asset = Gamico.instance.musicSettings.drawMusicAsset;
+    _wantedMusicAsset = asset;
+
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset(
-        Gamico.instance.musicSettings.drawMusicAsset,
-      );
+      await _loadMusicAsset(asset);
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playDefeatMusic() async {
+    final asset = Gamico.instance.musicSettings.defeatMusicAsset;
+    _wantedMusicAsset = asset;
+
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset(
-        Gamico.instance.musicSettings.defeatMusicAsset,
-      );
+      await _loadMusicAsset(asset);
       await _mainPlayer.safelyPlay();
     }
   }
 
   Future<void> playGameMusic() async {
+    final asset = Gamico.instance.musicSettings.gameMusicAsset;
+    _wantedMusicAsset = asset;
+
     if (!state.mute) {
-      await _mainPlayer.safelySetAsset(
-        Gamico.instance.musicSettings.gameMusicAsset,
-      );
+      await _loadMusicAsset(asset);
       await _mainPlayer.safelyPlay();
     }
   }
@@ -359,6 +462,10 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
     await _mainPlayer.setVolume(_currentVolume);
 
+    // Muted since the track was chosen: load it now (see _wantedMusicAsset).
+    await _syncWantedMusic();
+    if (_isDisposed) return;
+
     if (_mainPlayer.playerState.playing) {
       await _mainPlayer.stop();
       await _mainPlayer.seek(Duration.zero);
@@ -372,23 +479,115 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     await _mainPlayer.pause();
   }
 
-  Future<void> playBruitage(String source, [bool force = false]) async {
+  /// Plays a one-shot sound effect.
+  ///
+  /// [gain], [speed] and [pitch] shape that single play, so the same sample can
+  /// escalate instead of repeating identically — a combo whose every card hits
+  /// louder, tighter and higher than the last. They are always applied, never
+  /// left to carry over: the pool slots are shared, so a play that did not ask
+  /// for them explicitly resets them to 1.0 rather than inheriting whatever the
+  /// previous sound on that slot set.
+  ///
+  /// [gain] multiplies the global volume and is clamped to a sane range, so a
+  /// caller can never blow past the user's volume setting by more than a hair.
+  /// [speed] shortens the sample without moving its pitch (both platforms keep
+  /// pitch: ExoPlayer via Sonic, AVPlayer via `AVAudioTimePitchAlgorithmTimeDomain`).
+  /// [pitch] is **Android-only** in just_audio — on iOS, macOS and web it is a
+  /// no-op, which is why it must never be the only thing carrying an effect.
+  Future<void> playBruitage(
+    String source, [
+    bool force = false,
+    double gain = 1.0,
+    double speed = 1.0,
+    double pitch = 1.0,
+  ]) => _playOneShot(source, force, gain, speed, pitch, key: false);
+
+  /// Plays a one-shot sound effect that must be heard through to its end — a
+  /// game's final blow, the win or lose sting. With only two pool slots, three
+  /// sounds landing together (the last card, its explosion, the fanfare) used
+  /// to cut one of them short; a key sound keeps its slot until it finishes,
+  /// unless every slot is already holding one.
+  Future<void> playKeyBruitage(
+    String source, {
+    double gain = 1.0,
+    double speed = 1.0,
+    double pitch = 1.0,
+  }) => _playOneShot(source, false, gain, speed, pitch, key: true);
+
+  /// Whether [player] is still busy with the sound it was last handed.
+  bool _slotBusy(AudioPlayer player) {
+    final claimed = _slotClaimedAt[player];
+    if (claimed != null &&
+        DateTime.now().difference(claimed) < _slotClaimGrace) {
+      return true;
+    }
+    final processing = player.processingState;
+    return player.playing &&
+        processing != ProcessingState.completed &&
+        processing != ProcessingState.idle;
+  }
+
+  /// The pool slot a new one-shot sound goes to: a free one if there is one,
+  /// else the longest-playing one not holding a key sound, else the
+  /// longest-playing one outright.
+  AudioPlayer _pickOneShotSlot() {
+    final epoch = DateTime.fromMillisecondsSinceEpoch(0);
+    final slots = [..._oneShotPool]
+      ..sort(
+        (a, b) =>
+            (_slotClaimedAt[a] ?? epoch).compareTo(_slotClaimedAt[b] ?? epoch),
+      );
+    for (final slot in slots) {
+      if (!_slotBusy(slot)) return slot;
+    }
+    for (final slot in slots) {
+      if (!_keySlots.contains(slot)) return slot;
+    }
+    return slots.first;
+  }
+
+  Future<void> _playOneShot(
+    String source,
+    bool force,
+    double gain,
+    double speed,
+    double pitch, {
+    required bool key,
+  }) async {
     if (_isDisposed) return;
     if (!state.mute || force) {
       // Reuse a player from the fixed pool instead of allocating a new
       // ExoPlayer pipeline each time (prevents OOM on low-end devices).
-      final player = _oneShotPool[_oneShotIndex % _oneShotPool.length];
-      _oneShotIndex++;
+      final player = _pickOneShotSlot();
+      _slotClaimedAt[player] = DateTime.now();
+      if (key) {
+        _keySlots.add(player);
+      } else {
+        _keySlots.remove(player);
+      }
 
       try {
         // Stop any previous sound still playing on this slot.
         await player.stop();
         await player.safelySetAsset(source);
         // One-shot effects follow the voice-chat ducking too.
-        if (_bruitageDuck < 1) {
-          await player.setVolume(_currentVolume * _bruitageDuck);
-        } else {
-          await player.setVolume(_currentVolume);
+        final double base = _bruitageDuck < 1
+            ? _currentVolume * _bruitageDuck
+            : _currentVolume;
+        await player.setVolume((base * gain).clamp(0.0, 1.0));
+        // Only touched when actually asked for, and reset only when the slot
+        // still carries a previous caller's shaping: these are platform-channel
+        // round-trips on the hot path of every sound effect in every game, and
+        // the overwhelming majority of calls want neither.
+        final bool shaped = speed != 1.0 || pitch != 1.0;
+        if (shaped || _shapedSlots.contains(player)) {
+          await player.safelySetSpeed(speed.clamp(0.5, 2.0));
+          await player.safelySetPitch(pitch.clamp(0.5, 2.0));
+          if (shaped) {
+            _shapedSlots.add(player);
+          } else {
+            _shapedSlots.remove(player);
+          }
         }
         await player.safelyPlay(force, _isDisposed);
       } catch (e) {
@@ -563,17 +762,17 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   // Play win bruitage
   Future<void> playWinBruitage() async {
-    await playBruitage("assets/bruitages/win.opus");
+    await playKeyBruitage("assets/bruitages/win.opus");
   }
 
   // Play draw bruitage
   Future<void> playDrawBruitage() async {
-    await playBruitage("assets/bruitages/draw.opus");
+    await playKeyBruitage("assets/bruitages/draw.opus");
   }
 
   // Play lose bruitage
   Future<void> playLoseBruitage() async {
-    await playBruitage("assets/bruitages/lose.opus");
+    await playKeyBruitage("assets/bruitages/lose.opus");
   }
 
   // Play voice bruitage
@@ -621,6 +820,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   @override
   Future<void> close() async {
     _isDisposed = true;
+    _tensionFade?.cancel();
     await _interruptionSub?.cancel();
     _interruptionSub = null;
 
@@ -669,6 +869,25 @@ extension on AudioPlayer {
       await setAsset(asset);
     } catch (e) {
       debugPrint("Error setting asset ($asset): $e");
+    }
+  }
+
+  /// Both are per-play shaping, and neither is worth an exception: `setPitch`
+  /// in particular is implemented on Android only, so on every other platform
+  /// it either no-ops or throws, and the sound must still be heard.
+  Future<void> safelySetSpeed(double speed) async {
+    try {
+      await setSpeed(speed);
+    } catch (e) {
+      debugPrint("Error setting speed ($speed): $e");
+    }
+  }
+
+  Future<void> safelySetPitch(double pitch) async {
+    try {
+      await setPitch(pitch);
+    } catch (e) {
+      debugPrint("Error setting pitch ($pitch): $e");
     }
   }
 

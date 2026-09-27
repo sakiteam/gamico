@@ -46,6 +46,12 @@ class GamicoUserModel {
   final bool? premium;
   final String? activeSkin;
 
+  /// Set by hand in the database to unlock developer tools in production
+  /// builds. Read-only on purpose: it is left out of [toJson], because the
+  /// whole map goes through `updateUser`, and a stale user carrying `null`
+  /// here would delete the flag.
+  final bool? developer;
+
   bool? get broke {
     return coins == null
         ? null
@@ -83,6 +89,7 @@ class GamicoUserModel {
     this.streak,
     this.premium,
     this.activeSkin,
+    this.developer,
   });
 
   Map<String, dynamic> toJson() {
@@ -116,6 +123,7 @@ class GamicoUserModel {
       "streak": streak,
       "premium": premium,
       "active_skin": activeSkin,
+      "developer": developer,
     };
   }
 
@@ -232,6 +240,7 @@ class GamicoUserModel {
       },
       premium: json["premium"],
       activeSkin: json["active_skin"]?.toString(),
+      developer: json["developer"] == true,
     );
   }
 }
