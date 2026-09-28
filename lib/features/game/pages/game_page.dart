@@ -186,6 +186,7 @@ class GamicoGamePage extends StatelessWidget {
               onBackButtonPressed: finalGameUtility.onBackButtonPressed,
               endGamePopupBuilder: finalGameUtility.endGamePopupBuilder,
               spectatorPageBuilder: finalGameUtility.spectatorPageBuilder,
+              embedsRollCallPanel: finalGameUtility.embedsRollCallPanel,
               child: finalChild,
             );
           } else if (finalGameUtility is LocalNetworkGameUtility) {

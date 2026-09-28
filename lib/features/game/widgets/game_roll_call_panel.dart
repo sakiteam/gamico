@@ -2,22 +2,29 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/generics/icon_text_button.dart';
+import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/gamico_user_model.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/commons/services/local_storage.dart';
 import 'package:gamico/features/game/cubits/game_cubit.dart';
 import 'package:gamico/features/game/cubits/remote/remote_game_cubit.dart';
+import 'package:gamico/features/game/utilities/roll_call_panel_builder.dart';
 import 'package:gamico/languages/languages.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 
-/// The pre-deal wait of an online table, drawn over the game's own loader:
-/// who is there (a check) and who is still connecting (a spinner), and when
-/// the wait ends. Three seats or more: when the table starts anyway and — once
-/// the vote is open — the one button that flips this player's vote between
-/// ejecting the absent and waiting for them. A duel: when it is cancelled,
-/// shown only once the other player is late.
+/// The pre-deal wait of an online table: who is there (a check) and who is
+/// still connecting (a spinner), and when the wait ends. Three seats or more:
+/// when the table starts anyway and — once the vote is open — the one button
+/// that flips this player's vote between ejecting the absent and waiting for
+/// them. A duel: when it is cancelled, shown only once the other player is
+/// late.
 ///
-/// It covers the game's own back button, so it carries its own way out.
+/// Only reads its own state (from [GamicoRemoteGameCubit], wherever this sits
+/// under it) and can be placed anywhere in the game's own layout — after its
+/// own loader, say — instead of `GamicoRemoteGamePage` drawing it as a layer
+/// above the whole game. Its look comes from
+/// [PlaySettings.rollCallPanelBuilder] when the host app set one,
+/// [defaultBuilder] otherwise.
 class GamicoRollCallPanel extends StatelessWidget {
   /// Leaves the table — the game's own back flow, free before the deal.
   final VoidCallback onLeave;
@@ -29,9 +36,9 @@ class GamicoRollCallPanel extends StatelessWidget {
     final status = context.select(
       (GamicoRemoteGameCubit cubit) => cubit.state.rollCall,
     );
+
     if (status == null) return const SizedBox.shrink();
 
-    final l = GamicoLanguages.of(context);
     final myUid = LocalStorageService.uid;
     final opponents = context.select(
       (GamicoRemoteGameCubit cubit) => cubit.state.opponents,
@@ -48,10 +55,34 @@ class GamicoRollCallPanel extends StatelessWidget {
       return null;
     }
 
-    final iVoted = status.ejectVotes.contains(myUid);
-    final iAmReady = status.readyIds.contains(myUid);
+    final data = GamicoRollCallPanelData(
+      status: status,
+      profileOf: profileOf,
+      myUid: myUid,
+      iVoted: status.ejectVotes.contains(myUid),
+      iAmReady: status.readyIds.contains(myUid),
+      onLeave: onLeave,
+      onToggleVote: () =>
+          context.read<GamicoRemoteGameCubit>().toggleEjectVote(),
+    );
 
-    return Positioned.fill(
+    final builder =
+        Gamico.instance.playSettings?.rollCallPanelBuilder ?? defaultBuilder;
+    return builder(context, data);
+  }
+
+  /// The stock look: a white card over a dimmed backdrop. Expands to fill
+  /// whatever space it is given rather than relying on a [Positioned.fill],
+  /// so it works equally well stacked above the game or embedded inline in
+  /// one.
+  static Widget defaultBuilder(
+    BuildContext context,
+    GamicoRollCallPanelData data,
+  ) {
+    final l = GamicoLanguages.of(context);
+    final status = data.status;
+
+    return SizedBox.expand(
       child: ColoredBox(
         color: Colors.black54,
         child: SafeArea(
@@ -101,9 +132,9 @@ class GamicoRollCallPanel extends StatelessWidget {
                             shrinkWrap: true,
                             children: [
                               for (final uid in status.playerIds)
-                                _RollCallTile(
-                                  profile: profileOf(uid),
-                                  isMe: uid == myUid,
+                                GamicoRollCallTile(
+                                  profile: data.profileOf(uid),
+                                  isMe: uid == data.myUid,
                                   ready: status.readyIds.contains(uid),
                                   away: status.awayIds.contains(uid),
                                 ),
@@ -125,15 +156,17 @@ class GamicoRollCallPanel extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           GamicoIconTextButton(
-                            iconData: iVoted
+                            iconData: data.iVoted
                                 ? Icons.hourglass_top
                                 : Icons.person_remove,
-                            text: iVoted ? l.rollCallWait : l.rollCallEject,
-                            color: iVoted ? null : ColorService.accentColor,
-                            onPressed: iAmReady
-                                ? () => context
-                                      .read<GamicoRemoteGameCubit>()
-                                      .toggleEjectVote()
+                            text: data.iVoted
+                                ? l.rollCallWait
+                                : l.rollCallEject,
+                            color: data.iVoted
+                                ? null
+                                : ColorService.accentColor,
+                            onPressed: data.iAmReady
+                                ? data.onToggleVote
                                 : null,
                           ),
                         ] else if (!status.duel)
@@ -147,7 +180,7 @@ class GamicoRollCallPanel extends StatelessWidget {
                           ),
                         const SizedBox(height: 4),
                         TextButton.icon(
-                          onPressed: onLeave,
+                          onPressed: data.onLeave,
                           icon: const Icon(Icons.logout, size: 18),
                           label: Text(l.rollCallLeave),
                           style: TextButton.styleFrom(
@@ -167,13 +200,17 @@ class GamicoRollCallPanel extends StatelessWidget {
   }
 }
 
-class _RollCallTile extends StatelessWidget {
+/// A single player row: photo, name, and whether they are ready, away or
+/// still connecting. Public so a custom [GamicoRollCallPanelBuilder] can
+/// reuse it instead of redrawing the same information from scratch.
+class GamicoRollCallTile extends StatelessWidget {
   final GamicoUserModel? profile;
   final bool isMe;
   final bool ready;
   final bool away;
 
-  const _RollCallTile({
+  const GamicoRollCallTile({
+    super.key,
     required this.profile,
     required this.isMe,
     required this.ready,

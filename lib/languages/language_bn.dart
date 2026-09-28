@@ -1371,14 +1371,14 @@ abstract class GamicoLanguageBn extends GamicoLanguages {
       "অন্য কোনো খেলোয়াড় সময়মতো সংযুক্ত হয়নি। খেলাটি কোনো জরিমানা ছাড়াই বাতিল করা হয়েছে।";
 
   @override
-  String get rollCallCancelledTitle => "খেলা বাতিল";
+  String get rollCallCancelledTitle => "খেলা বাতিল!";
 
   @override
   String get rollCallExcludedTitle => "আপনাকে ছাড়াই খেলা শুরু হয়েছে";
 
   @override
   String rollCallExcludedDuel(int s) =>
-      "আপনার প্রতিপক্ষ $s সেকেন্ড অপেক্ষা করেও আপনাকে পায়নি, তাই খেলা বাতিল করা হয়েছে। আপনার কোনো জরিমানা হবে না।";
+      "আপনার প্রতিপক্ষ $s সেকেন্ড অপেক্ষা করেও আপনাকে পায়নি। আপনার কোনো জরিমানা হবে না!";
 
   @override
   String get rollCallExcludedVote =>

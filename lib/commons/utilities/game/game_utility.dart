@@ -79,7 +79,15 @@ class RemoteGameUtility extends GameUtility {
   final Widget Function(BuildContext context, String gameId)?
   spectatorPageBuilder;
 
-  const RemoteGameUtility({
+  /// The game embeds `GamicoRollCallPanel` itself, wherever fits its own
+  /// layout (after its own loader, say), so `GamicoRemoteGamePage` must not
+  /// also draw its generic copy above the whole game. Defaults to
+  /// [RemoteUtility.embedsRollCallPanel], so a game that always embeds its
+  /// own only has to say so once, on the utility it builds its matchmaking
+  /// and friend tables from.
+  final bool embedsRollCallPanel;
+
+  RemoteGameUtility({
     required super.onBackButtonPressed,
     required this.level,
     required this.creatorOfCurrentGame,
@@ -93,8 +101,11 @@ class RemoteGameUtility extends GameUtility {
     this.replayVote = false,
     this.legacyRollCall = false,
     this.spectatorPageBuilder,
+    bool? embedsRollCallPanel,
     super.endGamePopupBuilder,
-  }) : super(type: GameType.remote);
+  }) : embedsRollCallPanel =
+           embedsRollCallPanel ?? remoteUtility.embedsRollCallPanel,
+       super(type: GameType.remote);
 }
 
 /// A WiFi-local (LAN) table: several devices on the same network, one of them

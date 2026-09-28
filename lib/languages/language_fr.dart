@@ -1336,14 +1336,14 @@ abstract class GamicoLanguageFr extends GamicoLanguages {
       "Aucun autre joueur ne s'est connecté à temps. La partie est annulée, sans pénalité.";
 
   @override
-  String get rollCallCancelledTitle => "Partie annulée";
+  String get rollCallCancelledTitle => "Partie annulée !";
 
   @override
   String get rollCallExcludedTitle => "Partie lancée sans vous";
 
   @override
   String rollCallExcludedDuel(int s) =>
-      "Votre adversaire vous a attendu $s secondes sans vous voir arriver : la partie a été annulée. Aucune pénalité ne vous est appliquée.";
+      "Votre adversaire vous a attendu $s secondes sans vous voir arriver. Aucune pénalité ne vous est appliquée !";
 
   @override
   String get rollCallExcludedVote =>

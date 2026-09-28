@@ -1088,6 +1088,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     // way to this roster into reporting a seated player as gone.
     _cancelAwayOnDisconnect();
     _stopRollCallListeners();
+
     if (state.rollCall != null) emit(state.copyWith(rollCall: () => null));
 
     final myUid = LocalStorageService.uid;

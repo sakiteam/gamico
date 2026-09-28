@@ -27,12 +27,16 @@ class GamicoRemoteGamePage extends StatelessWidget {
   final Widget Function(BuildContext context, String gameId)?
   spectatorPageBuilder;
 
+  /// See [RemoteGameUtility.embedsRollCallPanel].
+  final bool embedsRollCallPanel;
+
   const GamicoRemoteGamePage({
     super.key,
     required this.child,
     required this.onBackButtonPressed,
     this.endGamePopupBuilder,
     this.spectatorPageBuilder,
+    this.embedsRollCallPanel = false,
   });
 
   /// Takes the player out of a table the roll-call settled without a game:
@@ -182,6 +186,7 @@ class GamicoRemoteGamePage extends StatelessWidget {
                     .read<GamicoRemoteGameCubit>()
                     .legacyRollCall,
                 spectatorPageBuilder: spectatorPageBuilder,
+                embedsRollCallPanel: embedsRollCallPanel,
               ),
             );
 
@@ -205,12 +210,15 @@ class GamicoRemoteGamePage extends StatelessWidget {
         children: [
           child,
           // Tables of three or more: who is there, who is not, and the vote
-          // on the absent — over the game's own pre-deal loader.
-          GamicoRollCallPanel(
-            // Through the game's own back flow, so a game with its own exit
-            // (voice chat, lobby) runs it; before the deal it is free.
-            onLeave: () => NavigationService.maybePop(context),
-          ),
+          // on the absent — over the game's own pre-deal loader. Skipped when
+          // the game embeds its own copy of the panel instead (see
+          // [embedsRollCallPanel]).
+          if (!embedsRollCallPanel)
+            GamicoRollCallPanel(
+              // Through the game's own back flow, so a game with its own exit
+              // (voice chat, lobby) runs it; before the deal it is free.
+              onLeave: () => NavigationService.maybePop(context),
+            ),
         ],
       ),
     );

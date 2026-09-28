@@ -211,6 +211,8 @@ export 'features/game/pages/remote_game_page.dart';
 export 'features/game/pages/tutorial_game_page.dart';
 export 'features/game/utilities/gamico_game_cubit_settings.dart';
 export 'features/game/utilities/replay_option.dart';
+export 'features/game/utilities/roll_call.dart';
+export 'features/game/utilities/roll_call_panel_builder.dart';
 export 'features/game/utilities/replay_utility.dart';
 export 'features/game/utilities/tile_utility.dart';
 export 'features/game/widgets/game_abandonment_button.dart';

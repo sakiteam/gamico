@@ -1370,14 +1370,14 @@ abstract class GamicoLanguageHi extends GamicoLanguages {
       "कोई अन्य खिलाड़ी समय पर कनेक्ट नहीं हुआ। खेल बिना किसी दंड के रद्द कर दिया गया है।";
 
   @override
-  String get rollCallCancelledTitle => "खेल रद्द";
+  String get rollCallCancelledTitle => "खेल रद्द!";
 
   @override
   String get rollCallExcludedTitle => "खेल आपके बिना शुरू हुआ";
 
   @override
   String rollCallExcludedDuel(int s) =>
-      "आपके प्रतिद्वंद्वी ने $s सेकंड तक आपका इंतज़ार किया, इसलिए खेल रद्द कर दिया गया। आप पर कोई दंड नहीं लगेगा।";
+      "आपके प्रतिद्वंद्वी ने $s सेकंड तक आपका इंतज़ार किया। आप पर कोई दंड नहीं लगेगा!";
 
   @override
   String get rollCallExcludedVote =>

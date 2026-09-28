@@ -26,6 +26,12 @@ class RemoteUtility {
   /// was formed. Only live updates are lost.
   final bool watchOpponentCoins;
 
+  /// Default for `RemoteGameUtility.embedsRollCallPanel` on games built from
+  /// this utility: true when the game embeds `GamicoRollCallPanel` itself
+  /// (after its own loader, in its own layout) instead of leaving the
+  /// framework to draw its generic copy above the whole game.
+  final bool embedsRollCallPanel;
+
   final Widget Function(
     BuildContext context,
     int index,
@@ -61,6 +67,7 @@ class RemoteUtility {
     required this.developerAppleId,
     required this.developerAndroidId,
     this.watchOpponentCoins = true,
+    this.embedsRollCallPanel = false,
   });
 
   /// Copy of this utility whose matchmaking settings are pinned to the single
@@ -74,6 +81,7 @@ class RemoteUtility {
       developerAppleId: developerAppleId,
       developerAndroidId: developerAndroidId,
       watchOpponentCoins: watchOpponentCoins,
+      embedsRollCallPanel: embedsRollCallPanel,
     );
   }
 }

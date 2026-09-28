@@ -1375,14 +1375,14 @@ abstract class GamicoLanguageRu extends GamicoLanguages {
       "Никто из других игроков не подключился вовремя. Игра отменена без штрафа.";
 
   @override
-  String get rollCallCancelledTitle => "Игра отменена";
+  String get rollCallCancelledTitle => "Игра отменена!";
 
   @override
   String get rollCallExcludedTitle => "Игра началась без вас";
 
   @override
   String rollCallExcludedDuel(int s) =>
-      "Соперник ждал вас $s секунд, но вы не появились, поэтому игра отменена. Штраф к вам не применяется.";
+      "Соперник ждал вас $s секунд, но вы не появились. Штраф к вам не применяется!";
 
   @override
   String get rollCallExcludedVote =>

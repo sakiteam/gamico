@@ -1374,14 +1374,14 @@ abstract class GamicoLanguagePt extends GamicoLanguages {
       "Nenhum outro jogador se conectou a tempo. A partida foi cancelada, sem penalidade.";
 
   @override
-  String get rollCallCancelledTitle => "Partida cancelada";
+  String get rollCallCancelledTitle => "Partida cancelada!";
 
   @override
   String get rollCallExcludedTitle => "A partida começou sem você";
 
   @override
   String rollCallExcludedDuel(int s) =>
-      "Seu adversário esperou $s segundos sem ver você chegar, então a partida foi cancelada. Nenhuma penalidade foi aplicada a você.";
+      "Seu adversário esperou $s segundos sem ver você chegar. Nenhuma penalidade foi aplicada a você!";
 
   @override
   String get rollCallExcludedVote =>

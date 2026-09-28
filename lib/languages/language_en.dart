@@ -1366,14 +1366,14 @@ abstract class GamicoLanguageEn extends GamicoLanguages {
       "No other player connected in time. The game is cancelled, with no penalty.";
 
   @override
-  String get rollCallCancelledTitle => "Game cancelled";
+  String get rollCallCancelledTitle => "Game cancelled!";
 
   @override
   String get rollCallExcludedTitle => "Game started without you";
 
   @override
   String rollCallExcludedDuel(int s) =>
-      "Your opponent waited $s seconds without seeing you arrive, so the game was cancelled. No penalty applies to you.";
+      "Your opponent waited $s seconds without seeing you arrive. No penalty applies to you!";
 
   @override
   String get rollCallExcludedVote =>

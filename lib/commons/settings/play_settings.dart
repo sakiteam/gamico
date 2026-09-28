@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
+import 'package:gamico/features/game/utilities/roll_call_panel_builder.dart';
 
 @immutable
 class PlaySettings {
@@ -47,6 +48,12 @@ class PlaySettings {
   /// default behaviour.
   final bool Function()? suppressEndOfGamePopup;
 
+  /// Overrides `GamicoRollCallPanel`'s default look (a white card over a
+  /// dimmed backdrop) app-wide, for a host that wants the pre-deal wait/vote
+  /// screen to match its own game's theme — dark, say, instead of gamico's
+  /// generic light one. Leave null to keep the default look.
+  final GamicoRollCallPanelBuilder? rollCallPanelBuilder;
+
   const PlaySettings({
     required this.activePlayersLeaderboardId,
     required this.inactivePlayersLeaderboardId,
@@ -57,5 +64,6 @@ class PlaySettings {
     this.onModedRemoteResult,
     this.suppressEndOfGameAd,
     this.suppressEndOfGamePopup,
+    this.rollCallPanelBuilder,
   });
 }

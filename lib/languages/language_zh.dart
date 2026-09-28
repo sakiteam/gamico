@@ -1255,13 +1255,13 @@ abstract class GamicoLanguageZh extends GamicoLanguages {
       "没有其他玩家及时连接。游戏已取消，不会受到惩罚。";
 
   @override
-  String get rollCallCancelledTitle => "游戏已取消";
+  String get rollCallCancelledTitle => "游戏已取消！";
 
   @override
   String get rollCallExcludedTitle => "游戏已在你缺席时开始";
 
   @override
-  String rollCallExcludedDuel(int s) => "你的对手等了你 $s 秒仍未见你到达，因此游戏已取消。你不会受到惩罚。";
+  String rollCallExcludedDuel(int s) => "你的对手等了你 $s 秒仍未见你到达。你不会受到惩罚！";
 
   @override
   String get rollCallExcludedVote => "你尚未连接，其他玩家投票决定不等你开始游戏。你不会受到惩罚。";

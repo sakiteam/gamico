@@ -391,7 +391,14 @@ class NotificationService {
   ) async {
     final payload = receivedAction.payload;
 
-    if (payload != null && payload.containsKey('friend_request_id')) {
+    // Either a live request (buttons, keyed by `friend_request_id`) or the
+    // informational "they accepted" notification (no buttons, keyed by
+    // `accepter_id` instead — see [showFriendRequestAcceptedNotification]).
+    // Both are the app's "friend request" domain, so the same handler sorts
+    // out which one it got.
+    if (payload != null &&
+        (payload.containsKey('friend_request_id') ||
+            payload.containsKey('accepter_id'))) {
       await friendRequestActionHandler?.call(receivedAction);
       return;
     }

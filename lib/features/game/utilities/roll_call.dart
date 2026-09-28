@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// Why the table's roster was sealed the way it was. Travels with the roster
 /// on `games/<id>/roll_call`, so a player left out can be told exactly why.
 enum GamicoRollCallReason {
@@ -50,7 +52,11 @@ const String kGamicoRollCallAway = "away";
 /// agrees on them.
 abstract final class GamicoRollCallRules {
   /// A duel is cancelled when the other player is still missing after this.
-  static const Duration duelGrace = Duration(seconds: 25);
+  /// Stretched to effectively never in debug builds, to give time to tweak
+  /// [GamicoRollCallPanel]'s design without racing the countdown.
+  static const Duration duelGrace = Duration(
+    seconds: kDebugMode ? 999999999 : 25,
+  );
 
   /// From three seats up, the ready players may vote the absent out from here.
   static const Duration voteOpensAfter = Duration(seconds: 25);

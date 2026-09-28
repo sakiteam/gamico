@@ -1375,14 +1375,14 @@ abstract class GamicoLanguageDe extends GamicoLanguages {
       "Kein anderer Spieler hat sich rechtzeitig verbunden. Das Spiel wird ohne Strafe abgebrochen.";
 
   @override
-  String get rollCallCancelledTitle => "Spiel abgebrochen";
+  String get rollCallCancelledTitle => "Spiel abgebrochen!";
 
   @override
   String get rollCallExcludedTitle => "Spiel ohne dich gestartet";
 
   @override
   String rollCallExcludedDuel(int s) =>
-      "Dein Gegner hat $s Sekunden auf dich gewartet, ohne dass du angekommen bist, daher wurde das Spiel abgebrochen. Du erhältst keine Strafe.";
+      "Dein Gegner hat $s Sekunden auf dich gewartet, ohne dass du angekommen bist. Du erhältst keine Strafe!";
 
   @override
   String get rollCallExcludedVote =>
