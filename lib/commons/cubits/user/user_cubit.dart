@@ -670,6 +670,15 @@ class GamicoUserCubit extends Cubit<GamicoUserState> {
   }
 
   void setSocialName(String socialName) {
+    // The player stream emits `null` while Game Center / Play Games is not
+    // signed in yet — every launch, before the real name arrives. Writing that
+    // as an empty name and then the real one made `social_name` change twice
+    // per launch, each change waking `syncProfileSocialName` (a Cloud Function
+    // and a Firestore write). An empty name says nothing worth mirroring, and
+    // the same name is not a change.
+    if (socialName.isEmpty) return;
+    if (socialName == state.user?.socialName) return;
+
     usersRepository.updateUserSocialName(LocalStorageService.uid, socialName);
   }
 

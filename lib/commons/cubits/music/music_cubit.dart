@@ -208,8 +208,16 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   double _musicTempo = 1;
   Timer? _tensionFade;
 
+  /// The brief dip of a big impact (see [punchMusic]), on top of everything
+  /// else. 1 at rest. Kept apart from [_musicTension]: the game's mood glides
+  /// on its own clock, and a punch landing mid-glide must neither fight it nor
+  /// leave it stranded at the wrong level.
+  double _musicPunch = 1;
+  Timer? _punchTimer;
+
   /// What the music player's volume should be right now.
-  double get _musicLevel => _currentVolume * _musicDuck * _musicTension;
+  double get _musicLevel =>
+      _currentVolume * _musicDuck * _musicTension * _musicPunch;
 
   void setGlobalVolume(double volume) {
     _currentVolume = volume;
@@ -298,6 +306,58 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
       if (step >= steps) {
         timer.cancel();
         if (identical(_tensionFade, timer)) _tensionFade = null;
+      }
+    });
+  }
+
+  /// Knocks the music down for an instant so a big impact is heard on its own,
+  /// then lets it swell back: [dip] is the level it drops to (0.25 leaves a
+  /// quarter of it), held for [hold], then brought back to full over [release].
+  ///
+  /// Meant for a game's heaviest hits — a chain landing, the card that ends a
+  /// hand. Sound effects are left alone, and it composes with
+  /// [setMusicTension] and voice-chat ducking rather than replacing them. A
+  /// second punch while one is running simply takes over from wherever the
+  /// level is, so a chain of impacts keeps the music low instead of pumping it.
+  Future<void> punchMusic({
+    double dip = 0.3,
+    Duration hold = const Duration(milliseconds: 150),
+    Duration release = const Duration(milliseconds: 800),
+  }) async {
+    if (_isDisposed || state.mute) return;
+
+    _punchTimer?.cancel();
+    // Never rise on the way down: a lighter punch during a heavier one must
+    // not lift the music back up.
+    _musicPunch = _musicPunch < dip ? _musicPunch : dip.clamp(0.0, 1.0);
+    _mainPlayer.setVolume(_musicLevel);
+
+    const int stepMs = 60;
+    final int releaseSteps = (release.inMilliseconds / stepMs).ceil().clamp(
+      1,
+      60,
+    );
+    final double from = _musicPunch;
+    int step = -1;
+    final int holdSteps = (hold.inMilliseconds / stepMs).ceil();
+
+    _punchTimer = Timer.periodic(Duration(milliseconds: stepMs), (timer) {
+      step++;
+      if (_isDisposed) {
+        timer.cancel();
+        return;
+      }
+      // Holding: nothing to change, the dip is already applied.
+      if (step < holdSteps) return;
+
+      final double t = ((step - holdSteps + 1) / releaseSteps).clamp(0.0, 1.0);
+      // Ease-out: most of the level comes back at once, the tail settles.
+      _musicPunch = from + (1.0 - from) * (1.0 - (1.0 - t) * (1.0 - t));
+      if (!state.mute) _mainPlayer.setVolume(_musicLevel);
+      if (t >= 1.0) {
+        _musicPunch = 1;
+        timer.cancel();
+        if (identical(_punchTimer, timer)) _punchTimer = null;
       }
     });
   }
@@ -821,6 +881,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   Future<void> close() async {
     _isDisposed = true;
     _tensionFade?.cancel();
+    _punchTimer?.cancel();
     await _interruptionSub?.cancel();
     _interruptionSub = null;
 
