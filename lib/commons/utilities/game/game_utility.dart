@@ -67,9 +67,11 @@ class RemoteGameUtility extends GameUtility {
   /// exchange. Implied by [replayOptions] being non-empty.
   final bool replayVote;
 
-  /// Keeps the older pre-deal rule: each device waits 20 s for the missing
-  /// players, no vote, no waiting list. For tables with their own handshake
-  /// and their own idea of a forfeit — a tournament leg.
+  /// No duel timeout, no vote, no waiting list: the table deals once every
+  /// expected player has answered, and waits otherwise. For tables with their
+  /// own handshake and their own idea of a forfeit — a tournament leg, whose
+  /// bracket forfeits a no-show and whose server deadline settles a table
+  /// that never deals.
   final bool legacyRollCall;
 
   /// The game's spectator view of the table [gameId], if it has one. A player

@@ -190,7 +190,7 @@ class FriendInvitationCubit extends Cubit<FriendInvitationState> {
 
       await ref.update({
         'status': status.name.toUpperCase(),
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       });
     } catch (e) {
       debugPrint("⚠️ FriendInvitationCubit.updateInvitationStatus error => $e");

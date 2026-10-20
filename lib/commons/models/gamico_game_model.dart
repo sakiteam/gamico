@@ -1,3 +1,4 @@
+import 'package:gamico/commons/services/timestamp.dart';
 import 'package:meta/meta.dart';
 
 @immutable
@@ -24,7 +25,10 @@ class GamicoGameModel {
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       "id": id,
-      "created_at": createdAt?.toString(),
+      // UTC with its `Z`: this stamp seeds every online shuffle, so all
+      // devices must read it as the same instant (see
+      // [TimestampService.parseShared]).
+      "created_at": createdAt?.toUtc().toString(),
       "updated_at": updatedAt?.toString(),
       "status": status,
       "events": events?.map<String, Map<String, dynamic>>((key, value) {
@@ -39,7 +43,7 @@ class GamicoGameModel {
   factory GamicoGameModel.fromJson(Map<String, dynamic> json) {
     return GamicoGameModel(
       id: json["id"],
-      createdAt: DateTime.tryParse(json["created_at"] ?? ""),
+      createdAt: TimestampService.parseShared(json["created_at"]?.toString()),
       updatedAt: DateTime.tryParse(json["updated_at"] ?? ""),
       status: json["status"],
       events: json["events"]?.map<String, GamicoGameEventModel>((key, value) {

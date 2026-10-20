@@ -1,8 +1,9 @@
 import 'dart:async';
 
 import 'package:bloc/bloc.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/models/gamico_game_model.dart';
 import 'package:gamico/commons/models/gamico_user_model.dart';
@@ -167,8 +168,52 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   /// left outside the window.
   static const int _eventsWindow = 200;
 
+  /// Every `games/{id}/events` key this device's listener has received, with
+  /// when it first saw it — what [pruneSeenEvents] is allowed to delete.
+  final Map<String, DateTime> _seenEventKeys = {};
+
+  /// Deletes, key by key, the events this device has already received — and
+  /// only those seen at least [minAge] ago.
+  ///
+  /// The alternative, writing null over the whole `events` node, has two
+  /// failure modes a lockstep game cannot afford:
+  /// - Firebase applies a local write before the server confirms it, and a
+  ///   pending null over `events` hides everything the server sends for that
+  ///   node in the meantime. An event another player wrote during that round
+  ///   trip reaches the server, is erased by our delete right behind it, and
+  ///   never fires `onChildAdded` here: a move this device never sees.
+  /// - Whatever was written a moment ago is gone for a player who happened to
+  ///   be offline for that moment, with no backlog left to catch up from.
+  /// Deleting named children only masks those children, and [minAge] leaves
+  /// the freshest events in place for the next pass.
+  ///
+  /// Nothing else changes for older builds sharing the table: they only ever
+  /// see `onChildRemoved`, which they do not listen to.
+  Future<void> pruneSeenEvents({
+    Duration minAge = const Duration(seconds: 5),
+  }) async {
+    if (gameId.trim().isEmpty || _seenEventKeys.isEmpty) return;
+    final cutoff = DateTime.now().subtract(minAge);
+    final keys = [
+      for (final e in _seenEventKeys.entries)
+        if (!e.value.isAfter(cutoff)) e.key,
+    ];
+    if (keys.isEmpty) return;
+    for (final k in keys) {
+      _seenEventKeys.remove(k);
+    }
+    try {
+      await FirebaseDatabase.instance.ref("games/$gameId").update({
+        for (final k in keys) "events/$k": null,
+        // Legacy node, long empty: kept in the sweep as it always was.
+        "moves": null,
+      });
+    } catch (e) {
+      debugPrint("[GamicoRemoteGameCubit] pruneSeenEvents failed: $e");
+    }
+  }
+
   // Remote game user disconnection manager
-  OnDisconnect? userDisconnectionReference;
 
   /// Watches `.info/connected` while the disconnection penalty above is armed:
   /// Android drops the database connection almost as soon as the app is
@@ -182,6 +227,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
   /// Field path → increment applied by the armed disconnection penalty (e.g.
   /// `-5` on `coins`), so a reconnection can write back the exact opposite.
+  /// Each one is armed on its own path — see [_armPenaltyFields].
   Map<String, num>? _armedDisconnectionPenalty;
 
   // Remote game id
@@ -217,28 +263,20 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   /// vote. Whether a table is cancelled, though, is counted in humans (see
   /// [_applyRollCall]).
   int _botSeats = 0;
-  Timer? _readinessFallbackTimer;
 
-  /// Tournament legs keep the older rule: every device grants the missing
-  /// players [_readinessGrace] from its own READINESS, and nobody votes. The
-  /// bracket has its own handshake and its own idea of a forfeit.
+  /// Tournament legs: no duel timeout, no vote, no cap — the roster is sealed
+  /// only once every expected player has answered (or left). The bracket owns
+  /// absence: its waiting room forfeits a no-show, and the server's match
+  /// deadline settles a table that never deals.
+  ///
+  /// There used to be a 20 s grace here, counted from each device's own
+  /// READINESS, after which whoever was ready made the table. On a two-seat
+  /// leg that meant a roster of one: an opponent 32 s behind was struck, the
+  /// table cancelled, and — since a sealed roster is final — every later
+  /// reopening of that room landed on the same verdict. The final of the
+  /// 2026-10-04 weekly championship was lost that way, decided by the server
+  /// deadline without a card being dealt.
   final bool legacyRollCall;
-
-  /// Grace of the older rule (see [legacyRollCall]).
-  static const Duration _readinessGrace = Duration(seconds: 20);
-
-  void _startReadinessFallbackTimer() {
-    if (!legacyRollCall) return;
-    _readinessFallbackTimer?.cancel();
-    _readinessFallbackTimer = Timer(_readinessGrace, () {
-      if (isClosed || gameCubit.state.ready) return;
-      // Whoever is ready by now makes the table. Proposed, not applied: see
-      // [_proposeRollCall]. Nobody left but us is still a roster — the game
-      // layer answers it with its penalty-free "match cancelled" verdict,
-      // which beats a spinner that never stops.
-      _proposeRollCall(_presentReadyIds, GamicoRollCallReason.grace);
-    });
-  }
 
   /// Expected players who have neither left nor failed to answer yet, and
   /// have answered. Always includes us once our READINESS is out.
@@ -982,7 +1020,6 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   ) async {
     if (_rollCallProposed || _rollCallApplied || isClosed) return;
     _rollCallProposed = true;
-    _readinessFallbackTimer?.cancel();
 
     if (reason != GamicoRollCallReason.allReady) {
       // A deadline, not a full table: whoever answered by the deadline the
@@ -1054,14 +1091,6 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     _rollCallRetryTimer?.cancel();
     _rollCallRetryTimer = Timer(const Duration(seconds: 3), () {
       if (isClosed || _rollCallApplied || gameCubit.state.ready) return;
-      if (legacyRollCall &&
-          !_expectedPlayerIds
-              .difference(_exitedPlayerIds)
-              .every(_readyPlayerIds.contains)) {
-        // The older rule's grace has already run out: seal what is there.
-        _proposeRollCall(_presentReadyIds, GamicoRollCallReason.grace);
-        return;
-      }
       _checkReadiness();
     });
   }
@@ -1081,7 +1110,6 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     _rollCallApplied = true;
     _pendingRollCall = null;
     _sealedRollCall = verdict.players;
-    _readinessFallbackTimer?.cancel();
     _stopRollCallTicker();
     // The roster is final: nothing a marker says from here on can change it.
     // An "away" written mid-match would even mislead a device still on its
@@ -1199,7 +1227,10 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   // threw a fatal LateInitializationError from deep inside the game's own
   // engine construction, and a second init threw "already initialized". The
   // value is identical either way, and still identical on every device, since
-  // `createdAt` is written once by the host.
+  // `createdAt` is written once by the host — and read as the same instant
+  // whatever the device's timezone (see [TimestampService.parseShared]; a
+  // zone-less stamp used to parse as local time, so an Abidjan–Toronto table
+  // dealt two different games).
   int get _seedBase => currentGame?.createdAt?.microsecondsSinceEpoch ?? 0;
   int get seed1 => _seedBase & 0x7FFFFFFF;
   int get seed2 => (_seedBase ~/ 7) & 0x7FFFFFFF;
@@ -1218,38 +1249,16 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   /// got to play.
   Future<void> _armDisconnectionPenalty() async {
     if (isClosed || _disconnectionPenaltyArmed) return;
+    // Nothing is at stake, so there is nothing to lose by dropping off either.
+    if (gameCubit.settings?.stakeFree ?? false) return;
     _disconnectionPenaltyArmed = true;
-
-    userDisconnectionReference = FirebaseDatabase.instance
-        .ref("users")
-        .child(LocalStorageService.uid)
-        .onDisconnect();
 
     if (Gamico.instance.playSettings?.exitUserWhenDisconnected == true ||
         !state.fakeOpponent) {
-      // For moded games (e.g. an embedded game), the disconnection penalty
-      // targets that mode's own progression namespace instead of the
-      // top-level stats. Coins stay a single shared wallet.
-      final mode = state.remoteUtility.matchmakingSettings.mode;
-
-      _armedDisconnectionPenalty = {
-        "coins": -Gamico.instance.gameSettings.playMinimumCoins,
-        if (mode == null) "defeats": 1,
-        if (mode == null) "trophies": -1,
-        if (mode != null) "progression/$mode/defeats": 1,
-        if (mode != null) "progression/$mode/trophies": -1,
-      };
-
-      try {
-        await userDisconnectionReference?.update(
-          _disconnectionPenaltyPayload(_armedDisconnectionPenalty!),
-        );
-      } catch (e) {
-        // onDisconnect().update() peut échouer si l'utilisateur est
-        // hors-ligne ou si les règles Firebase bloquent l'écriture.
-        // Non-fatal : on continue l'initialisation de la partie.
-        debugPrint('[GamicoRemoteGameCubit] onDisconnect update failed: $e');
-      }
+      _armedDisconnectionPenalty = _disconnectionPenaltyDeltas();
+      // Peut échouer si l'utilisateur est hors-ligne ou si les règles Firebase
+      // bloquent l'écriture : non-fatal, la partie continue.
+      await _armPenaltyFields(_armedDisconnectionPenalty!);
 
       // Self-healing: a brief background trip drops the database connection
       // (see field doc above) and fires the penalty above almost instantly.
@@ -1261,6 +1270,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
           .ref(".info/connected")
           .onValue
           .listen((event) {
+            _databaseConnected = event.snapshot.value == true;
             if (event.snapshot.value != true) return;
             if (!_sawInitialConnected) {
               _sawInitialConnected = true;
@@ -1273,6 +1283,112 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
   /// Guards a single arming of the penalty above.
   bool _disconnectionPenaltyArmed = false;
+
+  /// Last state of `.info/connected` seen while the penalty is armed.
+  bool _databaseConnected = false;
+
+  /// The increments the disconnection penalty arms: the coins, then the
+  /// game's own progression ([GamicoGameCubitSettings.disconnectionPenalty]).
+  /// By default, for moded games (e.g. an embedded game), the penalty targets
+  /// that mode's own progression namespace instead of the top-level stats.
+  /// Coins stay a single shared wallet.
+  Map<String, num> _disconnectionPenaltyDeltas() {
+    final custom = gameCubit.settings?.disconnectionPenalty?.call();
+    final mode = state.remoteUtility.matchmakingSettings.mode;
+    return {
+      "coins": -Gamico.instance.gameSettings.playMinimumCoins,
+      if (custom != null)
+        ...custom
+      else if (mode == null) ...{
+        "defeats": 1,
+        "trophies": -1,
+      } else ...{
+        "progression/$mode/defeats": 1,
+        "progression/$mode/trophies": -1,
+      },
+    };
+  }
+
+  /// Arms the disconnection penalty again with fresh amounts from
+  /// [GamicoGameCubitSettings.disconnectionPenalty]: the game learnt something
+  /// during the match that changes them. Only the fields whose amount changed
+  /// are replaced.
+  ///
+  /// Only while the penalty is armed, the match is on and the database is
+  /// connected: a replacement sent offline would reach the server after the
+  /// disconnection it was meant for, and the refund on reconnection would
+  /// then undo an amount that never fired.
+  Future<void> rearmDisconnectionPenalty() async {
+    final armed = _armedDisconnectionPenalty;
+    if (isClosed || armed == null || gameCubit.state.over) return;
+    if (!_databaseConnected) return;
+
+    final next = _disconnectionPenaltyDeltas();
+    _armedDisconnectionPenalty = next;
+    await _armPenaltyFields(next, previous: armed);
+  }
+
+  /// Registers [deltas] as `onDisconnect` increments, ONE PATH PER FIELD
+  /// (`users/<uid>/coins`, `users/<uid>/progression/<game>/trophies`…), never
+  /// one update on `users/<uid>` itself.
+  ///
+  /// `onDisconnect().cancel()` drops every operation registered at its location
+  /// and below: cancelling on `users/<uid>` also took the presence
+  /// `onDisconnect` registered there (gamico's own, or the host app's), so a
+  /// player who quit the app right after a match could stay "online" until
+  /// they next connected. A field's own path can be cancelled or replaced
+  /// without touching anything else, and a replacement (cancel, then set) means
+  /// the same thing whether the server keeps one operation per path or queues
+  /// them all.
+  ///
+  /// [previous] is what is armed now, when re-arming: fields keeping their
+  /// amount are left alone, the others are cancelled and set anew. Without it,
+  /// nothing is assumed to be armed (a first arming, or one after the penalty
+  /// fired).
+  Future<void> _armPenaltyFields(
+    Map<String, num> deltas, {
+    Map<String, num>? previous,
+  }) async {
+    // `ref("users").child("")` is the collection root.
+    if (LocalStorageService.uid.isEmpty) return;
+    final user = FirebaseDatabase.instance
+        .ref("users")
+        .child(LocalStorageService.uid);
+
+    // Sent in call order on the one connection, so each cancel reaches the
+    // server before the set that replaces it.
+    final writes = <Future<void>>[];
+    for (final field in {...?previous?.keys, ...deltas.keys}) {
+      final before = previous?[field];
+      final after = deltas[field];
+      if (previous != null && before == after) continue;
+      final onDisconnect = user.child(field).onDisconnect();
+      if (before != null) writes.add(onDisconnect.cancel());
+      if (after != null && after != 0) {
+        writes.add(onDisconnect.set(ServerValue.increment(after)));
+      }
+    }
+    try {
+      await Future.wait(writes);
+    } catch (e) {
+      debugPrint('[GamicoRemoteGameCubit] onDisconnect arming failed: $e');
+    }
+  }
+
+  /// Cancels the armed penalty, field by field (see [_armPenaltyFields]).
+  void _disarmPenaltyFields(Map<String, num> armed) {
+    if (LocalStorageService.uid.isEmpty) return;
+    final user = FirebaseDatabase.instance
+        .ref("users")
+        .child(LocalStorageService.uid);
+    for (final field in armed.keys) {
+      unawaited(
+        user.child(field).onDisconnect().cancel().catchError((Object e) {
+          debugPrint('[GamicoRemoteGameCubit] onDisconnect cancel failed: $e');
+        }),
+      );
+    }
+  }
 
   void resetGameEndStatus() {
     emit(state.copyWith(gameEndStatus: ""));
@@ -1714,7 +1830,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       final move = item.move;
       final goneUid = item.goneUid;
       if (move != null) {
-        settings.receiveMoveFromRemotePlayer(move);
+        _deliverMove(settings, move);
       } else if (goneUid != null) {
         settings.onRemoteUserDisconnectedDuringGame(goneUid);
       }
@@ -1731,6 +1847,29 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       return;
     }
     settings.onRemoteUserDisconnectedDuringGame(uid);
+  }
+
+  /// The game decodes data another device wrote, possibly from another build:
+  /// a move it cannot handle must cost that move alone, not crash the app or
+  /// stop the replay of the moves queued behind it.
+  void _deliverMove(
+    GamicoGameCubitSettings settings,
+    GamicoGameEventModel move,
+  ) {
+    try {
+      settings.receiveMoveFromRemotePlayer(move);
+    } catch (e, stack) {
+      debugPrint('[GamicoRemoteGameCubit] move handler error: $e');
+      if (!kReleaseMode) return;
+      try {
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          stack,
+          reason: 'receiveMoveFromRemotePlayer',
+          fatal: false,
+        );
+      } catch (_) {}
+    }
   }
   // ────────────────────────────────────────────────────────────────────────────
 
@@ -1815,7 +1954,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
           .toList();
       _rc(
         "table: expected $_expectedOrder, bots $_botSeats"
-        "${legacyRollCall ? ", legacy 20 s rule" : ""}"
+        "${legacyRollCall ? ", tournament rule (all or nothing)" : ""}"
         "${state.fakeOpponent ? ", fake opponent" : ""}",
       );
       _publishRollCallStatus();
@@ -2053,6 +2192,9 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       // and the window slides forward as events arrive: each new one still
       // fires exactly once.
       if (!state.fakeOpponent) {
+        // A fresh listener replays the window it attaches to, so what it had
+        // seen before is seen again: nothing to carry over.
+        _seenEventKeys.clear();
         gameEventsStreamSubscription = FirebaseDatabase.instance
             .ref()
             .child("games/$gameId/events")
@@ -2060,6 +2202,10 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
             .onChildAdded
             .listen(
               (event) async {
+                final String? eventKey = event.snapshot.key;
+                if (eventKey != null) {
+                  _seenEventKeys.putIfAbsent(eventKey, DateTime.now);
+                }
                 if (event.snapshot.exists) {
                   final rawData = event.snapshot.value;
                   final validData = _deepCastMap(rawData);
@@ -2090,9 +2236,10 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                           ));
                         }
                       } else {
-                        gameCubit.settings?.receiveMoveFromRemotePlayer(
-                          currentGameEvent,
-                        );
+                        final settings = gameCubit.settings;
+                        if (settings != null) {
+                          _deliverMove(settings, currentGameEvent);
+                        }
                       }
                     }
                   } else if (currentGameEvent.type == "EXIT") {
@@ -2333,7 +2480,6 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         _rc("our READINESS sent");
         _readinessSent = true;
         _watchConnectionBeforeDeal();
-        _startReadinessFallbackTimer();
         // The table may have sealed its roster while we were still loading.
         final pending = _pendingRollCall;
         if (pending != null) {
@@ -2369,8 +2515,10 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
           // Host owns result handling for this mode (exit mid-game = defeat).
           onModedRemoteResult(gameCubit.userCubit, mode, false, 0);
         } else {
-          if (adventureUtility == null ||
-              (state.userInitialLevel == state.level)) {
+          final stakeFree = gameCubit.settings?.stakeFree ?? false;
+          if (!stakeFree &&
+              (adventureUtility == null ||
+                  (state.userInitialLevel == state.level))) {
             gameCubit.userCubit.decrementCoins(
               Gamico.instance.gameSettings.playMinimumCoins,
             );
@@ -2405,8 +2553,8 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
   void cleanUserDisconnectionReference() {
     // Do not punish the player if he/her leaves the game after its end
-    userDisconnectionReference?.cancel();
-    userDisconnectionReference = null;
+    final armed = _armedDisconnectionPenalty;
+    if (armed != null) _disarmPenaltyFields(armed);
     _disconnectionPenaltySubscription?.cancel();
     _disconnectionPenaltySubscription = null;
     _armedDisconnectionPenalty = null;
@@ -2438,17 +2586,8 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       );
     }
 
-    try {
-      userDisconnectionReference = FirebaseDatabase.instance
-          .ref("users")
-          .child(LocalStorageService.uid)
-          .onDisconnect();
-      await userDisconnectionReference?.update(
-        _disconnectionPenaltyPayload(deltas),
-      );
-    } catch (e) {
-      debugPrint('[GamicoRemoteGameCubit] onDisconnect re-arm failed: $e');
-    }
+    // The penalty fired with the disconnection: nothing is armed any more.
+    await _armPenaltyFields(deltas);
   }
 
   void _manageRemoteExit(String userId) {
@@ -2483,7 +2622,6 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   Future<void> close() {
     GamicoDatabaseShutdown.unregister(this);
 
-    _readinessFallbackTimer?.cancel();
     _replayCountdownTimer?.cancel();
     // Cancel all usual streams
     newGameStreamSubscription?.cancel();

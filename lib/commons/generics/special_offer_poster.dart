@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:gamico/commons/generics/coins_widget.dart';
 import 'package:gamico/commons/global/gamico.dart';
 import 'package:gamico/commons/services/color.dart';
@@ -20,6 +22,57 @@ class GamicoSpecialOfferPoster extends StatelessWidget {
   static Color dashColor = Colors.white;
 
   const GamicoSpecialOfferPoster({super.key});
+
+  /// What the special pack's coins cost when bought as classic packs: the
+  /// cheapest combination of classic packs adding up to exactly as many coins,
+  /// or, when none does, those coins at the best classic per-coin rate.
+  ///
+  /// Null when the amounts are not configured, no classic price is known in
+  /// the offer's currency, or the classic price is not higher than the offer —
+  /// there is then no honest price to strike through.
+  static double? _regularPrice(
+    ProductDetails specialPack,
+    List<ProductDetails> products,
+  ) {
+    final settings = Gamico.instance.purchasesSettings!;
+    final target = settings.packsAmounts[specialPack.id];
+    if (target == null || target <= 0) return null;
+
+    // Coins → cheapest classic pack giving exactly that many.
+    final classicPrices = <int, double>{};
+    for (final id in settings.classicPacksIds) {
+      final amount = settings.packsAmounts[id];
+      final product = products.where((p) => p.id == id).firstOrNull;
+      if (amount == null || amount <= 0 || product == null) continue;
+      if (product.currencyCode != specialPack.currencyCode) continue;
+      final known = classicPrices[amount];
+      if (known == null || product.rawPrice < known) {
+        classicPrices[amount] = product.rawPrice;
+      }
+    }
+    if (classicPrices.isEmpty) return null;
+
+    // cheapest[n]: cheapest way to get exactly n coins from classic packs.
+    final cheapest = List<double?>.filled(target + 1, null);
+    cheapest[0] = 0;
+    for (var n = 1; n <= target; n++) {
+      for (final MapEntry(key: amount, value: price) in classicPrices.entries) {
+        if (amount > n) continue;
+        final rest = cheapest[n - amount];
+        if (rest == null) continue;
+        final cost = rest + price;
+        if (cheapest[n] == null || cost < cheapest[n]!) cheapest[n] = cost;
+      }
+    }
+
+    final regular =
+        cheapest[target] ??
+        target *
+            classicPrices.entries
+                .map((entry) => entry.value / entry.key)
+                .reduce(min);
+    return regular > specialPack.rawPrice ? regular : null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,6 +141,7 @@ class GamicoSpecialOfferPoster extends StatelessWidget {
 
                 String? packTitle;
                 double? packPrice;
+                double? regularPrice;
                 String? packCurrency;
 
                 if (loading == false && gratificationState.offerEnabled) {
@@ -118,6 +172,7 @@ class GamicoSpecialOfferPoster extends StatelessWidget {
                   );
 
                   packPrice = specialPack.rawPrice;
+                  regularPrice = _regularPrice(specialPack, state.products);
                   packCurrency = specialPack.currencySymbol;
                 }
 
@@ -162,41 +217,42 @@ class GamicoSpecialOfferPoster extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             //
-                            GamicoDisabler(
-                              disabled: true,
-                              child: Stack(
-                                children: [
-                                  GamicoIconTextButton(
-                                    onPressed: () {},
-                                    iconWidget: CoinsWidget(
-                                      size: 50,
-                                      color: dashColor,
+                            if (regularPrice != null)
+                              GamicoDisabler(
+                                disabled: true,
+                                child: Stack(
+                                  children: [
+                                    GamicoIconTextButton(
+                                      onPressed: () {},
+                                      iconWidget: CoinsWidget(
+                                        size: 50,
+                                        color: dashColor,
+                                      ),
+                                      // color: Colors.grey,
+                                      // contentColor: Colors.black,
+                                      text:
+                                          "${regularPrice.toStringAsFixed(2)} $packCurrency",
                                     ),
-                                    // color: Colors.grey,
-                                    // contentColor: Colors.black,
-                                    text:
-                                        "${((packPrice ?? 0) + 1).toStringAsFixed(2)} $packCurrency",
-                                  ),
-                                  Positioned(
-                                    bottom:
-                                        80 - 1, //24 * 450 / 400 - dashOffset,
-                                    left: 0,
-                                    right: 0,
-                                    child: Center(
-                                      child: Transform.translate(
-                                        offset: Offset(0, dashOffset),
-                                        child: Container(
-                                          width: 100 * 450 / 400 - 32,
-                                          height: 2,
-                                          color: dashColor,
-                                          // color: Colors.black.withAlpha(150),
+                                    Positioned(
+                                      bottom:
+                                          80 - 1, //24 * 450 / 400 - dashOffset,
+                                      left: 0,
+                                      right: 0,
+                                      child: Center(
+                                        child: Transform.translate(
+                                          offset: Offset(0, dashOffset),
+                                          child: Container(
+                                            width: 100 * 450 / 400 - 32,
+                                            height: 2,
+                                            color: dashColor,
+                                            // color: Colors.black.withAlpha(150),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
 
                             //
                             GamicoIconTextButton(

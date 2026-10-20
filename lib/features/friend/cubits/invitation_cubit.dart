@@ -320,8 +320,9 @@ class InvitationCubit extends Cubit<InvitationState> {
         'sender_id': senderId,
         'receiver_id': receiverId,
         'status': 'PENDING',
-        'created_at': now.toIso8601String(),
-        'updated_at': now.toIso8601String(),
+        // UTC with its `Z`, see InvitationModel.toJson.
+        'created_at': now.toUtc().toIso8601String(),
+        'updated_at': now.toUtc().toIso8601String(),
         'settings': {
           'mode': mode,
           'max_players': maxPlayers,
@@ -344,7 +345,7 @@ class InvitationCubit extends Cubit<InvitationState> {
 
       await ref.update({
         'status': status.name.toUpperCase(),
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       });
     } catch (e) {
       debugPrint("⚠️ InvitationCubit.updateInvitationStatus error => $e");

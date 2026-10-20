@@ -48,6 +48,17 @@ class PlaySettings {
   /// default behaviour.
   final bool Function()? suppressEndOfGamePopup;
 
+  /// Optional veto over the generic "Félicitations" message
+  /// ([CongratulationsMessageUtility] — text and its voice line both) shown
+  /// by [GamicoGameCubit.handleGameOver] on a genuine victory. Consulted the
+  /// moment it would display; returning true holds the whole message back.
+  ///
+  /// For a game whose own commentary already crowns the winner with its own
+  /// text and sound for a specific win — Crazy Eights' "C'est faciiile !"
+  /// combo-finish line, say — where the generic message would otherwise show
+  /// and play right on top of it. Leave null to keep the default behaviour.
+  final bool Function()? suppressCongratulationsMessage;
+
   /// Overrides `GamicoRollCallPanel`'s default look (a white card over a
   /// dimmed backdrop) app-wide, for a host that wants the pre-deal wait/vote
   /// screen to match its own game's theme — dark, say, instead of gamico's
@@ -64,6 +75,7 @@ class PlaySettings {
     this.onModedRemoteResult,
     this.suppressEndOfGameAd,
     this.suppressEndOfGamePopup,
+    this.suppressCongratulationsMessage,
     this.rollCallPanelBuilder,
   });
 }

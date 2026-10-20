@@ -25,6 +25,22 @@ class GamicoGameCubitSettings {
   /// rule: leaving a game that isn't over is an abandonment.
   final bool Function()? exitIsPenaltyFree;
 
+  /// The match is played for nothing: no coins and no trophies change hands,
+  /// whatever its outcome (a friendly table set up that way). Leaving is still
+  /// confirmed, without the coin warning; no disconnection penalty is armed;
+  /// and gamico's own settlement moves no coins. Results handed to
+  /// `onModedRemoteResult` still reach the app, which owns its moded stakes.
+  final bool stakeFree;
+
+  /// What leaving by losing the connection costs in the game's own progression:
+  /// increments under `users/<uid>` (e.g. `progression/<game>/trophies: -14`),
+  /// armed as the `onDisconnect` penalty next to the coins gamico docks itself.
+  /// Read when the penalty is armed and again on every
+  /// `GamicoRemoteGameCubit.rearmDisconnectionPenalty`, so it can follow what
+  /// the game learns during the match. Null keeps gamico's default: a defeat
+  /// and −1 trophy under `progression/<matchmaking mode>`.
+  final Map<String, num> Function()? disconnectionPenalty;
+
   /// Called instead of `startGame` when the table's sealed roll-call (see
   /// `GamicoRemoteGameCubit`) went ahead without this device: the others are
   /// dealing without us, and nothing we deal ourselves would match theirs.
@@ -61,6 +77,8 @@ class GamicoGameCubitSettings {
     required this.initGame,
     required this.startGame,
     this.exitIsPenaltyFree,
+    this.stakeFree = false,
+    this.disconnectionPenalty,
     this.onExcludedFromRollCall,
     this.onRollCallCancelled,
     this.rejoinsDealtTable = true,

@@ -51,8 +51,11 @@ class InvitationModel {
       'sender_id': senderId,
       'receiver_id': receiverId,
       'status': status.name.toUpperCase(),
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
+      // UTC with its `Z`: the receiver ages the invitation against its own
+      // clock, and a zone-less stamp reads as local time there — an
+      // invitation sent from west of UTC looked hours old in Abidjan.
+      'created_at': createdAt.toUtc().toIso8601String(),
+      'updated_at': updatedAt?.toUtc().toIso8601String(),
       'settings': gameSettings,
     };
   }

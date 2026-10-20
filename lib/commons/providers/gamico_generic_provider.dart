@@ -2,14 +2,21 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:gamico/commons/services/timestamp.dart';
 
 class GamicoGenericProvider {
   final ref = FirebaseDatabase.instance.ref();
 
-  Future<String> createData(String col, Map<String, dynamic> doc) async {
+  /// [stamp] overrides the `created_at`/`updated_at` value, for nodes whose
+  /// creation time other devices read back (see [TimestampService.sharedNow]).
+  Future<String> createData(
+    String col,
+    Map<String, dynamic> doc, {
+    String? stamp,
+  }) async {
     try {
       final pushRef = ref.child(col).push();
-      final now = DateTime.now().toString();
+      final now = stamp ?? DateTime.now().toString();
 
       doc = Map<String, dynamic>.from(doc);
       doc.remove("id");

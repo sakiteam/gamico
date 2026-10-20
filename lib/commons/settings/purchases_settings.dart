@@ -12,9 +12,15 @@ class PurchasesSettings {
   final Map<String, Function(GamicoUserCubit userCubit)> specialPacks;
   final String? premiumProductId;
 
+  /// How many coins each pack, classic or special, gives. This is what lets the
+  /// special offer show its real regular price — what the same coins cost in
+  /// classic packs. Packs left out get no struck-through price.
+  final Map<String, int> packsAmounts;
+
   const PurchasesSettings({
     this.classicPacks = const {},
     this.specialPacks = const {},
     this.premiumProductId,
+    this.packsAmounts = const {},
   });
 }

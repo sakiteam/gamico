@@ -473,6 +473,11 @@ class RemoteModeSettings implements GameModeSettings {
   String gamePageClosingPopupDescription(BuildContext context) {
     final l = GamicoLanguages.of(context);
 
+    // No coins to lose: only the match itself is given up.
+    if (context.read<GamicoGameCubit>().settings?.stakeFree ?? false) {
+      return l.remoteSimpleCloseDescription;
+    }
+
     return l.remoteComplexCloseDescription(
       Gamico.instance.gameSettings.playMinimumCoins,
     );
@@ -504,13 +509,19 @@ class RemoteModeSettings implements GameModeSettings {
           gameState.stars,
         );
       } else if (gameState.victory == true) {
-        userCubit.incrementCoins(
-          Gamico.instance.gameSettings.playMinimumCoins * gameState.stars,
-        );
+        if (!(gameCubit.settings?.stakeFree ?? false)) {
+          userCubit.incrementCoins(
+            Gamico.instance.gameSettings.playMinimumCoins * gameState.stars,
+          );
+        }
 
         userCubit.incrementVictories();
       } else {
-        userCubit.decrementCoins(Gamico.instance.gameSettings.playMinimumCoins);
+        if (!(gameCubit.settings?.stakeFree ?? false)) {
+          userCubit.decrementCoins(
+            Gamico.instance.gameSettings.playMinimumCoins,
+          );
+        }
         userCubit.incrementDefeats();
       }
     } else {

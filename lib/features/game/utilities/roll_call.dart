@@ -54,9 +54,7 @@ abstract final class GamicoRollCallRules {
   /// A duel is cancelled when the other player is still missing after this.
   /// Stretched to effectively never in debug builds, to give time to tweak
   /// [GamicoRollCallPanel]'s design without racing the countdown.
-  static const Duration duelGrace = Duration(
-    seconds: kDebugMode ? 999999999 : 25,
-  );
+  static const Duration duelGrace = Duration(seconds: kDebugMode ? 25 : 25);
 
   /// From three seats up, the ready players may vote the absent out from here.
   static const Duration voteOpensAfter = Duration(seconds: 25);

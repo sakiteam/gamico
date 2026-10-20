@@ -1,8 +1,10 @@
 import 'dart:convert';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:gamico/commons/providers/gamico_generic_provider.dart';
+import 'package:gamico/commons/services/timestamp.dart';
 
 class GamicoGamesProvider extends GamicoGenericProvider {
   /// How stale `games/{id}/last_activity_at` is allowed to get before the next
@@ -48,7 +50,13 @@ class GamicoGamesProvider extends GamicoGenericProvider {
   }
 
   Future<String> createGame(Map<String, dynamic> doc) async {
-    final id = await createData("games", doc);
+    // `created_at` seeds the table's shuffle on every device: UTC with its
+    // `Z`, or two timezones deal two different games.
+    final id = await createData(
+      "games",
+      doc,
+      stamp: TimestampService.sharedNow(),
+    );
     if (id.isNotEmpty) {
       // Recorded as a stamp so the creator's first event does not immediately
       // write the same value again.
@@ -116,17 +124,58 @@ class GamicoGamesProvider extends GamicoGenericProvider {
         return item?.toString();
       }));
 
-      await ref.update({
-        "games/$gameId/events/${pushRef.key}": jsonDoc,
-        if (_shouldStampActivity(gameId))
-          "games/$gameId/last_activity_at": ServerValue.timestamp,
-      });
-
-      return pushRef.key ?? "";
+      // A write the server refuses used to be dropped right here, with a
+      // debugPrint — while the game had already applied the move on its own
+      // board. In a lockstep game that is a move this player sees played and
+      // nobody else ever receives. The usual cause is a Firebase session not
+      // (yet, or no longer) there: `games` requires `auth.uid`. So it is tried
+      // again, under the SAME push key — a retry can land late, but never
+      // twice. Offline is not an error: the SDK queues the write and this
+      // future just resolves on reconnection.
+      final bool stamp = _shouldStampActivity(gameId);
+      for (int attempt = 0;; attempt++) {
+        try {
+          await ref.update({
+            "games/$gameId/events/${pushRef.key}": jsonDoc,
+            if (stamp && attempt == 0)
+              "games/$gameId/last_activity_at": ServerValue.timestamp,
+          });
+          return pushRef.key ?? "";
+        } catch (e) {
+          debugPrint(
+            "Error creating data games/$gameId/events "
+            "(attempt ${attempt + 1}/${_eventWriteDelays.length + 1}): $e",
+          );
+          if (attempt >= _eventWriteDelays.length) return "";
+          await Future.delayed(_eventWriteDelays[attempt]);
+          await _awaitAuthSession();
+        }
+      }
     } catch (e) {
       debugPrint("Error creating data games/$gameId/events: $e");
       return "";
     }
+  }
+
+  /// Waits between the attempts of [addGameEvent]. Short on purpose: a move
+  /// that lands seconds late is still repaired by the game's own gap check,
+  /// one that lands a minute late only confuses it.
+  static const List<Duration> _eventWriteDelays = [
+    Duration(milliseconds: 400),
+    Duration(milliseconds: 1500),
+    Duration(seconds: 4),
+  ];
+
+  /// Gives a missing Firebase session a moment to come back before the next
+  /// attempt — the refused write most often means exactly that.
+  static Future<void> _awaitAuthSession() async {
+    try {
+      if (FirebaseAuth.instance.currentUser != null) return;
+      await FirebaseAuth.instance
+          .authStateChanges()
+          .firstWhere((u) => u != null)
+          .timeout(const Duration(seconds: 4));
+    } catch (_) {}
   }
 
   Future<void> removeGameEvent(String gameId, String gameEventId) {

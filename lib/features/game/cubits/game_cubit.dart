@@ -59,6 +59,22 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
   void Function(GamicoGameCubitSettings? previous)? onSettingsReplaced;
   void Function()? onGiveUp;
   void Function()? onExitGame;
+
+  /// Run as soon as the player asks to leave, before anything decides whether
+  /// that is an abandonment. A game whose result is already settled on the
+  /// table but not yet announced to the framework (the end of a run, while its
+  /// reveal still plays) ends the game here: [GamicoGameState.over] is then
+  /// true when the exit is judged, so leaving is neither penalised nor asked to
+  /// be confirmed, and the framework settles the result as it always does.
+  void Function()? onBeforeExit;
+
+  /// Asked right after [onBeforeExit], before anything else is decided or
+  /// done: false keeps the player on the page, with nothing of the exit
+  /// started. A game that wants a say before the exit begins (a warning about
+  /// the voice call that would be hung up, closing an open chat first) must
+  /// ask here: once [managePop] has run the game is already deactivated and the
+  /// player's exit declared, whatever the page then decides.
+  Future<bool> Function()? confirmExit;
   void Function()? onGameEnd;
 
   /// Fired the moment the match actually starts, whatever led to it (the
@@ -80,6 +96,11 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
   /// cinematic play out first — the popup only appears once this completes.
   /// Null (the default) keeps the standard timing for every other game.
   Future<void> Function()? awaitBeforeGamePopup;
+
+  /// Set by a game that runs its own interstitial rules for this match (e.g.
+  /// Crazy Eights): the framework then never adds its end-of-game ad, so the
+  /// two sets of rules can't each show one on the same ending.
+  bool ownsInterstitials = false;
 
   /* INHERITED */
 
@@ -261,7 +282,10 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
     } else if (victory) {
       characterCubit.setFeeling(FeelingType.happy);
 
-      if (state.overReason != "PASS") {
+      if (state.overReason != "PASS" &&
+          Gamico.instance.playSettings?.suppressCongratulationsMessage
+                  ?.call() !=
+              true) {
         displayMessage(CongratulationsMessageUtility());
       }
     } else {
@@ -321,6 +345,7 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
     if (context.mounted &&
         GameService.tutorialPassed &&
         gameMode.shouldShowAds(context) &&
+        !ownsInterstitials &&
         Gamico.instance.playSettings?.suppressEndOfGameAd?.call() != true &&
         userCubit.state.user?.premium != true) {
       try {
@@ -408,6 +433,9 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
       return false;
     }
 
+    onBeforeExit?.call();
+    if (confirmExit != null && !await confirmExit!()) return false;
+
     // A remote table that was never dealt is not a match to abandon: the
     // player is looking at the pre-deal loader (where a matched opponent who
     // never showed up leaves them), so leaving is free — and warning them
@@ -462,6 +490,8 @@ class GamicoGameCubit extends Cubit<GamicoGameState> {
     BuildContext context, {
     VoidCallback? onBackButtonPressed,
   }) async {
+    onBeforeExit?.call();
+
     setActive(false);
 
     NavigationService.closePopups();

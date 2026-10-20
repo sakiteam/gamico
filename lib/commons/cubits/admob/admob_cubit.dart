@@ -25,6 +25,18 @@ class AdmobCubit extends Cubit<AdmobState> {
   /// never loads — still gets its ads, just a few seconds later.
   static const Duration _premiumResolutionTimeout = Duration(seconds: 5);
 
+  /// One interstitial per ending, never two in a row: the framework's rules
+  /// and a game's own can both ask for an ad on the same ending, and the
+  /// request landing second must not chain a new ad right after the player
+  /// closed the first (to them, the ad "won't close"). Counted from the
+  /// moment the previous ad was dismissed.
+  static const Duration _minInterstitialGap = Duration(seconds: 10);
+
+  /// Safety net if the dismissal callback never arrives (the ad's activity
+  /// killed while the app was in the background): a stuck "showing" flag
+  /// must not silence every later interstitial of the session.
+  static const Duration _staleInterstitialAfter = Duration(minutes: 3);
+
   AdmobCubit({GamicoUserCubit? userCubit}) : this._(userCubit);
 
   AdmobCubit._(this._userCubit) : super(const AdmobState()) {
@@ -46,6 +58,17 @@ class AdmobCubit extends Cubit<AdmobState> {
   Timer? _interstitialRetryTimer;
   Duration _rewardedRetryDelay = _initialRetryDelay;
   Duration _interstitialRetryDelay = _initialRetryDelay;
+
+  /// Set from the moment an interstitial is requested (its wait for a load
+  /// included) until it is dismissed or fails to show.
+  DateTime? _interstitialBusySince;
+  DateTime? _lastInterstitialDismissedAt;
+
+  bool get _interstitialBusy {
+    final since = _interstitialBusySince;
+    return since != null &&
+        DateTime.now().difference(since) < _staleInterstitialAfter;
+  }
 
   bool get _isPremium => _userCubit?.state.user?.premium == true;
 
@@ -261,6 +284,8 @@ class AdmobCubit extends Cubit<AdmobState> {
           ad.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (ad) {
               MusicService.pausedByAd = false;
+              _interstitialBusySince = null;
+              _lastInterstitialDismissedAt = DateTime.now();
               Future.microtask(() {
                 _interstitialAd = null;
                 ad.dispose();
@@ -269,6 +294,8 @@ class AdmobCubit extends Cubit<AdmobState> {
             },
             onAdFailedToShowFullScreenContent: (ad, error) {
               MusicService.pausedByAd = false;
+              // Nothing was seen: no gap to respect before the next one.
+              _interstitialBusySince = null;
               Future.microtask(() {
                 _interstitialAd = null;
                 ad.dispose();
@@ -344,6 +371,20 @@ class AdmobCubit extends Cubit<AdmobState> {
   }
 
   Future<void> showInterstitialAd() async {
+    // One ad per ending — see [_minInterstitialGap]. Claimed before the wait
+    // below, so two requests landing together can't both end up showing.
+    if (_interstitialBusy) {
+      debugPrint('⚠️ Interstitial already on screen, skipping show');
+      return;
+    }
+    final dismissedAt = _lastInterstitialDismissedAt;
+    if (dismissedAt != null &&
+        DateTime.now().difference(dismissedAt) < _minInterstitialGap) {
+      debugPrint('⚠️ Interstitial just closed, skipping show');
+      return;
+    }
+    _interstitialBusySince = DateTime.now();
+
     if (_interstitialAd == null) {
       // The ad may simply still be loading (right after a previous one was
       // shown, or on the very first game of a session) — give it a short
@@ -360,6 +401,7 @@ class AdmobCubit extends Cubit<AdmobState> {
     }
 
     if (_interstitialAd == null) {
+      _interstitialBusySince = null;
       debugPrint('⚠️ Interstitial ad not ready, skipping show');
       return;
     }
@@ -370,6 +412,7 @@ class AdmobCubit extends Cubit<AdmobState> {
       await _interstitialAd?.show();
     } catch (e) {
       MusicService.pausedByAd = false;
+      _interstitialBusySince = null;
       debugPrint('Failed to show interstitial ad: $e');
       _interstitialAd?.dispose();
       _interstitialAd = null;
