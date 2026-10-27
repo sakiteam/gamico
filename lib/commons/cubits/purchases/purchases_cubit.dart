@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:bloc/bloc.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:gamico/commons/analytics/analytics_utils.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/commons/global/gamico.dart';
@@ -77,6 +79,7 @@ class PurchasesCubit extends Cubit<PurchasesState> {
 
       // _iap.restorePurchases();
     } else {
+      _reportCatalogueIssue('isAvailable() == false');
       emit(state.copyWith(status: PurchasesStatus.failure));
     }
   }
@@ -152,7 +155,31 @@ class PurchasesCubit extends Cubit<PurchasesState> {
     };
     ProductDetailsResponse response = await _iap.queryProductDetails(ids);
 
+    final error = response.error;
+    if (error != null || response.notFoundIDs.isNotEmpty) {
+      _reportCatalogueIssue(
+        'queryProductDetails: ${response.productDetails.length}/${ids.length} '
+        'found, notFound=${response.notFoundIDs}, '
+        'error=${error?.code} ${error?.message} ${error?.details}',
+      );
+    }
+
     emit(state.copyWith(products: response.productDetails));
+  }
+
+  /// An empty store hides the shop pages without a word, so say why: the
+  /// billing service, the catalogue or the account is the only way to tell.
+  void _reportCatalogueIssue(String message) {
+    debugPrint('[PurchasesCubit] $message');
+    if (!kReleaseMode) return;
+    try {
+      FirebaseCrashlytics.instance.recordError(
+        StateError(message),
+        StackTrace.current,
+        reason: 'iap_catalogue',
+        fatal: false,
+      );
+    } catch (_) {}
   }
 
   /// Null when the store catalogue never resolved this id — a failed or partial

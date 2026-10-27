@@ -1199,7 +1199,7 @@ abstract class GamicoLanguageFr extends GamicoLanguages {
 
   @override
   String get adventureSimpleCloseDescription =>
-      "Votre progression dans la partie actuelle sera définitivement perdue ! Voulez-vous vraiment clôturer la partie actuelle ?";
+      "Votre progression sera perdue ! Voulez-vous vraiment clôturer la partie ?";
   @override
   String get remoteSimpleCloseDescription =>
       "La clôture de cette partie vous fera perdre sa progression actuelle ! Voulez-vous vraiment clôturer cette partie ?";

@@ -250,6 +250,16 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   final Map<String, Future<AudioPlayer>> _loopPlayers = {};
   final Map<String, AudioPlayer> _readyLoopPlayers = {};
   final Map<String, Timer> _loopReleaseTimers = {};
+
+  /// Gain each loop was last started with, on top of the shared bruitage
+  /// level — so a loop meant as a soft backdrop stays soft when the volume or
+  /// the voice-chat ducking is reapplied to every player.
+  final Map<String, double> _loopGains = {};
+
+  /// Pitch each loop was last started with. Only touched when it differs
+  /// from 1 now or did last time: a platform round-trip the plain loops
+  /// (the in-game fire and clock) never need.
+  final Map<String, double> _loopPitches = {};
   static const Duration _loopReleaseDelay = Duration(seconds: 30);
 
   // Bruitage players list
@@ -260,6 +270,17 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
   // All players list
   List<AudioPlayer> get _allPlayers => [_mainPlayer, ..._bruitagePlayers];
+
+  /// Volume a sound-effect player should sit at right now: the shared level,
+  /// times its loop's own gain when it is one. One-shots set theirs per play.
+  double _bruitageLevel(AudioPlayer player) {
+    for (final entry in _readyLoopPlayers.entries) {
+      if (identical(entry.value, player)) {
+        return _currentVolume * _bruitageDuck * (_loopGains[entry.key] ?? 1);
+      }
+    }
+    return _currentVolume * _bruitageDuck;
+  }
 
   /// Gap between two native teardowns in [_stopAll].
   static const Duration _teardownStagger = Duration(milliseconds: 40);
@@ -322,7 +343,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
 
     _mainPlayer.setVolume(_musicLevel);
     for (final player in _bruitagePlayers) {
-      player.setVolume(volume * _bruitageDuck);
+      player.setVolume(_bruitageLevel(player));
     }
   }
 
@@ -358,7 +379,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     await Future.wait([
       _mainPlayer.setVolume(_musicLevel),
       ..._bruitagePlayers.map(
-        (player) => player.setVolume(_currentVolume * _bruitageDuck),
+        (player) => player.setVolume(_bruitageLevel(player)),
       ),
     ]);
   }
@@ -933,15 +954,26 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     });
   }
 
-  /// Starts [asset] looping, unless it already is.
-  Future<void> _startLoop(String asset) async {
+  /// Starts [asset] looping at [gain] of the bruitage level and at [pitch],
+  /// unless it already is — a loop already playing keeps what it started
+  /// with.
+  Future<void> _startLoop(
+    String asset, [
+    double gain = 1.0,
+    double pitch = 1.0,
+  ]) async {
     if (_isDisposed || state.bruitagesMuted) return;
 
     final player = await _loopPlayer(asset);
     if (_isDisposed) return;
     if (player.playing) return;
 
-    await player.setVolume(_currentVolume * _bruitageDuck);
+    _loopGains[asset] = gain.clamp(0.0, 1.0);
+    await player.setVolume(_bruitageLevel(player));
+    if (pitch != 1.0 || (_loopPitches[asset] ?? 1.0) != 1.0) {
+      await player.safelySetPitch(pitch.clamp(0.5, 2.0));
+      _loopPitches[asset] = pitch;
+    }
     await player.seek(Duration.zero);
     await player.safelyPlay(false, _isDisposed);
   }
@@ -994,6 +1026,8 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   Future<void> _releaseLoop(String asset) async {
     _loopReleaseTimers.remove(asset)?.cancel();
     _loopPlayers.remove(asset);
+    _loopGains.remove(asset);
+    _loopPitches.remove(asset);
     final player = _readyLoopPlayers.remove(asset);
     if (player == null) return;
 
@@ -1062,7 +1096,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
         }());
       } else {
         for (final player in _bruitagePlayers) {
-          player.setVolume(_currentVolume * _bruitageDuck);
+          player.setVolume(_bruitageLevel(player));
         }
       }
     }
@@ -1155,8 +1189,11 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
     await _stopLoop(_clockAsset);
   }
 
-  Future<void> playFireBruitage() async {
-    await _startLoop(_fireAsset);
+  /// [gain] scales the loop under the bruitage level: below 1 it becomes a
+  /// backdrop, such as the soft crackle behind the streak popup. [pitch]
+  /// gives the fire a voice: higher and lively, or low and roaring.
+  Future<void> playFireBruitage({double gain = 1.0, double pitch = 1.0}) async {
+    await _startLoop(_fireAsset, gain, pitch);
   }
 
   Future<void> stopFireBruitage() async {

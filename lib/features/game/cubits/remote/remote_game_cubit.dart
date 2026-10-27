@@ -1462,10 +1462,29 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   /// The players a rematch is still waiting on: everyone seated who has
   /// neither left the match nor been dropped by an expired countdown.
   List<String> get activePlayerIds {
-    final ids = _expectedPlayerIds.difference(_exitedPlayerIds).toList()
-      ..sort();
+    // The house bot is never expected at the roll-call, but it does take part
+    // in the vote: its driver casts its ballot (see [voteReplayAs]).
+    final house = houseSeatId;
+    final ids = {
+      ..._expectedPlayerIds,
+      ?house,
+    }.difference(_exitedPlayerIds).toList()..sort();
     return ids;
   }
+
+  /// The house bot's seat at this table — the account it plays as — or null.
+  String? get houseSeatId => currentGame?.houseUid;
+
+  /// Whether this device plays the house bot's seat.
+  bool get drivesHouse =>
+      houseSeatId != null &&
+      currentGame?.houseDriver == LocalStorageService.uid;
+
+  /// A seat no device answers for: the matchmaking's `bot_` placeholders, and
+  /// the house bot, played from its driver's device rather than through the
+  /// roll-call.
+  bool _isBotSeat(String? id) =>
+      id != null && (id.startsWith("bot_") || id == houseSeatId);
 
   /// The single device that writes the verdict when the countdown expires.
   ///
@@ -1473,7 +1492,8 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
   /// survives departures, so there is always exactly one referee and never
   /// two devices resolving a split vote differently.
   String? get _replayRefereeId {
-    final ids = activePlayerIds;
+    // Never the house bot: it has no device to write a verdict from.
+    final ids = activePlayerIds.where((id) => id != houseSeatId);
     return ids.isEmpty ? null : ids.first;
   }
 
@@ -1496,6 +1516,20 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       GamicoGameEventModel(
         type: "REPLAY_VOTE",
         userId: LocalStorageService.uid,
+        data: <String, dynamic>{"option": optionId},
+      ),
+    );
+  }
+
+  /// The house bot's ballot, cast by its driver.
+  void voteReplayAs(String userId, String optionId) {
+    if (!gameCubit.state.over || !drivesHouse || userId != houseSeatId) return;
+    _applyReplayVote(userId, optionId);
+    gamesRepository.addGameEvent(
+      gameId,
+      GamicoGameEventModel(
+        type: "REPLAY_VOTE",
+        userId: userId,
         data: <String, dynamic>{"option": optionId},
       ),
     );
@@ -1730,7 +1764,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                 .where(
                   (e) =>
                       e.value.userId == null ||
-                      e.value.userId.toString().startsWith("bot_") ||
+                      _isBotSeat(e.value.userId) ||
                       state.replayPlayerIds.contains(e.value.userId),
                 ),
           )
@@ -1742,11 +1776,13 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
     // `playersIds` in [init].
     final sortedPlayerUids = playersEntries
         .map((e) => e.value.userId)
-        .where((id) => id == null || !id.toString().startsWith("bot_"))
+        .where((id) => id == null || !_isBotSeat(id))
         .toList();
+    // At a house table its driver is the only device there is.
     final isFirstJoiner =
-        sortedPlayerUids.length > 1 &&
-        sortedPlayerUids[1] == LocalStorageService.uid;
+        drivesHouse ||
+        (sortedPlayerUids.length > 1 &&
+            sortedPlayerUids[1] == LocalStorageService.uid);
 
     if (isFirstJoiner) {
       newGameId = await gamesRepository.createGame(
@@ -1754,6 +1790,8 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
           events: const {},
           players: retainedPlayers,
           status: "CREATED",
+          // The rematch keeps the house bot, and the device that plays it.
+          house: currentGame?.house,
         ),
       );
 
@@ -1778,6 +1816,12 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
             onError: (e) =>
                 debugPrint("⚠️ newGameStreamSubscription error => $e"),
           );
+
+      // Nobody else would ever mark it STARTED: the other seat is the house
+      // bot, whose answer to IDENTIFICATION this device would have to give.
+      if (drivesHouse && newGameId.isNotEmpty) {
+        await gamesRepository.updateGameStatus(newGameId, "STARTED");
+      }
 
       gamesRepository.addGameEvent(
         gameId,
@@ -1936,12 +1980,12 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
               .map<String>((e) {
                 return e.userId.toString();
               })
-              .where((id) => !id.startsWith("bot_"))
+              .where((id) => !_isBotSeat(id))
               .toList();
 
       _expectedPlayerIds = playersIds.toSet();
       _botSeats = (currentGame?.players?.values ?? <GamicoGamePlayerModel>[])
-          .where((e) => e.userId.toString().startsWith("bot_"))
+          .where((e) => _isBotSeat(e.userId.toString()))
           .length;
       final seatEntries =
           (currentGame?.players?.entries.toList() ??
@@ -1961,9 +2005,13 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
       _startRollCallTicker();
       emit(state.copyWith(replayPlayerIds: activePlayerIds));
 
-      final otherPlayerIds = playersIds
-          .where((element) => element != LocalStorageService.uid)
-          .toList();
+      // The house bot is no device, but it is a real account the table shows:
+      // loaded like any opponent.
+      final house = houseSeatId;
+      final otherPlayerIds = [
+        ...playersIds,
+        ?house,
+      ].where((element) => element != LocalStorageService.uid).toList();
       final Map<String, dynamic> loadedOpponents = {};
 
       for (var s in opponentStreamSubscriptions) {
@@ -2615,6 +2663,18 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         type: "MOVE",
         userId: LocalStorageService.uid,
       ),
+    );
+  }
+
+  /// A move of the house bot's seat, sent by its driver under the bot's own
+  /// uid — so every reader (a spectator, the match history) books it to that
+  /// seat. The driver's own listener hands it back like any peer's move.
+  Future<void> sendMoveAs(String userId, Map<String, dynamic> data) async {
+    if (state.fakeOpponent || !drivesHouse || userId != houseSeatId) return;
+
+    await gamesRepository.addGameEvent(
+      gameId,
+      GamicoGameEventModel(data: data, type: "MOVE", userId: userId),
     );
   }
 

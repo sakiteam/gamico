@@ -63,9 +63,10 @@ class GamicoPremiumPoster extends StatelessWidget {
                     GamicoIconTextButton(
                       color: ColorService.accentColor,
                       onPressed: () async {
-                        if (premiumPack != null) {
-                          context.read<PurchasesCubit>().purchase(premiumPack);
-                        }
+                        // Non-consumable: buying it as a consumable lets
+                        // Google Play consume it, and restore then finds
+                        // nothing on Android.
+                        context.read<PurchasesCubit>().buyPremium();
                       },
                       iconData: Icons.star,
                       iconColor: Colors.white,

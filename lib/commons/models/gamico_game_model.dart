@@ -13,6 +13,11 @@ class GamicoGameModel {
   final Map<String, GamicoGameEventModel>? events;
   final Map<String, GamicoGamePlayerModel>? players;
 
+  /// The server's house bot at this table — `{uid, driver}`: the account its
+  /// seat plays as, and the one human whose device plays it. Null at every
+  /// other table.
+  final Map<String, dynamic>? house;
+
   const GamicoGameModel({
     this.id,
     this.createdAt,
@@ -20,7 +25,14 @@ class GamicoGameModel {
     this.status,
     this.events,
     this.players,
+    this.house,
   });
+
+  /// The account the house bot plays as here, if it sits at this table.
+  String? get houseUid => house?["uid"]?.toString();
+
+  /// The device (by uid) that plays the house bot's seat.
+  String? get houseDriver => house?["driver"]?.toString();
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -37,6 +49,7 @@ class GamicoGameModel {
       "players": players?.map<String, Map<String, dynamic>>((key, value) {
         return MapEntry(key, value.toJson());
       }),
+      if (house != null) "house": house,
     };
   }
 
@@ -55,6 +68,9 @@ class GamicoGameModel {
       ) {
         return MapEntry(key.toString(), GamicoGamePlayerModel.fromJson(value));
       }),
+      house: json["house"] is Map
+          ? Map<String, dynamic>.from(json["house"] as Map)
+          : null,
     );
   }
 }

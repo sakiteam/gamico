@@ -40,6 +40,18 @@ class GamicoAppInitializer {
             onlyAlertOnce: false,
             importance: NotificationImportance.Max,
           ),
+          // A conversation notification updated in place (our own reply added
+          // to it): the same alert would only ring again for nothing.
+          NotificationChannel(
+            channelKey: 'message_updates',
+            channelName: 'Messages (mises à jour)',
+            channelDescription: "Ces notifications reprennent une conversation déjà signalée, sans la resignaler !",
+            playSound: false,
+            enableVibration: false,
+            onlyAlertOnce: true,
+            channelShowBadge: false,
+            importance: NotificationImportance.High,
+          ),
           // Channel for active game turn updates.
           // Importance Max ensures it appears in the active/prominent section of the
           // Android shade (NOT tucked away in "Silencieux").

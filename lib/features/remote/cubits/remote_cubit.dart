@@ -597,6 +597,7 @@ class RemoteCubit extends Cubit<RemoteState> {
       if (_botFallbackDelay != null)
         "bot_after_ms": _botFallbackDelay!.inMilliseconds,
       if (seats == 2 && _wantsFakeOpponent) "fake_opponent": true,
+      if (settings.houseBot) "house_bot": true,
     };
   }
 

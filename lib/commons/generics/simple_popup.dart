@@ -22,6 +22,11 @@ class GamicoSimplePopup extends StatefulWidget {
 
   final Widget? additionalChild;
 
+  /// Painted over [background], across the whole sheet — its top padding
+  /// included, which [child] never reaches. For a glow that has to run up to
+  /// the sheet's real edge instead of being cut short above the content.
+  final Widget? backgroundOverlay;
+
   final PageController? pageController;
   final int? pageControllerLength;
   final bool squarePageIndicators;
@@ -50,6 +55,7 @@ class GamicoSimplePopup extends StatefulWidget {
     this.topLeftWidget,
     this.topRightWidget,
     this.additionalChild,
+    this.backgroundOverlay,
     this.pageController,
     this.pageControllerLength,
     this.squarePageIndicators = false,
@@ -216,6 +222,12 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
                             fit: StackFit.expand,
                             children: [
                               GamicoSimplePopup.background,
+                              if (widget.backgroundOverlay != null)
+                                Positioned.fill(
+                                  child: IgnorePointer(
+                                    child: widget.backgroundOverlay,
+                                  ),
+                                ),
                               Center(
                                 child: SizedBox(
                                   width: LayoutService.referenceWidth,

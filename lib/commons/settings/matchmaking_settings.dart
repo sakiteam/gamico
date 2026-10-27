@@ -32,6 +32,12 @@ class MatchmakingSettings<T extends GamicoUserModel> {
   /// encode a real player choice must set it explicitly.
   final String? poolKey;
 
+  /// Asks the server for its house bot when this player is left alone in the
+  /// pool: a real account that joins after a few seconds and whose seat this
+  /// player's own device plays (`house_bot` in the queue entry, see the game
+  /// node's `house`).
+  final bool houseBot;
+
   /// Seats this search plays with. `0` marks an infinite pool, whose
   /// [maxPlayers] is a cap rather than a target.
   int get seats => (maxPlayers ?? 2);
@@ -54,9 +60,10 @@ class MatchmakingSettings<T extends GamicoUserModel> {
   /// mode in (`CLASSIC` → `classic`); every existing caller is already
   /// lower-case, so nothing moves for them.
   String poolKeyFor(int? level) {
-    final base = (poolKey ?? mode ?? "default")
-        .toLowerCase()
-        .replaceAll(RegExp(r'[.#$/\[\]\s]'), '_');
+    final base = (poolKey ?? mode ?? "default").toLowerCase().replaceAll(
+      RegExp(r'[.#$/\[\]\s]'),
+      '_',
+    );
     if (level != null) return "${base}_${level.toString().padLeft(3, '0')}";
     return "${base}_$poolSeats";
   }
@@ -78,6 +85,7 @@ class MatchmakingSettings<T extends GamicoUserModel> {
     this.maxPlayers,
     this.isInfinite = false,
     this.poolKey,
+    this.houseBot = false,
   });
 
   /// Copy of these settings pinned to a single resolved [mode] — what the
@@ -92,6 +100,7 @@ class MatchmakingSettings<T extends GamicoUserModel> {
       maxPlayers: maxPlayers,
       isInfinite: isInfinite,
       poolKey: poolKey,
+      houseBot: houseBot,
     );
   }
 }

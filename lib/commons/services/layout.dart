@@ -27,10 +27,23 @@ class LayoutService {
     final realUsefulWidth = realTotalWidth - padding.horizontal;
     final realUsefulHeight = realTotalHeight - padding.vertical;
 
-    final ratio = min(
+    var ratio = min(
       realUsefulWidth / LayoutService.referenceWidth,
       realUsefulHeight / LayoutService.referenceHeight,
     );
+
+    // Android hands out a 0×0 MediaQuery while the surface is being recreated
+    // (background, split screen, rotation). A zero ratio turns every scaled*
+    // getter into 0 / 0 = NaN, which reaches the OverflowBoxes under the page
+    // FittedBoxes, puts NaN in the paint transform, and crashes the frame as
+    // soon as a TextField has the keyboard: the engine cannot JSON-encode the
+    // NaN in setEditableSizeAndTransform. Keep the last good layout instead;
+    // nothing is visible at that size anyway.
+    if (!(ratio > 0 && ratio.isFinite)) {
+      if (_initialized) return;
+      ratio = 1;
+    }
+    _initialized = true;
 
     final realUsedWidth = LayoutService.referenceWidth * ratio;
     final realUsedHeight = LayoutService.referenceHeight * ratio;
@@ -70,6 +83,8 @@ class LayoutService {
   //
 
   static late double ratio;
+
+  static bool _initialized = false;
 
   //
 

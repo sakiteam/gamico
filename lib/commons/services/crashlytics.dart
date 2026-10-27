@@ -25,6 +25,14 @@ class GamicoCrashlyticsService {
         );
         return;
       }
+      // An image that fails to load or decode ("Invalid image data" on some
+      // Android 10 devices) only leaves that one Image empty: the frame and the
+      // app carry on. Keep it visible, with the provider and asset key that the
+      // information collector attaches, but not as a crash.
+      if (details.library == 'image resource service') {
+        FirebaseCrashlytics.instance.recordFlutterError(details);
+        return;
+      }
       FirebaseCrashlytics.instance.recordFlutterFatalError(details);
     };
 

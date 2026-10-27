@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'dart:typed_data';
+import 'dart:ui' show Image;
 import 'package:bloc/bloc.dart';
+import 'package:flame/flame.dart';
+import 'package:flutter/painting.dart' show decodeImageFromList;
 import 'package:gamico/commons/global/gamico.dart';
 
 import 'package:meta/meta.dart';
@@ -132,12 +136,28 @@ class CharacterCubit extends Cubit<CharacterState> {
       String n = index < 10 ? "0$index" : "$index";
       try {
         spritesList.add(
-          await flame_components.Sprite.load(
-            "${Gamico.instance.characterSettings?.name}/$name/$n.png",
+          flame_components.Sprite(
+            await _loadImage(
+              "${Gamico.instance.characterSettings?.name}/$name/$n.png",
+            ),
           ),
         );
       } catch (_) {}
     }
+  }
+
+  // Not Sprite.load: Flame's image cache chains a `.then` without onError on
+  // every load, so a frame that fails to decode (low memory, damaged install)
+  // escapes this try/catch as an uncaught, fatal error — and the failed future
+  // stays cached. Decoding here keeps the error catchable and only caches
+  // images that did decode.
+  Future<Image> _loadImage(String path) async {
+    final images = Flame.images;
+    if (images.containsKey(path)) return images.fromCache(path);
+    final data = await images.bundle.load("${images.prefix}$path");
+    final image = await decodeImageFromList(Uint8List.view(data.buffer));
+    images.add(path, image);
+    return image;
   }
 
   void setPosition() async {

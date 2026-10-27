@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -223,6 +224,12 @@ class NotificationService {
   /// own game flow instead of the generic game page.
   static Future<bool> Function(ReceivedAction action)? invitationActionHandler;
 
+  /// App-level handler tried first for every notification action: the app's
+  /// own local notifications (a reminder that should open a given screen, for
+  /// instance) carry payloads gamico knows nothing about. Returning true
+  /// marks the action handled and skips gamico's own routing below.
+  static Future<bool> Function(ReceivedAction action)? appActionHandler;
+
   /// App-level handler for friend-request notification actions (a distinct
   /// domain from game invitations above, gated by the `friend_request_id`
   /// payload key instead of `invitation_id`). Unlike [invitationActionHandler]
@@ -245,6 +252,19 @@ class NotificationService {
   turnNotificationHandler;
   static Future<void> Function(Map<String, dynamic> data)?
   turnNotificationEndHandler;
+
+  /// What awesome_notifications calls for a tapped notification or button,
+  /// instead of [onActionReceivedMethod]. Must be a top-level or static
+  /// function: a *background* action (see [showReplyableMessageNotification])
+  /// runs it in an isolate where no static set at startup exists, so the app
+  /// supplies the entry point itself, and it is expected to hand everything it
+  /// does not recognise on to [onActionReceivedMethod].
+  static Future<void> Function(ReceivedAction action)? actionListener;
+
+  /// App-level handler for a pushed alert tapped while the app was not in the
+  /// foreground (the iOS side of a notification the OS drew itself): the
+  /// push's `data`. Also called for the push that launched the app.
+  static Future<void> Function(Map<String, dynamic> data)? pushOpenedHandler;
 
   static bool _initialized = false;
   static bool _subscribingToDefaultTopic = false;
@@ -275,7 +295,8 @@ class NotificationService {
 
     // Listen for notification actions
     AwesomeNotifications().setListeners(
-      onActionReceivedMethod: NotificationService.onActionReceivedMethod,
+      onActionReceivedMethod:
+          actionListener ?? NotificationService.onActionReceivedMethod,
     );
   }
 
@@ -389,6 +410,8 @@ class NotificationService {
   static Future<void> onActionReceivedMethod(
     ReceivedAction receivedAction,
   ) async {
+    if (await appActionHandler?.call(receivedAction) ?? false) return;
+
     final payload = receivedAction.payload;
 
     // Either a live request (buttons, keyed by `friend_request_id`) or the
@@ -626,6 +649,85 @@ class NotificationService {
     await serialized(
       () => AwesomeNotifications().cancel(invitationId.hashCode & 0x7fffffff),
     );
+  }
+
+  /// Key of the button of [showReplyableMessageNotification] that takes a
+  /// typed answer (`ReceivedAction.buttonKeyInput`).
+  static const String replyButtonKey = 'REPLY';
+
+  /// Channel of [showReplyableMessageNotification] when it only updates what
+  /// is on screen (our own reply added to it): same look, no sound.
+  static const String quietMessageChannel = 'message_updates';
+
+  /// A conversation to answer: [data] carries the `conversation_id` it belongs
+  /// to, the `title`, and either a `history` (a JSON list of lines, oldest
+  /// first, shown as the notification's text) or a plain `body`. The
+  /// "Répondre" button takes the answer right in the notification, as a
+  /// background action — the app is not opened — and a plain tap opens the
+  /// app; both reach [actionListener] with the conversation, title and
+  /// history in the payload, so a reply can add itself to the history and show
+  /// it again ([quiet]: without making a sound).
+  ///
+  /// There is one notification per conversation: a new message replaces the
+  /// previous one rather than stacking.
+  static Future<void> showReplyableMessageNotification(
+    Map<String, dynamic> data, {
+    bool quiet = false,
+  }) async {
+    if (!(await allowed())) return;
+
+    final conversationId = data['conversation_id']?.toString();
+    if (conversationId == null || conversationId.isEmpty) return;
+
+    final history = replyableHistory(data['history']);
+    final body = history.isEmpty
+        ? data['body']?.toString()
+        : history.join('\n');
+
+    try {
+      await serialized(
+        () => AwesomeNotifications().createNotification(
+          content: NotificationContent(
+            // hashCode can be negative, which awesome_notifications rejects.
+            id: conversationId.hashCode & 0x7fffffff,
+            channelKey: quiet ? quietMessageChannel : 'default',
+            title: data['title']?.toString(),
+            body: body,
+            payload: {
+              'conversation_id': conversationId,
+              'title': data['title']?.toString() ?? '',
+              'history': jsonEncode(history),
+            },
+            notificationLayout: NotificationLayout.BigText,
+            category: NotificationCategory.Message,
+            wakeUpScreen: !quiet,
+            displayOnForeground: true,
+          ),
+          actionButtons: [
+            NotificationActionButton(
+              key: replyButtonKey,
+              label: 'Répondre',
+              requireInputText: true,
+              actionType: ActionType.SilentBackgroundAction,
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      debugPrint("Error creating replyable message notification: $e");
+    }
+  }
+
+  /// The lines of a `history` (a JSON list, or already decoded), empty when it
+  /// is missing or malformed.
+  static List<String> replyableHistory(Object? raw) {
+    try {
+      final decoded = raw is String ? jsonDecode(raw) : raw;
+      if (decoded is! List) return const [];
+      return [for (final line in decoded) line.toString()];
+    } catch (_) {
+      return const [];
+    }
   }
 
   static Future<void> showFriendRequestNotification({
@@ -895,6 +997,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await NotificationService.showTurnNotification(message.data);
   } else if (message.data['type'] == 'turn_notification_end') {
     await NotificationService.cancelTurnNotificationById(message.data);
+  } else if (message.data['type'] == 'house_message') {
+    // Android only gets the data (the app draws the notification, with its
+    // reply button); iOS's alert was drawn by the OS, handled above.
+    await NotificationService.showReplyableMessageNotification(message.data);
   } else if (message.data['type'] == 'game_started') {
     await NotificationService.showGameStartedNotification(message.data);
   }
@@ -947,6 +1053,11 @@ Future<void> handleForegroundMessage(RemoteMessage message) async {
     await NotificationService.showTurnNotification(message.data);
   } else if (message.data['type'] == 'turn_notification_end') {
     await NotificationService.cancelTurnNotificationById(message.data);
+  } else if (message.data['type'] == 'house_message') {
+    // While the app is up neither platform shows the push itself (iOS's
+    // foreground alert is off, Android's is data-only): it is drawn here, with
+    // its reply button.
+    await NotificationService.showReplyableMessageNotification(message.data);
   } else if (message.data['type'] == 'game_started') {
     await NotificationService.showGameStartedNotification(message.data);
   }
@@ -958,6 +1069,7 @@ Future<void> handleMessageOpenedApp(RemoteMessage message) async {
     // La notification a déjà été créée, pas besoin de la recréer
     // On pourrait ajouter ici une logique pour ouvrir directement l'écran approprié
   }
+  await NotificationService.pushOpenedHandler?.call(message.data);
 }
 
 Future<void> handleInitialMessage(RemoteMessage message) async {
@@ -966,4 +1078,5 @@ Future<void> handleInitialMessage(RemoteMessage message) async {
     // La notification a déjà été créée, pas besoin de la recréer
     // On pourrait ajouter ici une logique pour ouvrir directement l'écran approprié
   }
+  await NotificationService.pushOpenedHandler?.call(message.data);
 }
