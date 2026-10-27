@@ -95,6 +95,16 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
     }
   }
 
+  /// Whether the focused field sits in this popup: only then is the keyboard
+  /// this popup's to dodge. A keyboard still closing from the screen behind
+  /// (showPopup unfocuses it), or an inset iOS never cleared, must not push
+  /// the popup to the top of the screen.
+  bool _ownsFocus() {
+    final focused = FocusManager.instance.primaryFocus?.context;
+    if (focused == null || !focused.mounted) return false;
+    return focused.findAncestorStateOfType<_GamicoSimplePopupState>() == this;
+  }
+
   @override
   Widget build(BuildContext context) {
     const topPadding = 24.0;
@@ -134,7 +144,10 @@ class _GamicoSimplePopupState extends State<GamicoSimplePopup> {
       mediaQuery.size.height - popupScaledHeight * LayoutService.ratio,
     );
 
-    final keyboardLift = min(mediaQuery.viewInsets.bottom, availableSpace);
+    // Rebuilt on every inset change, so focus is re-read as the keyboard moves.
+    final keyboardLift = _ownsFocus()
+        ? min(mediaQuery.viewInsets.bottom, availableSpace)
+        : 0.0;
 
     return PopScope(
       canPop: widget.dismissible,
