@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:gamico/commons/services/color.dart';
+import 'package:gamico/features/game/widgets/game_replay_vote_juice.dart';
 import 'package:gamico/languages/languages.dart';
 
 /// Clock counting down to the moment the rematch starts without the players
@@ -29,6 +30,15 @@ class _GamicoReplayCountdownDialState extends State<GamicoReplayCountdownDial>
     duration: const Duration(seconds: 1),
   )..repeat();
 
+  /// The last seconds' ticks.
+  final GamicoCountdownBeat _beat = GamicoCountdownBeat();
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker.addListener(() => _beat.update(context, _remainingSeconds));
+  }
+
   @override
   void dispose() {
     _ticker.dispose();
@@ -53,12 +63,19 @@ class _GamicoReplayCountdownDialState extends State<GamicoReplayCountdownDial>
   @override
   Widget build(BuildContext context) {
     final l = GamicoLanguages.of(context);
-    final accent = ColorService.accentColor;
 
     return AnimatedBuilder(
       animation: _ticker,
       builder: (context, _) {
         final remaining = _remainingSeconds;
+        // Red, with the digit beating, over the last seconds.
+        final accent = GamicoReplayVoteJuice.countdownColor(
+          ColorService.accentColor,
+          remaining,
+        );
+        final pulse = GamicoReplayVoteJuice.countdownPulse(
+          widget.duration.inMilliseconds - _elapsed.inMilliseconds,
+        );
 
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -85,14 +102,17 @@ class _GamicoReplayCountdownDialState extends State<GamicoReplayCountdownDial>
                   width: 50,
                   height: 50,
                   child: Center(
-                    child: Text(
-                      "${remaining}s",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
-                        shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                    child: Transform.scale(
+                      scale: pulse,
+                      child: Text(
+                        "${remaining}s",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                          shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                        ),
                       ),
                     ),
                   ),

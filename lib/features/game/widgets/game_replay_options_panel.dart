@@ -5,6 +5,7 @@ import 'package:gamico/commons/services/animation.dart';
 import 'package:gamico/commons/services/color.dart';
 import 'package:gamico/features/game/cubits/remote/remote_game_cubit.dart';
 import 'package:gamico/features/game/utilities/replay_option.dart';
+import 'package:gamico/features/game/widgets/game_replay_vote_juice.dart';
 import 'package:gamico/languages/languages.dart';
 
 /// The choices offered for the rematch, each showing how many players picked
@@ -128,42 +129,46 @@ class _OptionCard extends StatelessWidget {
             const SizedBox(height: 8),
             Expanded(
               child: Center(
-                child: votesCount > 0
-                    ? Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected ? accent : Colors.white24,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.person,
-                              size: 10,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 2),
-                            Text(
-                              "$votesCount",
-                              style: const TextStyle(
+                // Around the dash too: the first vote must pop as well.
+                child: GamicoVoteCountPop(
+                  count: votesCount,
+                  child: votesCount > 0
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected ? accent : Colors.white24,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.person,
+                                size: 10,
                                 color: Colors.white,
-                                fontSize: 12,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 2),
+                              Text(
+                                "$votesCount",
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Text(
+                          "-",
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            fontSize: 10.5,
+                          ),
                         ),
-                      )
-                    : Text(
-                        "-",
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.3),
-                          fontSize: 10.5,
-                        ),
-                      ),
+                ),
               ),
             ),
           ],

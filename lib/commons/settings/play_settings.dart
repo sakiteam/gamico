@@ -1,4 +1,4 @@
-import 'package:meta/meta.dart';
+import 'package:flutter/widgets.dart';
 import 'package:gamico/commons/cubits/user/user_cubit.dart';
 import 'package:gamico/features/game/utilities/roll_call_panel_builder.dart';
 
@@ -65,6 +65,15 @@ class PlaySettings {
   /// generic light one. Leave null to keep the default look.
   final GamicoRollCallPanelBuilder? rollCallPanelBuilder;
 
+  /// Lets the game being played dress the generic end-of-game popup
+  /// ([GamicoGamePopup]): its own icon in place of the plain trophy or sad
+  /// face, and a layer laid over the popup — confetti, what the game paid.
+  /// Consulted as the popup builds, with the game's result ([victory] null
+  /// for a draw). Returning null — or leaving the hook null — keeps the
+  /// default look. Adventure stars, when shown, keep the icon's place.
+  final GamicoGamePopupDecor? Function(BuildContext context, bool? victory)?
+  gamePopupDecor;
+
   const PlaySettings({
     required this.activePlayersLeaderboardId,
     required this.inactivePlayersLeaderboardId,
@@ -77,5 +86,19 @@ class PlaySettings {
     this.suppressEndOfGamePopup,
     this.suppressCongratulationsMessage,
     this.rollCallPanelBuilder,
+    this.gamePopupDecor,
   });
+}
+
+/// See [PlaySettings.gamePopupDecor].
+@immutable
+class GamicoGamePopupDecor {
+  /// Replaces the popup's icon. Null keeps the default one.
+  final Widget? icon;
+
+  /// Laid over the whole popup content, never taking a tap. Null adds
+  /// nothing.
+  final Widget? overlay;
+
+  const GamicoGamePopupDecor({this.icon, this.overlay});
 }

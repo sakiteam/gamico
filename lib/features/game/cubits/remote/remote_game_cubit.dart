@@ -1757,6 +1757,13 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
 
     // A rematch resolved by vote leaves out whoever did not ask for it (see
     // [_launchReplay]); everything below then works off the shortened table.
+    // The house bot stays only with the device that plays it: left behind by
+    // its driver, it would sit at the new table with nobody to play its seat.
+    final house = currentGame?.house;
+    final houseKept =
+        houseSeatId != null &&
+        (!_replayLaunched ||
+            state.replayPlayerIds.contains(currentGame?.houseDriver));
     final retainedPlayers = _replayLaunched
         ? Map<String, GamicoGamePlayerModel>.fromEntries(
             (currentGame?.players?.entries ??
@@ -1764,7 +1771,9 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
                 .where(
                   (e) =>
                       e.value.userId == null ||
-                      _isBotSeat(e.value.userId) ||
+                      (e.value.userId == houseSeatId
+                          ? houseKept
+                          : _isBotSeat(e.value.userId)) ||
                       state.replayPlayerIds.contains(e.value.userId),
                 ),
           )
@@ -1778,11 +1787,12 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
         .map((e) => e.value.userId)
         .where((id) => id == null || !_isBotSeat(id))
         .toList();
-    // At a house table its driver is the only device there is.
-    final isFirstJoiner =
-        drivesHouse ||
-        (sortedPlayerUids.length > 1 &&
-            sortedPlayerUids[1] == LocalStorageService.uid);
+    // At a house table its driver creates the new game, and it alone: with
+    // other players there too, the usual pick would make a second one.
+    final isFirstJoiner = houseKept
+        ? drivesHouse
+        : sortedPlayerUids.length > 1 &&
+              sortedPlayerUids[1] == LocalStorageService.uid;
 
     if (isFirstJoiner) {
       newGameId = await gamesRepository.createGame(
@@ -1791,7 +1801,7 @@ class GamicoRemoteGameCubit extends Cubit<GamicoRemoteGameState> {
           players: retainedPlayers,
           status: "CREATED",
           // The rematch keeps the house bot, and the device that plays it.
-          house: currentGame?.house,
+          house: houseKept ? house : null,
         ),
       );
 

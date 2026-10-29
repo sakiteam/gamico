@@ -998,9 +998,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   } else if (message.data['type'] == 'turn_notification_end') {
     await NotificationService.cancelTurnNotificationById(message.data);
   } else if (message.data['type'] == 'house_message') {
-    // Android only gets the data (the app draws the notification, with its
-    // reply button); iOS's alert was drawn by the OS, handled above.
-    await NotificationService.showReplyableMessageNotification(message.data);
+    // Android only: the app draws the notification, with its reply button.
+    // iOS shows none (the developers read them in the app's Messages page).
+    if (!Platform.isIOS) {
+      await NotificationService.showReplyableMessageNotification(message.data);
+    }
   } else if (message.data['type'] == 'game_started') {
     await NotificationService.showGameStartedNotification(message.data);
   }
@@ -1054,10 +1056,11 @@ Future<void> handleForegroundMessage(RemoteMessage message) async {
   } else if (message.data['type'] == 'turn_notification_end') {
     await NotificationService.cancelTurnNotificationById(message.data);
   } else if (message.data['type'] == 'house_message') {
-    // While the app is up neither platform shows the push itself (iOS's
-    // foreground alert is off, Android's is data-only): it is drawn here, with
-    // its reply button.
-    await NotificationService.showReplyableMessageNotification(message.data);
+    // Android's push is data-only: it is drawn here, with its reply button.
+    // iOS shows none (the developers read them in the app's Messages page).
+    if (!Platform.isIOS) {
+      await NotificationService.showReplyableMessageNotification(message.data);
+    }
   } else if (message.data['type'] == 'game_started') {
     await NotificationService.showGameStartedNotification(message.data);
   }

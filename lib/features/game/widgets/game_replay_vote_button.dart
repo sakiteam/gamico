@@ -9,6 +9,7 @@ import 'package:gamico/features/game/cubits/remote/remote_game_cubit.dart';
 import 'package:gamico/features/game/utilities/replay_option.dart';
 import 'package:gamico/features/game/widgets/game_replay_countdown_dial.dart';
 import 'package:gamico/features/game/widgets/game_replay_options_panel.dart';
+import 'package:gamico/features/game/widgets/game_replay_vote_juice.dart';
 import 'package:gamico/languages/languages.dart';
 
 /// "Rejouer" at the end of an online match.
@@ -130,17 +131,23 @@ class _GamicoReplayVoteButtonState extends State<GamicoReplayVoteButton>
         .map((option) => option.label)
         .firstOrNull;
 
-    return GamicoIconTextButton(
-      key: _buttonKey,
-      iconData: isReady ? Icons.check_circle : Icons.refresh,
-      text: possible
-          ? "${label ?? l.gamePopupReplay}"
-                " (${state.replayReadyCount}/${state.replayTotalCount})"
-          : l.gamePopupReplay,
-      color: isReady ? ColorService.accentColor : null,
-      // Replaying takes the same players: once everyone else has left there is
-      // nobody to play, and only "Nouvelle partie" remains.
-      onPressed: possible ? _handleTap : null,
+    // Hops when another player's vote lands, glows once the table is in.
+    return GamicoVoteBump(
+      count: possible ? state.replayReadyCount : 0,
+      total: possible ? state.replayTotalCount : 0,
+      mine: isReady,
+      child: GamicoIconTextButton(
+        key: _buttonKey,
+        iconData: isReady ? Icons.check_circle : Icons.refresh,
+        text: possible
+            ? "${label ?? l.gamePopupReplay}"
+                  " (${state.replayReadyCount}/${state.replayTotalCount})"
+            : l.gamePopupReplay,
+        color: isReady ? ColorService.accentColor : null,
+        // Replaying takes the same players: once everyone else has left there is
+        // nobody to play, and only "Nouvelle partie" remains.
+        onPressed: possible ? _handleTap : null,
+      ),
     );
   }
 }

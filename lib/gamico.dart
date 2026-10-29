@@ -238,6 +238,7 @@ export 'features/game/widgets/game_pass_button.dart';
 export 'features/game/widgets/game_passed_tutorial_popup.dart';
 export 'features/game/widgets/game_popup.dart';
 export 'features/game/widgets/game_popup_stars.dart';
+export 'features/game/widgets/game_replay_vote_juice.dart';
 export 'features/game/widgets/game_popup_stars_scaler.dart';
 export 'features/game/widgets/game_profile_poster.dart';
 export 'features/game/widgets/game_progress_tutorial_popup.dart';

@@ -51,6 +51,13 @@ class GamicoGamePopup extends StatelessWidget {
         ? gameMode.levelsBuilder(context)
         : null;
 
+    final showStars =
+        victory == true && gameMode.displayStarsAfterVictory(context);
+    final decor = Gamico.instance.playSettings?.gamePopupDecor?.call(
+      context,
+      victory,
+    );
+
     return GamicoPopup(
       additionalChild: Gamico.instance.admobSettings?.displayAdButton == false
           ? null
@@ -66,41 +73,58 @@ class GamicoGamePopup extends StatelessWidget {
                     )
                   : null,
             ),
-      child: GamicoPoster(
-        icon: victory == null
-            ? Icons.balance
-            : victory
-            ? Icons.emoji_events
-            : Icons.sentiment_dissatisfied,
-        iconWidget:
-            victory == true && gameMode.displayStarsAfterVictory(context)
-            ? const GamePopupStars()
-            : null,
-        title: gameMode.gamePopupTitle(context) ?? getDefaultTitle(context),
-        description: gameMode.gamePopupDescription(context) ?? "",
-        contentPadding: EdgeInsets.zero,
-        content:
-            levelsBuilder ??
-            Row(
-              key: gameMode.gamePopupContentKey(context),
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: gameMode.gamePopupButtons(
-                context,
-                const GamicoGameExitButton(),
-                GamicoGameReplayButton(
-                  enabled:
-                      gameMode.isPossibleToPlayAgain(context) &&
-                      (gameMode.isOpponentAvailable(context) ||
-                          Gamico.instance.playSettings?.singlePlayerWhenFake ==
-                              true),
-                  color: gameMode.isPossibleToPlayNextLevel(context)
-                      ? null
-                      : ColorService.accentColor,
+      child: _decorated(
+        decor?.overlay,
+        GamicoPoster(
+          icon: victory == null
+              ? Icons.balance
+              : victory
+              ? Icons.emoji_events
+              : Icons.sentiment_dissatisfied,
+          iconWidget: showStars ? const GamePopupStars() : decor?.icon,
+          title: gameMode.gamePopupTitle(context) ?? getDefaultTitle(context),
+          description: gameMode.gamePopupDescription(context) ?? "",
+          contentPadding: EdgeInsets.zero,
+          content:
+              levelsBuilder ??
+              Row(
+                key: gameMode.gamePopupContentKey(context),
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: gameMode.gamePopupButtons(
+                  context,
+                  const GamicoGameExitButton(),
+                  GamicoGameReplayButton(
+                    enabled:
+                        gameMode.isPossibleToPlayAgain(context) &&
+                        (gameMode.isOpponentAvailable(context) ||
+                            Gamico
+                                    .instance
+                                    .playSettings
+                                    ?.singlePlayerWhenFake ==
+                                true),
+                    color: gameMode.isPossibleToPlayNextLevel(context)
+                        ? null
+                        : ColorService.accentColor,
+                  ),
                 ),
               ),
-            ),
-        expandContent: true,
+          expandContent: true,
+        ),
       ),
+    );
+  }
+
+  /// [poster] under the game's own [overlay] (see
+  /// [PlaySettings.gamePopupDecor]), or alone.
+  Widget _decorated(Widget? overlay, Widget poster) {
+    if (overlay == null) return poster;
+    return Stack(
+      fit: StackFit.expand,
+      clipBehavior: Clip.none,
+      children: [
+        poster,
+        Positioned.fill(child: IgnorePointer(child: overlay)),
+      ],
     );
   }
 
