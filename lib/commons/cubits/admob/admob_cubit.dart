@@ -37,6 +37,13 @@ class AdmobCubit extends Cubit<AdmobState> {
   /// must not silence every later interstitial of the session.
   static const Duration _staleInterstitialAfter = Duration(minutes: 3);
 
+  /// The next ad is requested a little after the previous one closes, not
+  /// straight away: its web view would otherwise be built on the main thread
+  /// while the closing ad's is torn down (AdActivity.onStop) and the app comes
+  /// back to the foreground — enough to freeze low-end Android devices into
+  /// an ANR. Shorter than [_minInterstitialGap], so no ad is lost to it.
+  static const Duration _reloadAfterDismissDelay = Duration(seconds: 3);
+
   AdmobCubit({GamicoUserCubit? userCubit}) : this._(userCubit);
 
   AdmobCubit._(this._userCubit) : super(const AdmobState()) {
@@ -206,10 +213,17 @@ class AdmobCubit extends Cubit<AdmobState> {
           ad.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (ad) {
               MusicService.pausedByAd = false;
-              Future.microtask(() {
-                _rewardedAd = null;
-                ad.dispose();
-                loadRewardedAd();
+              _rewardedAd = null;
+              ad.dispose();
+              if (isClosed) return;
+              // Reported as loading straight away: the ad buttons must not
+              // look ready while the next ad waits for its request.
+              emit(
+                state.copyWith(rewardedAdStatus: AdmobRewardedAdStatus.loading),
+              );
+              _rewardedRetryTimer?.cancel();
+              _rewardedRetryTimer = Timer(_reloadAfterDismissDelay, () {
+                if (!isClosed) loadRewardedAd();
               });
             },
             onAdFailedToShowFullScreenContent: (ad, error) {
@@ -286,10 +300,17 @@ class AdmobCubit extends Cubit<AdmobState> {
               MusicService.pausedByAd = false;
               _interstitialBusySince = null;
               _lastInterstitialDismissedAt = DateTime.now();
-              Future.microtask(() {
-                _interstitialAd = null;
-                ad.dispose();
-                loadInterstitialAd();
+              _interstitialAd = null;
+              ad.dispose();
+              if (isClosed) return;
+              emit(
+                state.copyWith(
+                  interstitialAdStatus: AdmobInterstitialAdStatus.loading,
+                ),
+              );
+              _interstitialRetryTimer?.cancel();
+              _interstitialRetryTimer = Timer(_reloadAfterDismissDelay, () {
+                if (!isClosed) loadInterstitialAd();
               });
             },
             onAdFailedToShowFullScreenContent: (ad, error) {

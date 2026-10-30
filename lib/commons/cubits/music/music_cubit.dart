@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gamico/commons/services/admob.dart';
@@ -205,6 +206,15 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   /// (a chain landing, cards impacting, the win fanfare) doesn't thrash
   /// pipelines up and down within itself.
   static const Duration _oneShotPoolTrimDelay = Duration(seconds: 8);
+
+  /// Whether idle extra one-shot players are kept rather than disposed. The
+  /// trim exists for Android's native-thread budget; on iOS/macOS `dispose`
+  /// itself is the risk — just_audio's teardown crashes now and then in
+  /// `-[AVPlayerItem dealloc]`, and the trims were most of its calls.
+  /// [_maxOneShotPoolSize] still bounds what is kept.
+  static bool get _keepsIdleExtras =>
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS;
 
   Timer? _oneShotPoolTrimTimer;
 
@@ -811,7 +821,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   /// Disposes extra one-shot players (beyond [_baseOneShotPoolSize]) that have
   /// gone idle, handing their native threads back without cutting any sound.
   void _trimIdleExtras({AudioPlayer? except}) {
-    if (_isDisposed) return;
+    if (_isDisposed || _keepsIdleExtras) return;
     if (_oneShotPool.length <= _baseOneShotPoolSize) return;
 
     final extras = _oneShotPool.sublist(_baseOneShotPoolSize);
@@ -915,7 +925,7 @@ class GamicoMusicCubit extends Cubit<GamicoMusicState> {
   /// stopped early — the whole point of growing the pool was to never cut a
   /// sound short, and trimming must not undo that.
   Future<void> _trimOneShotPool() async {
-    if (_isDisposed) return;
+    if (_isDisposed || _keepsIdleExtras) return;
     if (_oneShotPool.length <= _baseOneShotPoolSize) return;
 
     final extras = _oneShotPool.sublist(_baseOneShotPoolSize);
